@@ -24,6 +24,8 @@ import SellerSettingsPage from "./pages/SellerSettingsPage";
 import SellerEarningsPage from "./pages/SellerEarningsPage";
 import AdminPage from "./pages/AdminPage";
 import NotFound from "./pages/NotFound";
+import PrivacyPolicyPage from "./pages/PrivacyPolicyPage";
+import TermsPage from "./pages/TermsPage";
 
 const queryClient = new QueryClient();
 
@@ -75,6 +77,8 @@ function AppRoutes() {
       <Route path="/seller/settings" element={<ProtectedRoute><SellerSettingsPage /></ProtectedRoute>} />
       <Route path="/seller/earnings" element={<ProtectedRoute><SellerEarningsPage /></ProtectedRoute>} />
       <Route path="/admin" element={<ProtectedRoute><AdminRoute><AdminPage /></AdminRoute></ProtectedRoute>} />
+      <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
+      <Route path="/terms" element={<TermsPage />} />
       <Route path="*" element={<NotFound />} />
     </Routes>
   );

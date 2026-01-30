@@ -199,10 +199,19 @@ export default function AuthPage() {
         <div className="absolute inset-0 bg-gradient-to-b from-black/30 to-background" />
         <div className="absolute bottom-4 left-4 right-4">
           <h1 className="text-2xl font-bold text-white drop-shadow-lg">
-            Greenfield Market
+            BlockEats
           </h1>
           <p className="text-sm text-white/90 drop-shadow">
-            Your community marketplace
+            Shriram Greenfield Marketplace
+          </p>
+        </div>
+      </div>
+
+      {/* Community Notice Banner */}
+      <div className="mx-4 -mt-2 mb-2 relative z-5">
+        <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-center">
+          <p className="text-xs text-amber-800 font-medium">
+            🏠 This app is exclusively for Shriram Greenfield residents
           </p>
         </div>
       </div>
@@ -215,7 +224,7 @@ export default function AuthPage() {
                 <div className="mx-auto w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mb-2">
                   <Mail className="text-primary" size={24} />
                 </div>
-                <CardTitle>Welcome to Greenfield</CardTitle>
+                <CardTitle>Welcome to BlockEats</CardTitle>
                 <CardDescription>
                   {authMode === 'login' ? 'Login to your account' : 'Create a new account'}
                 </CardDescription>
@@ -424,10 +433,17 @@ export default function AuthPage() {
           </CardContent>
         </Card>
 
-        <p className="text-center text-xs text-muted-foreground mt-6 px-4">
-          By continuing, you agree to our Terms of Service and Privacy Policy.
-          This marketplace is exclusively for Shriram Greenfield residents.
-        </p>
+        <div className="text-center text-xs text-muted-foreground mt-6 px-4 space-y-2">
+          <p>
+            By continuing, you agree to our{' '}
+            <a href="/terms" className="text-primary underline">Terms of Service</a>
+            {' '}and{' '}
+            <a href="/privacy-policy" className="text-primary underline">Privacy Policy</a>.
+          </p>
+          <p className="font-medium">
+            This marketplace is exclusively for Shriram Greenfield residents.
+          </p>
+        </div>
       </div>
     </div>
   );

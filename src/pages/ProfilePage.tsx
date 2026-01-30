@@ -51,6 +51,8 @@ export default function ProfilePage() {
     { icon: Bell, label: 'Notifications', to: '/notifications' },
     { icon: HelpCircle, label: 'Help & Guide', to: '/help' },
     { icon: FileText, label: 'Community Rules', to: '/community-rules' },
+    { icon: Shield, label: 'Privacy Policy', to: '/privacy-policy' },
+    { icon: FileText, label: 'Terms & Conditions', to: '/terms' },
     ...(isAdmin ? [{ icon: Shield, label: 'Admin Panel', to: '/admin' }] : []),
   ];
 
@@ -134,7 +136,7 @@ export default function ProfilePage() {
         </Button>
 
         <p className="text-center text-xs text-muted-foreground mt-4">
-          Greenfield Market v3.5 • Phase 3.5
+          BlockEats v1.4.0 • Shriram Greenfield
         </p>
       </div>
     </AppLayout>
