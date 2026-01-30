@@ -14,6 +14,36 @@ export type Database = {
   }
   public: {
     Tables: {
+      admin_settings: {
+        Row: {
+          created_at: string | null
+          description: string | null
+          id: string
+          is_active: boolean | null
+          key: string
+          updated_at: string | null
+          value: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          key: string
+          updated_at?: string | null
+          value?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          key?: string
+          updated_at?: string | null
+          value?: string | null
+        }
+        Relationships: []
+      }
       cart_items: {
         Row: {
           created_at: string | null
@@ -45,6 +75,75 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      category_config: {
+        Row: {
+          category: Database["public"]["Enums"]["service_category"]
+          color: string
+          created_at: string | null
+          display_name: string
+          display_order: number | null
+          enquiry_only: boolean | null
+          has_date_range: boolean | null
+          has_duration: boolean | null
+          has_quantity: boolean | null
+          icon: string
+          id: string
+          is_active: boolean | null
+          is_negotiable: boolean | null
+          is_physical_product: boolean | null
+          parent_group: string
+          requires_delivery: boolean | null
+          requires_preparation: boolean | null
+          requires_time_slot: boolean | null
+          supports_cart: boolean | null
+          updated_at: string | null
+        }
+        Insert: {
+          category: Database["public"]["Enums"]["service_category"]
+          color: string
+          created_at?: string | null
+          display_name: string
+          display_order?: number | null
+          enquiry_only?: boolean | null
+          has_date_range?: boolean | null
+          has_duration?: boolean | null
+          has_quantity?: boolean | null
+          icon: string
+          id?: string
+          is_active?: boolean | null
+          is_negotiable?: boolean | null
+          is_physical_product?: boolean | null
+          parent_group: string
+          requires_delivery?: boolean | null
+          requires_preparation?: boolean | null
+          requires_time_slot?: boolean | null
+          supports_cart?: boolean | null
+          updated_at?: string | null
+        }
+        Update: {
+          category?: Database["public"]["Enums"]["service_category"]
+          color?: string
+          created_at?: string | null
+          display_name?: string
+          display_order?: number | null
+          enquiry_only?: boolean | null
+          has_date_range?: boolean | null
+          has_duration?: boolean | null
+          has_quantity?: boolean | null
+          icon?: string
+          id?: string
+          is_active?: boolean | null
+          is_negotiable?: boolean | null
+          is_physical_product?: boolean | null
+          parent_group?: string
+          requires_delivery?: boolean | null
+          requires_preparation?: boolean | null
+          requires_time_slot?: boolean | null
+          supports_cart?: boolean | null
+          updated_at?: string | null
+        }
+        Relationships: []
       }
       chat_messages: {
         Row: {
@@ -238,11 +337,19 @@ export type Database = {
           buyer_id: string | null
           created_at: string | null
           delivery_address: string | null
+          deposit_paid: boolean | null
+          deposit_refunded: boolean | null
           id: string
           notes: string | null
+          order_type: string | null
           payment_status: string | null
           payment_type: string | null
           rejection_reason: string | null
+          rental_end_date: string | null
+          rental_start_date: string | null
+          scheduled_date: string | null
+          scheduled_time_end: string | null
+          scheduled_time_start: string | null
           seller_id: string | null
           status: Database["public"]["Enums"]["order_status"] | null
           total_amount: number
@@ -253,11 +360,19 @@ export type Database = {
           buyer_id?: string | null
           created_at?: string | null
           delivery_address?: string | null
+          deposit_paid?: boolean | null
+          deposit_refunded?: boolean | null
           id?: string
           notes?: string | null
+          order_type?: string | null
           payment_status?: string | null
           payment_type?: string | null
           rejection_reason?: string | null
+          rental_end_date?: string | null
+          rental_start_date?: string | null
+          scheduled_date?: string | null
+          scheduled_time_end?: string | null
+          scheduled_time_start?: string | null
           seller_id?: string | null
           status?: Database["public"]["Enums"]["order_status"] | null
           total_amount: number
@@ -268,11 +383,19 @@ export type Database = {
           buyer_id?: string | null
           created_at?: string | null
           delivery_address?: string | null
+          deposit_paid?: boolean | null
+          deposit_refunded?: boolean | null
           id?: string
           notes?: string | null
+          order_type?: string | null
           payment_status?: string | null
           payment_type?: string | null
           rejection_reason?: string | null
+          rental_end_date?: string | null
+          rental_start_date?: string | null
+          scheduled_date?: string | null
+          scheduled_time_end?: string | null
+          scheduled_time_start?: string | null
           seller_id?: string | null
           status?: Database["public"]["Enums"]["order_status"] | null
           total_amount?: number
@@ -357,51 +480,81 @@ export type Database = {
       }
       products: {
         Row: {
+          available_slots: Json | null
           category: Database["public"]["Enums"]["product_category"]
+          condition: string | null
           created_at: string | null
+          deposit_amount: number | null
           description: string | null
           id: string
           image_url: string | null
           is_available: boolean | null
           is_bestseller: boolean | null
+          is_negotiable: boolean | null
           is_recommended: boolean | null
           is_urgent: boolean | null
           is_veg: boolean | null
+          listing_type: string | null
+          location_required: boolean | null
+          max_rental_duration: number | null
+          min_rental_duration: number | null
           name: string
           price: number
+          rental_period_type: string | null
           seller_id: string
+          service_duration_minutes: number | null
           updated_at: string | null
         }
         Insert: {
+          available_slots?: Json | null
           category: Database["public"]["Enums"]["product_category"]
+          condition?: string | null
           created_at?: string | null
+          deposit_amount?: number | null
           description?: string | null
           id?: string
           image_url?: string | null
           is_available?: boolean | null
           is_bestseller?: boolean | null
+          is_negotiable?: boolean | null
           is_recommended?: boolean | null
           is_urgent?: boolean | null
           is_veg?: boolean | null
+          listing_type?: string | null
+          location_required?: boolean | null
+          max_rental_duration?: number | null
+          min_rental_duration?: number | null
           name: string
           price: number
+          rental_period_type?: string | null
           seller_id: string
+          service_duration_minutes?: number | null
           updated_at?: string | null
         }
         Update: {
+          available_slots?: Json | null
           category?: Database["public"]["Enums"]["product_category"]
+          condition?: string | null
           created_at?: string | null
+          deposit_amount?: number | null
           description?: string | null
           id?: string
           image_url?: string | null
           is_available?: boolean | null
           is_bestseller?: boolean | null
+          is_negotiable?: boolean | null
           is_recommended?: boolean | null
           is_urgent?: boolean | null
           is_veg?: boolean | null
+          listing_type?: string | null
+          location_required?: boolean | null
+          max_rental_duration?: number | null
+          min_rental_duration?: number | null
           name?: string
           price?: number
+          rental_period_type?: string | null
           seller_id?: string
+          service_duration_minutes?: number | null
           updated_at?: string | null
         }
         Relationships: [
@@ -730,12 +883,72 @@ export type Database = {
         | "cancelled"
         | "picked_up"
         | "delivered"
+        | "enquired"
+        | "quoted"
+        | "scheduled"
+        | "in_progress"
+        | "returned"
       product_category:
         | "home_food"
         | "bakery"
         | "snacks"
         | "groceries"
         | "other"
+      service_category:
+        | "home_food"
+        | "bakery"
+        | "snacks"
+        | "groceries"
+        | "beverages"
+        | "tuition"
+        | "daycare"
+        | "coaching"
+        | "yoga"
+        | "dance"
+        | "music"
+        | "art_craft"
+        | "language"
+        | "fitness"
+        | "electrician"
+        | "plumber"
+        | "carpenter"
+        | "ac_service"
+        | "pest_control"
+        | "appliance_repair"
+        | "maid"
+        | "cook"
+        | "driver"
+        | "nanny"
+        | "tailoring"
+        | "laundry"
+        | "beauty"
+        | "mehendi"
+        | "salon"
+        | "tax_consultant"
+        | "it_support"
+        | "tutoring"
+        | "resume_writing"
+        | "equipment_rental"
+        | "vehicle_rental"
+        | "party_supplies"
+        | "baby_gear"
+        | "furniture"
+        | "electronics"
+        | "books"
+        | "toys"
+        | "kitchen"
+        | "clothing"
+        | "catering"
+        | "decoration"
+        | "photography"
+        | "dj_music"
+        | "pet_food"
+        | "pet_grooming"
+        | "pet_sitting"
+        | "dog_walking"
+        | "flat_rent"
+        | "roommate"
+        | "parking"
       user_role: "buyer" | "seller" | "admin"
       verification_status: "pending" | "approved" | "rejected" | "suspended"
     }
@@ -874,8 +1087,69 @@ export const Constants = {
         "cancelled",
         "picked_up",
         "delivered",
+        "enquired",
+        "quoted",
+        "scheduled",
+        "in_progress",
+        "returned",
       ],
       product_category: ["home_food", "bakery", "snacks", "groceries", "other"],
+      service_category: [
+        "home_food",
+        "bakery",
+        "snacks",
+        "groceries",
+        "beverages",
+        "tuition",
+        "daycare",
+        "coaching",
+        "yoga",
+        "dance",
+        "music",
+        "art_craft",
+        "language",
+        "fitness",
+        "electrician",
+        "plumber",
+        "carpenter",
+        "ac_service",
+        "pest_control",
+        "appliance_repair",
+        "maid",
+        "cook",
+        "driver",
+        "nanny",
+        "tailoring",
+        "laundry",
+        "beauty",
+        "mehendi",
+        "salon",
+        "tax_consultant",
+        "it_support",
+        "tutoring",
+        "resume_writing",
+        "equipment_rental",
+        "vehicle_rental",
+        "party_supplies",
+        "baby_gear",
+        "furniture",
+        "electronics",
+        "books",
+        "toys",
+        "kitchen",
+        "clothing",
+        "catering",
+        "decoration",
+        "photography",
+        "dj_music",
+        "pet_food",
+        "pet_grooming",
+        "pet_sitting",
+        "dog_walking",
+        "flat_rent",
+        "roommate",
+        "parking",
+      ],
       user_role: ["buyer", "seller", "admin"],
       verification_status: ["pending", "approved", "rejected", "suspended"],
     },

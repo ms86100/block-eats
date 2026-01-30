@@ -8,24 +8,28 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useAuth } from '@/contexts/AuthContext';
-import { CATEGORIES, ProductCategory } from '@/types/database';
-import { ArrowLeft, Store, Loader2 } from 'lucide-react';
+import { CategoryGroupGrid } from '@/components/category/CategoryGroupGrid';
+import { PARENT_GROUPS, ParentGroup, ServiceCategory } from '@/types/categories';
+import { ArrowLeft, Store, Loader2, ChevronRight } from 'lucide-react';
 import { toast } from 'sonner';
+import { cn } from '@/lib/utils';
 
 export default function BecomeSellerPage() {
   const navigate = useNavigate();
-  const { user, refreshProfile } = useAuth();
+  const { user } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
+  const [step, setStep] = useState(1);
+  const [selectedGroup, setSelectedGroup] = useState<ParentGroup | null>(null);
   const [formData, setFormData] = useState({
     business_name: '',
     description: '',
-    categories: [] as ProductCategory[],
+    categories: [] as string[],
     availability_start: '09:00',
     availability_end: '21:00',
     accepts_cod: true,
   });
 
-  const handleCategoryChange = (category: ProductCategory, checked: boolean) => {
+  const handleCategoryChange = (category: ServiceCategory, checked: boolean) => {
     if (checked) {
       setFormData({
         ...formData,
@@ -54,19 +58,19 @@ export default function BecomeSellerPage() {
 
     setIsLoading(true);
     try {
+      // Cast categories to any to handle the extended category types
       const { error } = await supabase.from('seller_profiles').insert({
         user_id: user.id,
         business_name: formData.business_name.trim(),
         description: formData.description.trim() || null,
-        categories: formData.categories,
+        categories: formData.categories as any,
         availability_start: formData.availability_start,
         availability_end: formData.availability_end,
         accepts_cod: formData.accepts_cod,
-      });
+      } as any);
 
       if (error) throw error;
 
-      // Note: Seller role is assigned by admin after approval
       toast.success('Application submitted! Awaiting admin approval.');
       navigate('/profile');
     } catch (error: any) {
@@ -76,6 +80,8 @@ export default function BecomeSellerPage() {
       setIsLoading(false);
     }
   };
+
+  const selectedGroupInfo = PARENT_GROUPS.find((g) => g.value === selectedGroup);
 
   return (
     <AppLayout showHeader={false} showNav={false}>
@@ -91,129 +97,202 @@ export default function BecomeSellerPage() {
           </div>
           <h1 className="text-2xl font-bold">Become a Seller</h1>
           <p className="text-muted-foreground mt-2">
-            Share your homemade food with Greenfield neighbors
+            Share your skills & products with Greenfield neighbors
           </p>
         </div>
 
-        <div className="space-y-5">
-          <div className="space-y-2">
-            <Label htmlFor="business_name">Business Name *</Label>
-            <Input
-              id="business_name"
-              placeholder="e.g., Amma's Kitchen"
-              value={formData.business_name}
-              onChange={(e) =>
-                setFormData({ ...formData, business_name: e.target.value })
-              }
+        {/* Step indicators */}
+        <div className="flex items-center justify-center gap-2 mb-6">
+          {[1, 2, 3].map((s) => (
+            <div
+              key={s}
+              className={cn(
+                'w-8 h-1 rounded-full transition-colors',
+                s <= step ? 'bg-primary' : 'bg-muted'
+              )}
             />
-          </div>
+          ))}
+        </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="description">Description</Label>
-            <Textarea
-              id="description"
-              placeholder="Tell customers about your food..."
-              value={formData.description}
-              onChange={(e) =>
-                setFormData({ ...formData, description: e.target.value })
-              }
-              rows={3}
-            />
-          </div>
+        {/* Step 1: Select Category Group */}
+        {step === 1 && (
+          <div className="space-y-5">
+            <div className="text-center mb-4">
+              <h2 className="font-semibold text-lg">What do you want to offer?</h2>
+              <p className="text-sm text-muted-foreground">
+                Select the type of service or product
+              </p>
+            </div>
 
-          <div className="space-y-3">
-            <Label>Categories *</Label>
             <div className="grid grid-cols-2 gap-3">
-              {CATEGORIES.map(({ value, label, icon }) => (
-                <label
+              {PARENT_GROUPS.map(({ value, label, icon, color, description }) => (
+                <button
                   key={value}
-                  className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
-                    formData.categories.includes(value)
-                      ? 'border-primary bg-primary/5'
-                      : 'border-border hover:bg-muted'
-                  }`}
+                  onClick={() => {
+                    setSelectedGroup(value);
+                    setFormData({ ...formData, categories: [] });
+                    setStep(2);
+                  }}
+                  className={cn(
+                    'flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all text-center',
+                    'hover:border-primary/50 hover:bg-muted/50'
+                  )}
                 >
-                  <Checkbox
-                    checked={formData.categories.includes(value)}
-                    onCheckedChange={(checked) =>
-                      handleCategoryChange(value, checked as boolean)
-                    }
-                  />
-                  <span className="text-lg">{icon}</span>
-                  <span className="text-sm font-medium">{label}</span>
-                </label>
+                  <div className={cn('w-12 h-12 rounded-xl flex items-center justify-center text-2xl', color)}>
+                    {icon}
+                  </div>
+                  <span className="font-medium text-sm">{label}</span>
+                </button>
               ))}
             </div>
           </div>
+        )}
 
-          <div className="space-y-2">
-            <Label>Availability Hours</Label>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label htmlFor="start" className="text-xs text-muted-foreground">
-                  Opens at
-                </Label>
-                <Input
-                  id="start"
-                  type="time"
-                  value={formData.availability_start}
-                  onChange={(e) =>
-                    setFormData({ ...formData, availability_start: e.target.value })
-                  }
-                />
+        {/* Step 2: Select Specific Categories */}
+        {step === 2 && selectedGroup && (
+          <div className="space-y-5">
+            <button
+              onClick={() => setStep(1)}
+              className="flex items-center gap-1 text-sm text-muted-foreground"
+            >
+              <ArrowLeft size={16} />
+              Change category
+            </button>
+
+            <div className="flex items-center gap-3 p-3 bg-muted rounded-lg">
+              <div className={cn('w-12 h-12 rounded-xl flex items-center justify-center text-2xl', selectedGroupInfo?.color)}>
+                {selectedGroupInfo?.icon}
               </div>
               <div>
-                <Label htmlFor="end" className="text-xs text-muted-foreground">
-                  Closes at
-                </Label>
-                <Input
-                  id="end"
-                  type="time"
-                  value={formData.availability_end}
-                  onChange={(e) =>
-                    setFormData({ ...formData, availability_end: e.target.value })
-                  }
-                />
+                <h3 className="font-semibold">{selectedGroupInfo?.label}</h3>
+                <p className="text-xs text-muted-foreground">{selectedGroupInfo?.description}</p>
               </div>
             </div>
-          </div>
 
-          <label className="flex items-center gap-3 p-3 rounded-lg border cursor-pointer">
-            <Checkbox
-              checked={formData.accepts_cod}
-              onCheckedChange={(checked) =>
-                setFormData({ ...formData, accepts_cod: checked as boolean })
-              }
+            <CategoryGroupGrid
+              variant="selection"
+              selectedGroup={selectedGroup}
+              selectedCategories={formData.categories as ServiceCategory[]}
+              onCategorySelect={handleCategoryChange}
+              onGroupSelect={() => {}}
             />
-            <div>
-              <span className="font-medium">Accept Cash on Delivery</span>
-              <p className="text-xs text-muted-foreground">
-                Allow customers to pay in cash
-              </p>
-            </div>
-          </label>
 
-          <div className="bg-muted rounded-lg p-4 text-sm">
-            <h4 className="font-semibold mb-2">What happens next?</h4>
-            <ul className="space-y-1 text-muted-foreground">
-              <li>• Your application will be reviewed by admin</li>
-              <li>• Once approved, you can add products</li>
-              <li>• Start receiving orders from neighbors!</li>
-            </ul>
+            <Button
+              className="w-full"
+              onClick={() => setStep(3)}
+              disabled={formData.categories.length === 0}
+            >
+              Continue
+              <ChevronRight size={16} className="ml-1" />
+            </Button>
           </div>
+        )}
 
-          <Button
-            className="w-full"
-            size="lg"
-            onClick={handleSubmit}
-            disabled={isLoading}
-          >
-            {isLoading ? (
-              <Loader2 className="animate-spin mr-2" size={18} />
-            ) : null}
-            Submit Application
-          </Button>
-        </div>
+        {/* Step 3: Business Details */}
+        {step === 3 && (
+          <div className="space-y-5">
+            <button
+              onClick={() => setStep(2)}
+              className="flex items-center gap-1 text-sm text-muted-foreground"
+            >
+              <ArrowLeft size={16} />
+              Change categories
+            </button>
+
+            <div className="space-y-2">
+              <Label htmlFor="business_name">Business Name *</Label>
+              <Input
+                id="business_name"
+                placeholder="e.g., Amma's Kitchen, Home Tutors"
+                value={formData.business_name}
+                onChange={(e) =>
+                  setFormData({ ...formData, business_name: e.target.value })
+                }
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="description">Description</Label>
+              <Textarea
+                id="description"
+                placeholder="Tell customers about what you offer..."
+                value={formData.description}
+                onChange={(e) =>
+                  setFormData({ ...formData, description: e.target.value })
+                }
+                rows={3}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Availability Hours</Label>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label htmlFor="start" className="text-xs text-muted-foreground">
+                    Opens at
+                  </Label>
+                  <Input
+                    id="start"
+                    type="time"
+                    value={formData.availability_start}
+                    onChange={(e) =>
+                      setFormData({ ...formData, availability_start: e.target.value })
+                    }
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="end" className="text-xs text-muted-foreground">
+                    Closes at
+                  </Label>
+                  <Input
+                    id="end"
+                    type="time"
+                    value={formData.availability_end}
+                    onChange={(e) =>
+                      setFormData({ ...formData, availability_end: e.target.value })
+                    }
+                  />
+                </div>
+              </div>
+            </div>
+
+            <label className="flex items-center gap-3 p-3 rounded-lg border cursor-pointer">
+              <Checkbox
+                checked={formData.accepts_cod}
+                onCheckedChange={(checked) =>
+                  setFormData({ ...formData, accepts_cod: checked as boolean })
+                }
+              />
+              <div>
+                <span className="font-medium">Accept Cash on Delivery</span>
+                <p className="text-xs text-muted-foreground">
+                  Allow customers to pay in cash
+                </p>
+              </div>
+            </label>
+
+            <div className="bg-muted rounded-lg p-4 text-sm">
+              <h4 className="font-semibold mb-2">What happens next?</h4>
+              <ul className="space-y-1 text-muted-foreground">
+                <li>• Your application will be reviewed by admin</li>
+                <li>• Once approved, you can add your offerings</li>
+                <li>• Start receiving orders from neighbors!</li>
+              </ul>
+            </div>
+
+            <Button
+              className="w-full"
+              size="lg"
+              onClick={handleSubmit}
+              disabled={isLoading}
+            >
+              {isLoading ? (
+                <Loader2 className="animate-spin mr-2" size={18} />
+              ) : null}
+              Submit Application
+            </Button>
+          </div>
+        )}
       </div>
     </AppLayout>
   );

@@ -1,0 +1,264 @@
+// Service Category Types for Society Super-App
+
+export type ServiceCategory =
+  // Food & Consumption
+  | 'home_food' | 'bakery' | 'snacks' | 'groceries' | 'beverages'
+  // Child Services
+  | 'tuition' | 'daycare' | 'coaching'
+  // Classes & Skills
+  | 'yoga' | 'dance' | 'music' | 'art_craft' | 'language' | 'fitness'
+  // Home Services
+  | 'electrician' | 'plumber' | 'carpenter' | 'ac_service' | 'pest_control' | 'appliance_repair'
+  // Domestic Help
+  | 'maid' | 'cook' | 'driver' | 'nanny'
+  // Personal Services
+  | 'tailoring' | 'laundry' | 'beauty' | 'mehendi' | 'salon'
+  // Professional Services
+  | 'tax_consultant' | 'it_support' | 'tutoring' | 'resume_writing'
+  // Rentals
+  | 'equipment_rental' | 'vehicle_rental' | 'party_supplies' | 'baby_gear'
+  // Buy & Sell
+  | 'furniture' | 'electronics' | 'books' | 'toys' | 'kitchen' | 'clothing'
+  // Events
+  | 'catering' | 'decoration' | 'photography' | 'dj_music'
+  // Pet Services
+  | 'pet_food' | 'pet_grooming' | 'pet_sitting' | 'dog_walking'
+  // Property
+  | 'flat_rent' | 'roommate' | 'parking';
+
+export type ParentGroup = 
+  | 'food' 
+  | 'classes' 
+  | 'services' 
+  | 'personal' 
+  | 'professional' 
+  | 'rentals' 
+  | 'resale' 
+  | 'events' 
+  | 'pets' 
+  | 'property';
+
+export type ListingType = 'product' | 'service' | 'rental' | 'resale';
+export type OrderType = 'purchase' | 'booking' | 'rental' | 'enquiry';
+export type RentalPeriodType = 'hourly' | 'daily' | 'weekly' | 'monthly';
+export type ItemCondition = 'new' | 'like_new' | 'good' | 'fair';
+
+export interface CategoryBehavior {
+  isPhysicalProduct: boolean;
+  requiresPreparation: boolean;
+  requiresTimeSlot: boolean;
+  requiresDelivery: boolean;
+  supportsCart: boolean;
+  enquiryOnly: boolean;
+  hasQuantity: boolean;
+  hasDuration: boolean;
+  hasDateRange: boolean;
+  isNegotiable: boolean;
+}
+
+export interface CategoryConfig {
+  id: string;
+  category: ServiceCategory;
+  displayName: string;
+  icon: string;
+  color: string;
+  parentGroup: ParentGroup;
+  behavior: CategoryBehavior;
+  displayOrder: number;
+  isActive: boolean;
+}
+
+// Parent group display info
+export const PARENT_GROUPS: { 
+  value: ParentGroup; 
+  label: string; 
+  icon: string; 
+  color: string;
+  description: string;
+}[] = [
+  { value: 'food', label: 'Food & Groceries', icon: '🍲', color: 'bg-orange-100 text-orange-600', description: 'Homemade food, snacks & daily essentials' },
+  { value: 'classes', label: 'Classes & Learning', icon: '📚', color: 'bg-indigo-100 text-indigo-600', description: 'Yoga, dance, music, tuition & more' },
+  { value: 'services', label: 'Home Services', icon: '🛠️', color: 'bg-blue-100 text-blue-600', description: 'Electrician, plumber, repairs & help' },
+  { value: 'personal', label: 'Personal Care', icon: '💇', color: 'bg-pink-100 text-pink-600', description: 'Beauty, salon, tailoring & laundry' },
+  { value: 'professional', label: 'Professional Help', icon: '💼', color: 'bg-emerald-100 text-emerald-600', description: 'Tax, IT support & consultations' },
+  { value: 'rentals', label: 'Rentals', icon: '🚲', color: 'bg-teal-100 text-teal-600', description: 'Equipment, party supplies & more' },
+  { value: 'resale', label: 'Buy & Sell', icon: '📦', color: 'bg-amber-100 text-amber-600', description: 'Pre-owned furniture, electronics & items' },
+  { value: 'events', label: 'Events', icon: '🎉', color: 'bg-violet-100 text-violet-600', description: 'Catering, decoration & photography' },
+  { value: 'pets', label: 'Pet Services', icon: '🐕', color: 'bg-lime-100 text-lime-600', description: 'Pet food, grooming & sitting' },
+  { value: 'property', label: 'Property', icon: '🏢', color: 'bg-slate-100 text-slate-600', description: 'Flats for rent, roommates & parking' },
+];
+
+// Default behavior flags for each parent group
+export const DEFAULT_GROUP_BEHAVIORS: Record<ParentGroup, CategoryBehavior> = {
+  food: {
+    isPhysicalProduct: true,
+    requiresPreparation: true,
+    requiresTimeSlot: false,
+    requiresDelivery: true,
+    supportsCart: true,
+    enquiryOnly: false,
+    hasQuantity: true,
+    hasDuration: false,
+    hasDateRange: false,
+    isNegotiable: false,
+  },
+  classes: {
+    isPhysicalProduct: false,
+    requiresPreparation: false,
+    requiresTimeSlot: true,
+    requiresDelivery: false,
+    supportsCart: false,
+    enquiryOnly: false,
+    hasQuantity: false,
+    hasDuration: true,
+    hasDateRange: false,
+    isNegotiable: false,
+  },
+  services: {
+    isPhysicalProduct: false,
+    requiresPreparation: false,
+    requiresTimeSlot: true,
+    requiresDelivery: false,
+    supportsCart: false,
+    enquiryOnly: false,
+    hasQuantity: false,
+    hasDuration: true,
+    hasDateRange: false,
+    isNegotiable: false,
+  },
+  personal: {
+    isPhysicalProduct: false,
+    requiresPreparation: false,
+    requiresTimeSlot: true,
+    requiresDelivery: false,
+    supportsCart: false,
+    enquiryOnly: false,
+    hasQuantity: false,
+    hasDuration: true,
+    hasDateRange: false,
+    isNegotiable: false,
+  },
+  professional: {
+    isPhysicalProduct: false,
+    requiresPreparation: false,
+    requiresTimeSlot: false,
+    requiresDelivery: false,
+    supportsCart: false,
+    enquiryOnly: true,
+    hasQuantity: false,
+    hasDuration: false,
+    hasDateRange: false,
+    isNegotiable: false,
+  },
+  rentals: {
+    isPhysicalProduct: true,
+    requiresPreparation: false,
+    requiresTimeSlot: false,
+    requiresDelivery: false,
+    supportsCart: false,
+    enquiryOnly: false,
+    hasQuantity: false,
+    hasDuration: false,
+    hasDateRange: true,
+    isNegotiable: false,
+  },
+  resale: {
+    isPhysicalProduct: true,
+    requiresPreparation: false,
+    requiresTimeSlot: false,
+    requiresDelivery: false,
+    supportsCart: false,
+    enquiryOnly: true,
+    hasQuantity: false,
+    hasDuration: false,
+    hasDateRange: false,
+    isNegotiable: true,
+  },
+  events: {
+    isPhysicalProduct: false,
+    requiresPreparation: true,
+    requiresTimeSlot: true,
+    requiresDelivery: true,
+    supportsCart: false,
+    enquiryOnly: false,
+    hasQuantity: false,
+    hasDuration: true,
+    hasDateRange: false,
+    isNegotiable: false,
+  },
+  pets: {
+    isPhysicalProduct: false,
+    requiresPreparation: false,
+    requiresTimeSlot: true,
+    requiresDelivery: false,
+    supportsCart: false,
+    enquiryOnly: false,
+    hasQuantity: false,
+    hasDuration: true,
+    hasDateRange: false,
+    isNegotiable: false,
+  },
+  property: {
+    isPhysicalProduct: false,
+    requiresPreparation: false,
+    requiresTimeSlot: false,
+    requiresDelivery: false,
+    supportsCart: false,
+    enquiryOnly: true,
+    hasQuantity: false,
+    hasDuration: false,
+    hasDateRange: false,
+    isNegotiable: true,
+  },
+};
+
+// Get listing type based on category behavior
+export function getListingType(behavior: CategoryBehavior): ListingType {
+  if (behavior.hasDateRange) return 'rental';
+  if (behavior.enquiryOnly && behavior.isNegotiable) return 'resale';
+  if (behavior.requiresTimeSlot || behavior.hasDuration) return 'service';
+  return 'product';
+}
+
+// Get order type based on category behavior
+export function getOrderType(behavior: CategoryBehavior): OrderType {
+  if (behavior.enquiryOnly) return 'enquiry';
+  if (behavior.hasDateRange) return 'rental';
+  if (behavior.requiresTimeSlot || behavior.hasDuration) return 'booking';
+  return 'purchase';
+}
+
+// Extended order status for services
+export type ExtendedOrderStatus = 
+  | 'placed' | 'accepted' | 'preparing' | 'ready' | 'picked_up' | 'delivered' | 'completed' | 'cancelled'
+  | 'enquired' | 'quoted' | 'scheduled' | 'in_progress' | 'returned';
+
+export const EXTENDED_ORDER_STATUS_LABELS: Record<ExtendedOrderStatus, { label: string; color: string }> = {
+  placed: { label: 'Order Placed', color: 'bg-blue-100 text-blue-800' },
+  accepted: { label: 'Accepted', color: 'bg-indigo-100 text-indigo-800' },
+  preparing: { label: 'Preparing', color: 'bg-yellow-100 text-yellow-800' },
+  ready: { label: 'Ready', color: 'bg-green-100 text-green-800' },
+  picked_up: { label: 'Picked Up', color: 'bg-teal-100 text-teal-800' },
+  delivered: { label: 'Delivered', color: 'bg-emerald-100 text-emerald-800' },
+  completed: { label: 'Completed', color: 'bg-gray-100 text-gray-800' },
+  cancelled: { label: 'Cancelled', color: 'bg-red-100 text-red-800' },
+  enquired: { label: 'Enquiry Sent', color: 'bg-purple-100 text-purple-800' },
+  quoted: { label: 'Quote Received', color: 'bg-orange-100 text-orange-800' },
+  scheduled: { label: 'Scheduled', color: 'bg-cyan-100 text-cyan-800' },
+  in_progress: { label: 'In Progress', color: 'bg-amber-100 text-amber-800' },
+  returned: { label: 'Returned', color: 'bg-slate-100 text-slate-800' },
+};
+
+export const ITEM_CONDITION_LABELS: Record<ItemCondition, { label: string; color: string }> = {
+  new: { label: 'Brand New', color: 'bg-green-100 text-green-800' },
+  like_new: { label: 'Like New', color: 'bg-teal-100 text-teal-800' },
+  good: { label: 'Good', color: 'bg-blue-100 text-blue-800' },
+  fair: { label: 'Fair', color: 'bg-yellow-100 text-yellow-800' },
+};
+
+export const RENTAL_PERIOD_LABELS: Record<RentalPeriodType, string> = {
+  hourly: 'per hour',
+  daily: 'per day',
+  weekly: 'per week',
+  monthly: 'per month',
+};

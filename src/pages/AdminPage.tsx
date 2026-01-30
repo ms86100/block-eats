@@ -22,10 +22,12 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Profile, SellerProfile, Review, PaymentRecord, ChatMessage, VerificationStatus, PAYMENT_STATUS_LABELS, PaymentStatus } from '@/types/database';
-import { Check, X, Users, Store, Package, Star, MessageSquare, Award, Eye, EyeOff, CreditCard, DollarSign, Flag, AlertTriangle } from 'lucide-react';
+import { Check, X, Users, Store, Package, Star, MessageSquare, Award, Eye, EyeOff, CreditCard, DollarSign, Flag, AlertTriangle, Settings } from 'lucide-react';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { Textarea } from '@/components/ui/textarea';
+import { ApiKeySettings } from '@/components/admin/ApiKeySettings';
+import { CategoryManager } from '@/components/admin/CategoryManager';
 
 interface Report {
   id: string;
@@ -269,13 +271,14 @@ export default function AdminPage() {
         </div>
 
         <Tabs defaultValue="users">
-          <TabsList className="w-full grid grid-cols-6">
+          <TabsList className="w-full grid grid-cols-7">
             <TabsTrigger value="users" className="text-[10px]">Users</TabsTrigger>
             <TabsTrigger value="sellers" className="text-[10px]">Sellers</TabsTrigger>
             <TabsTrigger value="reports" className="text-[10px]">Reports</TabsTrigger>
             <TabsTrigger value="payments" className="text-[10px]">Payments</TabsTrigger>
             <TabsTrigger value="reviews" className="text-[10px]">Reviews</TabsTrigger>
             <TabsTrigger value="featured" className="text-[10px]">Featured</TabsTrigger>
+            <TabsTrigger value="settings" className="text-[10px]">Settings</TabsTrigger>
           </TabsList>
 
           <TabsContent value="users" className="space-y-2 mt-4">
@@ -585,6 +588,12 @@ export default function AdminPage() {
             </ScrollArea>
           </DialogContent>
         </Dialog>
+
+        {/* Settings Tab Content - add inside Tabs */}
+          <TabsContent value="settings" className="space-y-4 mt-4">
+            <ApiKeySettings />
+            <CategoryManager />
+          </TabsContent>
       </div>
     </AppLayout>
   );

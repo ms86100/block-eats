@@ -2,11 +2,14 @@
 
 export type UserRole = 'buyer' | 'seller' | 'admin';
 export type VerificationStatus = 'pending' | 'approved' | 'rejected' | 'suspended';
-export type OrderStatus = 'placed' | 'accepted' | 'preparing' | 'ready' | 'picked_up' | 'delivered' | 'completed' | 'cancelled';
+export type OrderStatus = 'placed' | 'accepted' | 'preparing' | 'ready' | 'picked_up' | 'delivered' | 'completed' | 'cancelled' | 'enquired' | 'quoted' | 'scheduled' | 'in_progress' | 'returned';
 export type ProductCategory = 'home_food' | 'bakery' | 'snacks' | 'groceries' | 'other';
 export type PaymentMethod = 'cod' | 'upi';
 export type PaymentStatus = 'pending' | 'paid' | 'failed' | 'refunded';
-
+export type OrderType = 'purchase' | 'booking' | 'rental' | 'enquiry';
+export type ListingType = 'product' | 'service' | 'rental' | 'resale';
+export type RentalPeriodType = 'hourly' | 'daily' | 'weekly' | 'monthly';
+export type ItemCondition = 'new' | 'like_new' | 'good' | 'fair';
 export interface Profile {
   id: string;
   phone: string;
@@ -59,6 +62,17 @@ export interface Product {
   is_bestseller: boolean;
   is_recommended: boolean;
   is_urgent: boolean;
+  // New fields for services/rentals/resale (optional for backward compat)
+  listing_type?: ListingType | string;
+  service_duration_minutes?: number | null;
+  deposit_amount?: number | null;
+  rental_period_type?: RentalPeriodType | string | null;
+  min_rental_duration?: number | null;
+  max_rental_duration?: number | null;
+  condition?: ItemCondition | string | null;
+  is_negotiable?: boolean;
+  location_required?: boolean;
+  available_slots?: any | null;
   created_at: string;
   updated_at: string;
   // Joined data
@@ -77,6 +91,15 @@ export interface Order {
   notes: string | null;
   rejection_reason: string | null;
   auto_cancel_at: string | null;
+  // New fields for booking/rental orders (optional for backward compat)
+  order_type?: OrderType | string;
+  scheduled_date?: string | null;
+  scheduled_time_start?: string | null;
+  scheduled_time_end?: string | null;
+  rental_start_date?: string | null;
+  rental_end_date?: string | null;
+  deposit_paid?: boolean;
+  deposit_refunded?: boolean;
   created_at: string;
   updated_at: string;
   // Joined data
@@ -188,6 +211,12 @@ export const ORDER_STATUS_LABELS: Record<OrderStatus, { label: string; color: st
   delivered: { label: 'Delivered', color: 'bg-emerald-100 text-emerald-800' },
   completed: { label: 'Completed', color: 'bg-gray-100 text-gray-800' },
   cancelled: { label: 'Cancelled', color: 'bg-red-100 text-red-800' },
+  // New service/rental statuses
+  enquired: { label: 'Enquiry Sent', color: 'bg-purple-100 text-purple-800' },
+  quoted: { label: 'Quote Received', color: 'bg-orange-100 text-orange-800' },
+  scheduled: { label: 'Scheduled', color: 'bg-cyan-100 text-cyan-800' },
+  in_progress: { label: 'In Progress', color: 'bg-amber-100 text-amber-800' },
+  returned: { label: 'Returned', color: 'bg-slate-100 text-slate-800' },
 };
 
 export const PAYMENT_STATUS_LABELS: Record<PaymentStatus, { label: string; color: string }> = {

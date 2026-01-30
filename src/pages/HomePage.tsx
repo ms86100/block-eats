@@ -2,14 +2,14 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { AppLayout } from '@/components/layout/AppLayout';
-import { CategoryGrid } from '@/components/category/CategoryGrid';
+import { CategoryGroupGrid } from '@/components/category/CategoryGroupGrid';
 import { SellerCard } from '@/components/seller/SellerCard';
 import { OnboardingWalkthrough, useOnboarding } from '@/components/onboarding/OnboardingWalkthrough';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useAuth } from '@/contexts/AuthContext';
-import { SellerProfile, Favorite } from '@/types/database';
+import { SellerProfile } from '@/types/database';
 import { Search, ChevronRight, Store, Clock, Heart, Award, MapPin, Utensils, Star, TrendingUp } from 'lucide-react';
 import heroBanner from '@/assets/hero-banner.jpg';
 
@@ -159,7 +159,7 @@ export default function HomePage() {
         {/* Categories */}
         <div className="mt-6 px-4">
           <h3 className="font-semibold mb-3">What are you looking for?</h3>
-          <CategoryGrid variant="scroll" />
+          <CategoryGroupGrid variant="compact" />
         </div>
 
         {/* Open Now Section */}
