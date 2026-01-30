@@ -13,12 +13,17 @@ import { Card, CardContent } from '@/components/ui/card';
 import { ImageUpload } from '@/components/ui/image-upload';
 import { useAuth } from '@/contexts/AuthContext';
 import { SellerProfile, CATEGORIES, ProductCategory, DAYS_OF_WEEK } from '@/types/database';
-import { ArrowLeft, Loader2, PauseCircle, PlayCircle, Clock, Smartphone, Banknote } from 'lucide-react';
+import { useCategoryConfigs } from '@/hooks/useCategoryBehavior';
+import { PARENT_GROUPS, ParentGroup, ServiceCategory } from '@/types/categories';
+import { ArrowLeft, Loader2, PauseCircle, PlayCircle, Clock, Smartphone, Banknote, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
+import { cn } from '@/lib/utils';
 
 export default function SellerSettingsPage() {
   const { user } = useAuth();
+  const { groupedConfigs } = useCategoryConfigs();
   const [sellerProfile, setSellerProfile] = useState<SellerProfile | null>(null);
+  const [primaryGroup, setPrimaryGroup] = useState<ParentGroup | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [formData, setFormData] = useState({
@@ -55,6 +60,9 @@ export default function SellerSettingsPage() {
       if (data) {
         const profile = data as any;
         setSellerProfile(profile);
+        // Derive primary group from existing data or stored value
+        const storedGroup = profile.primary_group as ParentGroup | null;
+        setPrimaryGroup(storedGroup);
         setFormData({
           business_name: profile.business_name,
           description: profile.description || '',
@@ -78,6 +86,15 @@ export default function SellerSettingsPage() {
   };
 
   const handleCategoryChange = (category: ProductCategory, checked: boolean) => {
+    // Get allowed categories for this seller's primary group
+    const allowedCategories = primaryGroup ? groupedConfigs[primaryGroup]?.map(c => c.category) || [] : [];
+    
+    // Only allow categories within the seller's primary group
+    if (!allowedCategories.includes(category as any) && checked) {
+      toast.error(`This category is not available in your ${primaryGroup} group`);
+      return;
+    }
+    
     if (checked) {
       setFormData({
         ...formData,
@@ -298,26 +315,48 @@ export default function SellerSettingsPage() {
             />
           </div>
 
+          {/* Primary Group Info */}
+          {primaryGroup && (
+            <div className="bg-muted/50 rounded-xl p-4">
+              <div className="flex items-center gap-3">
+                <div className={cn(
+                  'w-12 h-12 rounded-xl flex items-center justify-center text-2xl',
+                  PARENT_GROUPS.find(g => g.value === primaryGroup)?.color
+                )}>
+                  {PARENT_GROUPS.find(g => g.value === primaryGroup)?.icon}
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Your seller category</p>
+                  <p className="font-semibold">{PARENT_GROUPS.find(g => g.value === primaryGroup)?.label}</p>
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground mt-2 flex items-center gap-1">
+                <AlertTriangle size={12} />
+                To change category group, please contact admin
+              </p>
+            </div>
+          )}
+
           <div className="space-y-3">
-            <Label>Categories *</Label>
+            <Label>Categories * {primaryGroup && <span className="text-muted-foreground font-normal">(within {PARENT_GROUPS.find(g => g.value === primaryGroup)?.label})</span>}</Label>
             <div className="grid grid-cols-2 gap-3">
-              {CATEGORIES.map(({ value, label, icon }) => (
+              {(primaryGroup ? groupedConfigs[primaryGroup] || [] : CATEGORIES.map(c => ({ category: c.value, displayName: c.label, icon: c.icon }))).map((config) => (
                 <label
-                  key={value}
+                  key={config.category}
                   className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
-                    formData.categories.includes(value)
+                    formData.categories.includes(config.category as any)
                       ? 'border-primary bg-primary/5'
                       : 'border-border hover:bg-muted'
                   }`}
                 >
                   <Checkbox
-                    checked={formData.categories.includes(value)}
+                    checked={formData.categories.includes(config.category as any)}
                     onCheckedChange={(checked) =>
-                      handleCategoryChange(value, checked as boolean)
+                      handleCategoryChange(config.category as any, checked as boolean)
                     }
                   />
-                  <span className="text-lg">{icon}</span>
-                  <span className="text-sm font-medium">{label}</span>
+                  <span className="text-lg">{config.icon}</span>
+                  <span className="text-sm font-medium">{config.displayName}</span>
                 </label>
               ))}
             </div>

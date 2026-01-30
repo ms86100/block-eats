@@ -64,6 +64,7 @@ export default function BecomeSellerPage() {
         business_name: formData.business_name.trim(),
         description: formData.description.trim() || null,
         categories: formData.categories as any,
+        primary_group: selectedGroup, // Store the primary group for proper filtering
         availability_start: formData.availability_start,
         availability_end: formData.availability_end,
         accepts_cod: formData.accepts_cod,

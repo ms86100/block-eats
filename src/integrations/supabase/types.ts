@@ -732,6 +732,7 @@ export type Database = {
           is_available: boolean | null
           is_featured: boolean | null
           operating_days: string[] | null
+          primary_group: string | null
           profile_image_url: string | null
           rating: number | null
           total_reviews: number | null
@@ -756,6 +757,7 @@ export type Database = {
           is_available?: boolean | null
           is_featured?: boolean | null
           operating_days?: string[] | null
+          primary_group?: string | null
           profile_image_url?: string | null
           rating?: number | null
           total_reviews?: number | null
@@ -780,6 +782,7 @@ export type Database = {
           is_available?: boolean | null
           is_featured?: boolean | null
           operating_days?: string[] | null
+          primary_group?: string | null
           profile_image_url?: string | null
           rating?: number | null
           total_reviews?: number | null
@@ -864,6 +867,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      get_category_parent_group: { Args: { cat: string }; Returns: string }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["user_role"]

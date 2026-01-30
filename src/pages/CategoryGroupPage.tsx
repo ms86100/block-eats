@@ -40,13 +40,14 @@ export default function CategoryGroupPage() {
         .eq('verification_status', 'approved')
         .order('rating', { ascending: false });
 
-      // Filter by category if we have sub-categories
+      // Filter by primary_group to prevent cross-category leakage
+      if (category) {
+        query = query.eq('primary_group', category);
+      }
+
+      // Further filter by specific sub-category if selected
       if (activeSubCategory) {
         query = query.contains('categories', [activeSubCategory]);
-      } else if (subCategories.length > 0) {
-        // Filter by any category in this parent group
-        const categoryValues = subCategories.map((c) => c.category);
-        query = query.overlaps('categories', categoryValues);
       }
 
       const { data, error } = await query;

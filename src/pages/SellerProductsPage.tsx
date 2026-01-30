@@ -27,12 +27,16 @@ import { Badge } from '@/components/ui/badge';
 import { ImageUpload } from '@/components/ui/image-upload';
 import { useAuth } from '@/contexts/AuthContext';
 import { Product, CATEGORIES, ProductCategory, SellerProfile } from '@/types/database';
+import { useCategoryConfigs } from '@/hooks/useCategoryBehavior';
+import { ParentGroup } from '@/types/categories';
 import { ArrowLeft, Plus, Edit, Trash2, Loader2, Star, Award, Bell, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
 
 export default function SellerProductsPage() {
   const { user } = useAuth();
+  const { groupedConfigs } = useCategoryConfigs();
   const [sellerProfile, setSellerProfile] = useState<SellerProfile | null>(null);
+  const [primaryGroup, setPrimaryGroup] = useState<ParentGroup | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -73,6 +77,8 @@ export default function SellerProductsPage() {
       }
 
       setSellerProfile(profile as SellerProfile);
+      // Get the seller's primary group for category filtering
+      setPrimaryGroup((profile as any).primary_group as ParentGroup | null);
 
       const { data: productData } = await supabase
         .from('products')
@@ -315,9 +321,10 @@ export default function SellerProductsPage() {
                         <SelectValue placeholder="Select" />
                       </SelectTrigger>
                       <SelectContent>
-                        {CATEGORIES.map(({ value, label, icon }) => (
-                          <SelectItem key={value} value={value}>
-                            {icon} {label}
+                        {/* Show only categories from seller's primary group */}
+                        {(primaryGroup ? groupedConfigs[primaryGroup] || [] : CATEGORIES.map(c => ({ category: c.value, displayName: c.label, icon: c.icon }))).map((config) => (
+                          <SelectItem key={config.category} value={config.category}>
+                            {config.icon} {config.displayName}
                           </SelectItem>
                         ))}
                       </SelectContent>
