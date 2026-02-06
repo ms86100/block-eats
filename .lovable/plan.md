@@ -205,12 +205,10 @@ Add a new file or section listing exact asset requirements with recommended tool
 
 These cannot be done in Lovable and require external accounts:
 
-### Firebase Setup (for FCM)
-1. Create Firebase project at console.firebase.google.com
-2. Add iOS and Android apps
-3. Download `google-services.json` (Android) and `GoogleService-Info.plist` (iOS)
-4. Get Server Key from Project Settings > Cloud Messaging
-5. Add `FCM_SERVER_KEY` secret in Lovable Cloud
+### Firebase Setup (for FCM) - ✅ COMPLETED
+- ✅ Firebase project created
+- ✅ `FIREBASE_SERVICE_ACCOUNT` secret configured in Lovable Cloud
+- ⚠️ Still need: Download `google-services.json` (Android) and `GoogleService-Info.plist` (iOS) for native builds
 
 ### Apple Developer Portal
 1. Get Team ID from Membership page
