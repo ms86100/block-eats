@@ -12,15 +12,17 @@ This plan addresses all gaps identified for shipping your Capacitor app to App S
 
 | Area | Status | Priority |
 |------|--------|----------|
-| Push Notification Registration | Done (client-side) | - |
-| Push Notification Delivery (backend) | Missing | Critical |
-| Deep Linking Files | Placeholders | Critical |
-| Deep Linking + HashRouter | Incompatible | Critical |
-| App Icon 1024x1024 | Missing | High |
-| Feature Graphic (Android) | Missing | High |
-| Branding Consistency | Mixed BlockEats/Greenfield | Medium |
-| Demo Account Mismatch | Different emails in docs | Medium |
-| Native Projects (ios/android folders) | Not initialized | Required externally |
+| Push Notification Registration | ✅ Done (client-side) | - |
+| Push Notification Delivery (backend) | ✅ Done | - |
+| Order Notification Triggers | ✅ Done | - |
+| Deep Linking Files | ✅ Done | - |
+| Deep Linking Handler | ✅ Done | - |
+| App Icon 1024x1024 | ✅ Done (`public/app-icon-1024x1024.png`) | - |
+| Feature Graphic (Android) | ✅ Done (`public/feature-graphic.png`) | - |
+| Branding Consistency | ✅ Done (Greenfield Community) | - |
+| Demo Account Docs | ✅ Done (aligned to demo@blockeats.app) | - |
+| DEPLOYMENT.md FCM Instructions | ✅ Done | - |
+| Native Projects (ios/android folders) | ⚠️ External | Required externally |
 
 ---
 
