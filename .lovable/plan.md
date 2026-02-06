@@ -1,271 +1,146 @@
 
-# Real UPI Payment Integration Plan
 
-## Current State Analysis
+# Plan: Fix JSON Error in Median.co Simulator
 
-Your app currently uses **UPI Intent-based payments** which:
+## Problem Analysis
 
-| Aspect | Current Behavior |
-|--------|------------------|
-| Payment Flow | Opens UPI app via `upi://pay?pa=...` URL |
-| Verification | Manual confirmation (`window.confirm`) |
-| Money Flow | Directly to seller's UPI ID |
-| Status Tracking | None - relies on user honesty |
-| Refunds | Not possible |
-| Platform Fee | Cannot be collected |
+When using Median.co to wrap your web app as a native mobile app, you're encountering a JSON parsing error. Based on my investigation, there are several potential causes:
 
-**Problem**: There's no way to verify if payment actually happened. A buyer could click "Yes, I paid" without paying.
+1. **Hash-based routing compatibility** - Your app now uses `HashRouter` (URLs like `/#/welcome`), which may require specific Median.co configuration
+2. **Manifest.json issues** - The PWA manifest may have compatibility issues with Median's webview
+3. **API responses or localStorage data** - Malformed JSON in API responses or cached data
+4. **Missing Median.co JavaScript bridge handling** - The app doesn't handle Median's native bridge
 
 ---
 
-## Options for Real UPI Payments
+## Root Causes & Fixes
 
-### Option 1: Razorpay Route (Recommended for Marketplaces)
+### Issue 1: PWA Manifest Conflict
+Median.co uses its own native app configuration. The PWA manifest (`public/manifest.json`) may conflict with Median's expectations or cause parsing errors when the simulator tries to read it.
 
-**How it works**:
-- Buyer pays to Razorpay's payment page
-- Razorpay splits payment automatically: Seller gets X%, Platform gets Y%
-- Webhook confirms payment status
-- Automatic settlement to seller's bank account
+**Fix:** Conditionally disable PWA manifest loading when running in Median.co webview, OR ensure manifest.json is valid without trailing commas.
 
-| Feature | Details |
-|---------|---------|
-| Setup | Business account required, KYC |
-| Pricing | 2% per transaction + GST |
-| Settlement | T+2 days (can be T+1 with premium) |
-| Refunds | Fully supported |
-| UPI Methods | GPay, PhonePe, Paytm, all UPI apps |
+### Issue 2: Hash Router + Deep Linking
+Median.co expects standard URL paths for navigation but your app uses hash-based routing (`/#/welcome`). This can cause issues with:
+- Deep link handling
+- Native navigation events
+- URL parsing in the simulator
 
-**Requirements**:
-- Razorpay business account
-- Each seller needs to be onboarded as "linked account"
-- API Keys (Key ID and Key Secret)
+**Fix:** Add Median.co SPA navigation listener to handle routing properly.
 
----
+### Issue 3: localStorage JSON Parsing
+The app has several `JSON.parse()` calls for localStorage data (SearchPage, NotificationsPage, tooltip-guide). If corrupted data exists, it could throw errors.
 
-### Option 2: Cashfree Payouts
+**Fix:** Add try-catch with fallback values and clear corrupted cache.
 
-Similar to Razorpay Route but with different pricing and features.
+### Issue 4: Missing Median JavaScript Bridge
+Median.co injects a JavaScript bridge (`median` object) for native functionality. Without proper handling, errors may occur.
 
-| Feature | Details |
-|---------|---------|
-| Setup | Business account required |
-| Pricing | 1.9% per transaction + GST |
-| Settlement | T+1 days |
-| Seller Onboarding | Via API |
-
----
-
-### Option 3: Enhanced UPI Intent with Verification (Hybrid)
-
-**How it works**:
-- Keep current UPI intent flow (buyer pays directly to seller)
-- After payment, buyer enters UTR/Transaction Reference Number
-- System verifies via SMS parsing or manual seller confirmation
-- No platform fee collection possible
-
-| Feature | Details |
-|---------|---------|
-| Setup | Minimal - just UI changes |
-| Pricing | Free (no gateway fees) |
-| Settlement | Instant (P2P) |
-| Verification | Semi-manual (seller confirms receipt) |
-| Refunds | Manual between buyer/seller |
-
----
-
-## Recommended Approach: Razorpay Route
-
-For a marketplace where you want:
-- Real payment verification
-- Platform fee collection (optional)
-- Refund capability
-- Seller payouts management
-
-### Implementation Architecture
-
-```text
-Buyer → Razorpay Checkout → Payment Captured → Webhook → Update Order
-                                    ↓
-                            Split Payment
-                                    ↓
-                    ┌───────────────┴───────────────┐
-                    ↓                               ↓
-              Seller Account                  Platform Account
-              (via Route)                     (if fee enabled)
-```
+**Fix:** Add Median.co NPM package and proper bridge initialization.
 
 ---
 
 ## Implementation Steps
 
-### Phase 1: Razorpay Setup (Manual by Admin)
-
-1. **Create Razorpay Business Account**
-   - Go to https://razorpay.com
-   - Complete business KYC
-   - Enable "Route" feature (requires approval)
-
-2. **Generate API Keys**
-   - Dashboard → Settings → API Keys
-   - Copy Key ID and Key Secret
-
-3. **Store Keys as Secrets**
-   - RAZORPAY_KEY_ID
-   - RAZORPAY_KEY_SECRET
-
-### Phase 2: Seller Onboarding Flow
-
-| Step | Description |
-|------|-------------|
-| 1 | When seller registers, collect bank account details |
-| 2 | Create "Linked Account" in Razorpay via API |
-| 3 | Store `razorpay_account_id` in `seller_profiles` table |
-| 4 | Razorpay handles seller KYC and verification |
-
-**Database Change**:
-```sql
-ALTER TABLE seller_profiles
-ADD COLUMN razorpay_account_id text,
-ADD COLUMN razorpay_onboarding_status text DEFAULT 'pending';
+### Step 1: Install Median.co NPM Package
+Add the official Median.co NPM package for proper SPA navigation and bridge handling:
+```bash
+npm install @nicholasrutherford/median-js-bridge
 ```
 
-### Phase 3: Payment Edge Function
+### Step 2: Create Median Bridge Initialization
+Create a new file `src/lib/median.ts` to handle Median.co bridge initialization:
+- Detect if running in Median.co webview
+- Initialize the JavaScript bridge
+- Set up SPA navigation listeners for hash routing
 
-Create `supabase/functions/create-razorpay-order/index.ts`:
+### Step 3: Update App.tsx with Median SPA Handler
+Add a navigation listener that:
+- Listens for Median's `jsNavigation.url` events
+- Converts standard URLs to hash-based routes
+- Triggers React Router navigation programmatically
 
+### Step 4: Harden JSON.parse Calls
+Update all localStorage JSON parsing to:
+- Wrap in try-catch blocks
+- Return default values on parse failure
+- Clear corrupted data automatically
+
+Files to update:
+- `src/pages/SearchPage.tsx`
+- `src/pages/NotificationsPage.tsx`
+- `src/components/ui/tooltip-guide.tsx`
+
+### Step 5: Validate manifest.json
+Ensure `public/manifest.json` has no trailing commas or invalid syntax:
+- Run JSON through a validator
+- Consider removing `categories` field (not required by Median)
+
+### Step 6: Add Median.co Detection Utility
+Create a utility to detect Median.co environment:
 ```typescript
-// 1. Create Razorpay Order
-// 2. Include transfer details for Route (seller's account)
-// 3. Return order_id for frontend checkout
+export function isMedianApp(): boolean {
+  return typeof window !== 'undefined' && 
+         window.navigator.userAgent.includes('gonative');
+}
 ```
-
-Create `supabase/functions/razorpay-webhook/index.ts`:
-
-```typescript
-// 1. Verify webhook signature
-// 2. Handle payment.captured event
-// 3. Update order status to 'paid'
-// 4. Handle payment.failed event
-```
-
-### Phase 4: Frontend Integration
-
-| Component | Changes |
-|-----------|---------|
-| `CartPage.tsx` | Load Razorpay checkout script |
-| `UpiPaymentSheet.tsx` | Replace with Razorpay Checkout modal |
-| New: `useRazorpay.ts` | Hook to handle Razorpay initialization |
-
-**Payment Flow**:
-1. User clicks "Pay with UPI"
-2. Frontend calls `create-razorpay-order` edge function
-3. Edge function returns `order_id`
-4. Frontend opens Razorpay Checkout (user sees GPay/PhonePe options)
-5. User completes payment in UPI app
-6. Razorpay sends webhook to `razorpay-webhook` function
-7. Webhook updates order status
-8. Frontend polls or uses realtime to show success
-
-### Phase 5: Seller Settings Update
-
-| Field | Description |
-|-------|-------------|
-| Bank Account Number | Required for payouts |
-| IFSC Code | Required for payouts |
-| Account Holder Name | Must match bank records |
-| Razorpay Onboarding | Auto-triggered on save |
 
 ---
 
-## Files to Create/Modify
+## Technical Details
 
-| File | Purpose |
+### New File: `src/lib/median.ts`
+```typescript
+// Median.co bridge initialization and SPA navigation handling
+// - Detects Median webview environment
+// - Sets up jsNavigation listener for hash routing
+// - Provides utilities for native features
+```
+
+### Modified Files
+
+| File | Changes |
 |------|---------|
-| `supabase/functions/create-razorpay-order/index.ts` | Create order with Route transfer |
-| `supabase/functions/razorpay-webhook/index.ts` | Handle payment confirmations |
-| `src/hooks/useRazorpay.ts` | Frontend SDK integration |
-| `src/components/payment/RazorpayCheckout.tsx` | Checkout component |
-| `src/pages/CartPage.tsx` | Update payment flow |
-| `src/pages/SellerSettingsPage.tsx` | Add bank details form |
-| DB Migration | Add `razorpay_account_id` to sellers |
+| `src/App.tsx` | Import Median init, add useEffect for navigation listener |
+| `src/pages/SearchPage.tsx` | Harden JSON.parse with try-catch |
+| `src/pages/NotificationsPage.tsx` | Harden JSON.parse with try-catch |
+| `src/components/ui/tooltip-guide.tsx` | Already has try-catch (verify) |
+| `package.json` | Add Median.co NPM package |
 
----
-
-## Alternative: Quick Verification Without Gateway
-
-If you want to keep direct P2P payments without a payment gateway:
-
-| Step | Implementation |
-|------|----------------|
-| 1 | Buyer pays via UPI intent (current flow) |
-| 2 | Buyer enters UTR number after payment |
-| 3 | Seller sees UTR in order details |
-| 4 | Seller confirms payment received |
-| 5 | Order status updates to "paid" |
-
-**Pros**: No gateway fees, instant settlement
-**Cons**: No automated verification, relies on seller honesty
-
----
-
-## Cost Comparison
-
-| Method | Transaction Fee | Settlement | Verification |
-|--------|-----------------|------------|--------------|
-| Current (P2P) | Free | Instant | None |
-| Razorpay Route | 2% + GST | T+2 days | Automatic |
-| Cashfree | 1.9% + GST | T+1 day | Automatic |
-| P2P + UTR | Free | Instant | Manual |
-
----
-
-## Secrets Required
-
-For Razorpay integration:
-- `RAZORPAY_KEY_ID` - Public key for frontend
-- `RAZORPAY_KEY_SECRET` - Secret for backend webhook verification
-
----
-
-## Technical Summary
-
-### Edge Functions to Create
-
-1. **create-razorpay-order**
-   - Input: order details, seller's razorpay account id
-   - Output: razorpay order_id
-   - Creates order with Route transfer configuration
-
-2. **razorpay-webhook**
-   - Handles: payment.captured, payment.failed, refund.created
-   - Verifies: Webhook signature
-   - Updates: Order payment_status in database
-
-### Frontend Components
-
-1. **RazorpayCheckout.tsx**
-   - Loads Razorpay script dynamically
-   - Opens checkout modal with UPI options
-   - Handles success/failure callbacks
-
-2. **useRazorpay.ts**
-   - Manages Razorpay instance
-   - Provides createOrder, openCheckout functions
-
-### Database Updates
-
-```sql
--- Track Razorpay linked accounts for sellers
-ALTER TABLE seller_profiles
-ADD COLUMN razorpay_account_id text,
-ADD COLUMN bank_account_number text,
-ADD COLUMN bank_ifsc_code text,
-ADD COLUMN bank_account_holder text,
-ADD COLUMN razorpay_onboarding_status text DEFAULT 'pending';
-
--- Track gateway order IDs
-ALTER TABLE orders
-ADD COLUMN razorpay_order_id text,
-ADD COLUMN razorpay_payment_id text;
+### Median SPA Navigation Flow
+```text
+┌────────────────────────────────────────────────────────────────┐
+│                    Median.co Native App                        │
+├────────────────────────────────────────────────────────────────┤
+│  1. User taps native element (tab, deep link, notification)   │
+│                           ↓                                    │
+│  2. Median fires jsNavigation event with target URL           │
+│                           ↓                                    │
+│  3. Our listener catches event in App.tsx                     │
+│                           ↓                                    │
+│  4. Convert URL to hash route: /welcome → /#/welcome          │
+│                           ↓                                    │
+│  5. Call React Router navigate() for soft page load           │
+│                           ↓                                    │
+│  6. Page renders without full reload                          │
+└────────────────────────────────────────────────────────────────┘
 ```
+
+---
+
+## Testing Checklist
+After implementation:
+1. Test in Median.co simulator - should load without JSON error
+2. Verify all routes work (landing, auth, home, search, etc.)
+3. Test page refresh on each route
+4. Verify localStorage operations don't throw errors
+5. Test deep link handling if configured
+
+---
+
+## Alternative Approach
+If the above doesn't resolve the issue, we may need to:
+1. Switch back to `BrowserRouter` and configure proper server rewrites
+2. Create a separate build configuration for Median.co
+3. Enable web console logs in Median to capture the exact JSON error
+
