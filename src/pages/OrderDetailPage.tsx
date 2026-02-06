@@ -12,8 +12,9 @@ import { OrderRejectionDialog } from '@/components/order/OrderRejectionDialog';
 import { useUrgentOrderSound } from '@/hooks/useUrgentOrderSound';
 import { useAuth } from '@/contexts/AuthContext';
 import { sendOrderStatusNotification } from '@/lib/notifications';
-import { Order, OrderItem, ORDER_STATUS_LABELS, PAYMENT_STATUS_LABELS, OrderStatus, PaymentStatus } from '@/types/database';
-import { ArrowLeft, Phone, MapPin, Check, Star, MessageCircle, CreditCard, AlertTriangle, XCircle } from 'lucide-react';
+import { Order, OrderItem, ORDER_STATUS_LABELS, PAYMENT_STATUS_LABELS, OrderStatus, PaymentStatus, ItemStatus, ITEM_STATUS_LABELS } from '@/types/database';
+import { OrderItemCard } from '@/components/order/OrderItemCard';
+import { ArrowLeft, Phone, MapPin, Check, Star, MessageCircle, CreditCard, AlertTriangle, XCircle, Package } from 'lucide-react';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
 
@@ -413,20 +414,47 @@ export default function OrderDetailPage() {
           </div>
         </div>
 
-        {/* Order Items */}
+        {/* Order Items with Per-Item Status */}
         <div className="bg-card rounded-xl p-4 shadow-sm mb-4">
-          <h3 className="font-semibold mb-3">Order Items</h3>
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="font-semibold">Order Items</h3>
+            {items.length > 1 && (
+              <span className="text-xs text-muted-foreground">
+                {items.filter((i: OrderItem) => (i.status || 'pending') === 'delivered').length}/{items.length} completed
+              </span>
+            )}
+          </div>
+          
+          {/* Item Progress Summary for multi-item orders */}
+          {items.length > 1 && (
+            <div className="flex items-center gap-2 mb-3 text-[10px] flex-wrap">
+              {(['pending', 'accepted', 'preparing', 'ready', 'delivered', 'cancelled'] as ItemStatus[]).map((status) => {
+                const count = items.filter((i: OrderItem) => (i.status || 'pending') === status).length;
+                if (count === 0) return null;
+                return (
+                  <span key={status} className={`px-2 py-0.5 rounded-full ${ITEM_STATUS_LABELS[status].color}`}>
+                    {count} {ITEM_STATUS_LABELS[status].label}
+                  </span>
+                );
+              })}
+            </div>
+          )}
+
           <div className="space-y-3">
             {items.map((item: OrderItem) => (
-              <div key={item.id} className="flex justify-between items-start">
-                <div>
-                  <p className="font-medium">{item.product_name}</p>
-                  <p className="text-sm text-muted-foreground">
-                    ₹{item.unit_price} × {item.quantity}
-                  </p>
-                </div>
-                <p className="font-semibold">₹{item.unit_price * item.quantity}</p>
-              </div>
+              <OrderItemCard
+                key={item.id}
+                item={item}
+                isSellerView={isSellerView}
+                orderStatus={order.status}
+                onStatusUpdate={(itemId, newStatus) => {
+                  // Update local state
+                  const updatedItems = items.map((i: OrderItem) => 
+                    i.id === itemId ? { ...i, status: newStatus } : i
+                  );
+                  setOrder({ ...order, items: updatedItems } as any);
+                }}
+              />
             ))}
             <div className="border-t pt-3 mt-3 flex justify-between font-semibold">
               <span>Total</span>

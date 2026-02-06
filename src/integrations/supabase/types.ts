@@ -294,7 +294,9 @@ export type Database = {
           product_id: string | null
           product_name: string
           quantity: number
+          status: string | null
           unit_price: number
+          updated_at: string | null
         }
         Insert: {
           created_at?: string | null
@@ -303,7 +305,9 @@ export type Database = {
           product_id?: string | null
           product_name: string
           quantity?: number
+          status?: string | null
           unit_price: number
+          updated_at?: string | null
         }
         Update: {
           created_at?: string | null
@@ -312,7 +316,9 @@ export type Database = {
           product_id?: string | null
           product_name?: string
           quantity?: number
+          status?: string | null
           unit_price?: number
+          updated_at?: string | null
         }
         Relationships: [
           {

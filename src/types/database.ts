@@ -112,6 +112,8 @@ export interface Order {
   payment?: PaymentRecord;
 }
 
+export type ItemStatus = 'pending' | 'accepted' | 'preparing' | 'ready' | 'delivered' | 'cancelled';
+
 export interface OrderItem {
   id: string;
   order_id: string;
@@ -119,8 +121,19 @@ export interface OrderItem {
   product_name: string;
   quantity: number;
   unit_price: number;
+  status?: ItemStatus;
   created_at: string;
+  updated_at?: string;
 }
+
+export const ITEM_STATUS_LABELS: Record<ItemStatus, { label: string; color: string }> = {
+  pending: { label: 'Pending', color: 'bg-muted text-muted-foreground' },
+  accepted: { label: 'Accepted', color: 'bg-blue-100 text-blue-700' },
+  preparing: { label: 'Preparing', color: 'bg-yellow-100 text-yellow-700' },
+  ready: { label: 'Ready', color: 'bg-cyan-100 text-cyan-700' },
+  delivered: { label: 'Delivered', color: 'bg-green-100 text-green-700' },
+  cancelled: { label: 'Cancelled', color: 'bg-red-100 text-red-700' },
+};
 
 export interface Review {
   id: string;
