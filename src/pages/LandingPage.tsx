@@ -76,13 +76,13 @@ export default function LandingPage() {
   return (
     <div className="min-h-screen bg-background">
       {/* Hero Section */}
-      <div className="relative h-[70vh] min-h-[500px]">
+      <div className="relative h-[55vh] min-h-[380px]">
         <img
           src={heroBanner}
           alt="Community marketplace"
           className="absolute inset-0 w-full h-full object-cover"
         />
-        <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-black/40 to-background" />
+        <div className="absolute inset-0 bg-gradient-to-b from-black/70 via-black/50 to-background" />
         
         {/* Hero Content */}
         <div className="relative h-full flex flex-col justify-end px-6 pb-8 safe-top">
@@ -92,45 +92,74 @@ export default function LandingPage() {
               <span className="text-xs font-medium text-primary">Exclusive for Greenfield Residents</span>
             </div>
             
-            <h1 className="text-4xl font-bold text-white leading-tight">
-              Your Community<br />
-              <span className="text-primary">Marketplace</span>
+            <h1 className="text-3xl font-bold text-white leading-tight">
+              Greenfield<br />
+              <span className="text-primary">Community Market</span>
             </h1>
             
-            <p className="text-white/80 text-lg max-w-xs">
-              Buy homemade food, local goods & services from your trusted neighbors at Shriram Greenfield.
+            <p className="text-white/90 text-base max-w-xs">
+              Your neighborhood's trusted marketplace for homemade food, services & more.
             </p>
+
+            {/* Quick CTA in Hero */}
+            <div className="flex gap-3 pt-2">
+              <Link to="/auth">
+                <Button size="lg" className="font-semibold">
+                  Join Now
+                  <ChevronRight size={18} className="ml-1" />
+                </Button>
+              </Link>
+              <Link to="/auth">
+                <Button size="lg" variant="outline" className="bg-white/10 border-white/30 text-white hover:bg-white/20">
+                  Sign In
+                </Button>
+              </Link>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* About Section */}
+      <div className="px-6 py-6 -mt-2 relative z-10">
+        <div className="bg-card rounded-2xl shadow-lg p-5 border border-border">
+          <h2 className="text-base font-semibold mb-3">What is Greenfield Market?</h2>
+          <p className="text-sm text-muted-foreground leading-relaxed mb-4">
+            A <span className="text-foreground font-medium">private marketplace</span> exclusively for Shriram Greenfield residents. 
+            Order homemade meals from neighbors, hire trusted local services, rent party supplies, 
+            find tutors for your kids — all from verified community members you can trust.
+          </p>
+          <div className="flex items-center gap-2 text-xs text-primary font-medium">
+            <Shield size={14} />
+            <span>Only verified residents can join</span>
           </div>
         </div>
       </div>
 
       {/* Features Section */}
-      <div className="px-6 py-8 -mt-4 relative z-10">
-        <div className="bg-card rounded-2xl shadow-xl p-6 border border-border">
-          <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-            <ShoppingBag className="text-primary" size={20} />
-            What's Available
-          </h2>
+      <div className="px-6 py-4">
+        <h2 className="text-base font-semibold mb-4 flex items-center gap-2">
+          <ShoppingBag className="text-primary" size={18} />
+          What You Can Do
+        </h2>
           
-          <div className="space-y-3">
-            {features.map((feature, index) => {
-              const Icon = feature.icon;
-              return (
-                <div 
-                  key={index}
-                  className="flex items-start gap-3 p-3 rounded-xl bg-muted/50 hover:bg-muted transition-colors"
-                >
-                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${feature.color}`}>
-                    <Icon size={20} />
-                  </div>
-                  <div>
-                    <h3 className="font-medium text-sm">{feature.title}</h3>
-                    <p className="text-xs text-muted-foreground">{feature.description}</p>
-                  </div>
+        <div className="space-y-3">
+          {features.map((feature, index) => {
+            const Icon = feature.icon;
+            return (
+              <div 
+                key={index}
+                className="flex items-start gap-3 p-3 rounded-xl bg-muted/50 hover:bg-muted transition-colors"
+              >
+                <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${feature.color}`}>
+                  <Icon size={20} />
                 </div>
-              );
-            })}
-          </div>
+                <div>
+                  <h3 className="font-medium text-sm">{feature.title}</h3>
+                  <p className="text-xs text-muted-foreground">{feature.description}</p>
+                </div>
+              </div>
+            );
+          })}
         </div>
       </div>
 
