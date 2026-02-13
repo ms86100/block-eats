@@ -132,7 +132,7 @@ export default function AuthPage() {
         latitude: details.latitude,
         longitude: details.longitude,
       });
-      setSelectedSociety({ id: 'pending', name, slug, is_active: false, is_verified: false, created_at: '', updated_at: '' } as Society);
+      setSelectedSociety({ id: 'pending', name, slug, is_active: false, is_verified: false, latitude: details.latitude, longitude: details.longitude, created_at: '', updated_at: '' } as Society);
       toast.success('Location selected! Continue to complete signup.');
     }
   };
@@ -605,7 +605,7 @@ export default function AuthPage() {
                         )}
 
                         {/* Empty state */}
-                        {societySearch.length >= 3 && !showDbResults && !showGoogleResults && !isSearching && (
+                        {societySearch.length >= 3 && !showDbResults && !showGoogleResults && !isSearching && !selectedSociety && (
                           <p className="text-center text-sm text-muted-foreground py-4">No results found for "{societySearch}"</p>
                         )}
 
