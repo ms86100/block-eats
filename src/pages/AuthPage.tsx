@@ -70,7 +70,9 @@ export default function AuthPage() {
   const validateEmail = (email: string) => /^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email);
 
   const handleLogin = async () => {
-    if (!validateEmail(email)) { toast.error('Please enter a valid email address'); return; }
+    const trimmedEmail = email.trim();
+    setEmail(trimmedEmail);
+    if (!validateEmail(trimmedEmail)) { toast.error('Please enter a valid email address'); return; }
     if (password.length < 6) { toast.error('Password must be at least 6 characters'); return; }
     setIsLoading(true);
     try {
@@ -87,7 +89,9 @@ export default function AuthPage() {
   };
 
   const handleCredentialsNext = () => {
-    if (!validateEmail(email)) { toast.error('Please enter a valid email address'); return; }
+    const trimmedEmail = email.trim();
+    setEmail(trimmedEmail);
+    if (!validateEmail(trimmedEmail)) { toast.error('Please enter a valid email address'); return; }
     if (password.length < 6) { toast.error('Password must be at least 6 characters'); return; }
     setSignupStep('society');
   };
