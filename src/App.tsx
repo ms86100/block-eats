@@ -35,6 +35,9 @@ import PrivacyPolicyPage from "./pages/PrivacyPolicyPage";
 import TermsPage from "./pages/TermsPage";
 import CategoryGroupPage from "./pages/CategoryGroupPage";
 import PricingPage from "./pages/PricingPage";
+import HelpPage from "./pages/HelpPage";
+import NotificationsPage from "./pages/NotificationsPage";
+import CommunityRulesPage from "./pages/CommunityRulesPage";
 const queryClient = new QueryClient();
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -113,6 +116,9 @@ function AppRoutes() {
       <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
       <Route path="/terms" element={<TermsPage />} />
       <Route path="/pricing" element={<PricingPage />} />
+      <Route path="/help" element={<ProtectedRoute><HelpPage /></ProtectedRoute>} />
+      <Route path="/notifications" element={<ProtectedRoute><NotificationsPage /></ProtectedRoute>} />
+      <Route path="/community-rules" element={<CommunityRulesPage />} />
       <Route path="*" element={<NotFound />} />
     </Routes>
   );
