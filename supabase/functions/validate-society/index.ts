@@ -41,16 +41,75 @@ Deno.serve(async (req) => {
       );
     }
 
-    const { society_id } = await req.json();
+    const body = await req.json();
+    const { society_id, new_society } = body;
 
+    const adminClient = createClient(supabaseUrl, supabaseServiceKey);
+
+    // Handle new society creation
+    if (new_society && typeof new_society === "object") {
+      const { name, slug, address, city, state, pincode, latitude, longitude } = new_society;
+
+      if (!name || !slug) {
+        return new Response(
+          JSON.stringify({ error: "new_society requires name and slug" }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      const { data: created, error: createError } = await adminClient
+        .from("societies")
+        .insert({
+          name,
+          slug,
+          address: address || null,
+          city: city || null,
+          state: state || null,
+          pincode: pincode || null,
+          latitude: latitude || null,
+          longitude: longitude || null,
+          is_verified: false,
+          is_active: false,
+        })
+        .select("id, name, is_active, is_verified")
+        .single();
+
+      if (createError) {
+        console.error("Society creation error:", createError);
+        return new Response(
+          JSON.stringify({ error: "Failed to create society: " + createError.message }),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // Update user profile and metadata with new society
+      await adminClient.from("profiles").update({ society_id: created.id }).eq("id", user.id);
+      await adminClient.auth.admin.updateUserById(user.id, {
+        user_metadata: { society_id: created.id },
+      });
+
+      return new Response(
+        JSON.stringify({
+          valid: true,
+          society: {
+            id: created.id,
+            name: created.name,
+            is_active: created.is_active,
+            is_verified: created.is_verified,
+          },
+        }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Handle existing society validation
     if (!society_id || typeof society_id !== "string") {
       return new Response(
-        JSON.stringify({ error: "society_id is required and must be a string" }),
+        JSON.stringify({ error: "society_id or new_society is required" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    // Validate UUID format
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     if (!uuidRegex.test(society_id)) {
       return new Response(
@@ -58,9 +117,6 @@ Deno.serve(async (req) => {
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
-
-    // Use service role to verify the society exists
-    const adminClient = createClient(supabaseUrl, supabaseServiceKey);
 
     const { data: society, error: societyError } = await adminClient
       .from("societies")
@@ -75,7 +131,6 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Update the user's profile with the validated society_id
     const { error: updateError } = await adminClient
       .from("profiles")
       .update({ society_id })
@@ -83,10 +138,8 @@ Deno.serve(async (req) => {
 
     if (updateError) {
       console.error("Profile update error:", updateError);
-      // Don't fail — profile may not exist yet during signup
     }
 
-    // Also update auth metadata to keep it in sync
     const { error: metaError } = await adminClient.auth.admin.updateUserById(user.id, {
       user_metadata: { society_id },
     });
