@@ -1,103 +1,258 @@
 
+# Production-Ready Platform Upgrade Plan
 
-# Dynamic Category Management Refactor
+This plan covers all 7 areas requested: branding/naming, landing page redesign, pricing strategy, multi-platform deployment, coupon engine, strict society isolation, and legal/branding setup.
 
-## Overview
+---
 
-This refactor makes both parent categories (groups) and subcategories fully database-driven, removing all hardcoded constants while preserving backward compatibility with existing data and functionality.
+## 1. App Name and Domain
 
-## Current State
+Since domain research requires real-time availability checks, here are strong brandable name candidates for your multi-society community marketplace:
 
-- **Parent groups** (Food, Classes, Services, etc.) are hardcoded as the `PARENT_GROUPS` constant in `src/types/categories.ts` -- used across 6 files
-- **Subcategories** (home_food, bakery, yoga, etc.) are stored in `category_config` table but also duplicated as the hardcoded `CATEGORIES` constant in `src/types/database.ts` -- used across 5+ files
-- The `category_config` table references parent groups via a plain `parent_group` text column with no relational integrity
-- Admin can CRUD subcategories but parent groups are fixed in code
+| Name | Rationale |
+|---|---|
+| **NearNest** | "Near" = hyperlocal, "Nest" = home/community. Short, memorable, scalable |
+| **MyGully** | Indian-flavored ("gully" = lane/street), playful, brandable |
+| **SocioMart** | "Society + Marketplace", directly communicates the concept |
+| **BlockBazaar** | "Block" = residential block, "Bazaar" = marketplace. Catchy alliteration |
+| **HiveLocal** | "Hive" = community working together, "Local" = hyperlocal |
 
-## What Changes
+**Action items:**
+- You will need to check domain availability on Namecheap/GoDaddy for your preferred name
+- Once chosen, all references to "BlockEats", "Greenfield Community" will be replaced throughout the codebase (index.html, manifest.json, capacitor configs, Terms, Privacy Policy, landing page, auth page, etc.)
+- Update `capacitor.config.ts` appName, `public/manifest.json`, OG meta tags, and all hardcoded strings
 
-### 1. Database: New `parent_groups` Table
+---
 
-Create a new table to store parent categories:
+## 2. Landing Page Redesign (High-Converting Carousel)
 
+Replace the current static landing page with a modern carousel-based design featuring 4-5 slides:
+
+**Slide 1 -- Hero**: "Your Society. Your Marketplace." with a bold CTA (Join Your Community). Full-bleed background image with gradient overlay.
+
+**Slide 2 -- Trust & Safety**: "Only Verified Residents" -- highlights GPS verification, invite codes, admin approval. Shield/lock iconography.
+
+**Slide 3 -- What You Can Do**: Animated category icons (Food, Services, Rentals, Classes, Buy/Sell) with short descriptions. Shows the breadth of the platform.
+
+**Slide 4 -- For Sellers**: "Turn Your Passion Into Income" -- highlights seller benefits (zero listing fee, coupon tools, easy dashboard). Drives seller signups.
+
+**Slide 5 -- Social Proof + CTA**: Testimonial quotes, stats (dynamic from DB: society count, seller count, category count), and final "Get Started" CTA.
+
+**Technical approach:**
+- Use `embla-carousel-react` (already installed) for the carousel
+- Auto-play with dot indicators and swipe support
+- Each slide is a full-viewport-height section
+- Mobile-first responsive design
+
+---
+
+## 3. Pricing Strategy
+
+The pricing model will be implemented as a configuration in the admin panel, not hardcoded. The recommended model:
+
+| Tier | Price | Features |
+|---|---|---|
+| **Free (Buyers)** | Always free | Browse, order, review, chat |
+| **Free (Sellers)** | Free to list | Up to 10 products, basic dashboard |
+| **Seller Pro** | 199 INR/month | Unlimited products, coupons, promotions, analytics |
+| **Society Plan** | 999 INR/month per society | White-label branding, custom rules, priority support |
+
+**Implementation:**
+- Create a `/pricing` page with the pricing tiers
+- No payment gateway integration now -- just a display page with "Contact Us" for paid tiers
+- The admin panel already has settings management; pricing config can be stored there
+
+---
+
+## 4. Multi-Platform Deployment (Capacitor)
+
+Capacitor is already fully configured in the project with:
+- `capacitor.config.ts` (development with live reload)
+- `capacitor.config.production.ts` (production with bundled assets)
+- `codemagic.yaml` (CI/CD for iOS and Android builds)
+- Push notifications, haptics, splash screen, status bar plugins
+
+**Remaining work:**
+- Update `appName` in both Capacitor configs to the new brand name
+- Update `appId` if the brand name changes (requires new Apple/Google registrations)
+- Ensure the PWA manifest (`public/manifest.json`) is updated with new name/description
+- Update `index.html` meta tags with new branding
+- No structural changes needed -- the deployment pipeline is production-ready
+
+---
+
+## 5. Business Promotion and Coupon Engine
+
+This is a new feature requiring database tables and UI.
+
+### Database Schema
+
+**New table: `coupons`**
+
+| Column | Type | Purpose |
+|---|---|---|
+| id | uuid (PK) | Primary key |
+| seller_id | uuid (FK to seller_profiles) | Which seller created it |
+| society_id | uuid (FK to societies) | Society scope |
+| code | text (unique per society) | e.g. "WELCOME10" |
+| discount_type | text | "percentage" or "flat" |
+| discount_value | numeric | e.g. 10 (for 10% or 10 INR) |
+| min_order_amount | numeric | Minimum order to apply |
+| max_discount_amount | numeric | Cap for percentage discounts |
+| usage_limit | integer | Total times coupon can be used |
+| times_used | integer (default 0) | Current usage count |
+| per_user_limit | integer (default 1) | Max uses per user |
+| is_active | boolean | Toggle on/off |
+| starts_at | timestamptz | Valid from |
+| expires_at | timestamptz | Valid until |
+| created_at | timestamptz | Creation timestamp |
+
+**New table: `coupon_redemptions`**
+
+| Column | Type | Purpose |
+|---|---|---|
+| id | uuid (PK) | Primary key |
+| coupon_id | uuid (FK to coupons) | Which coupon |
+| user_id | uuid | Who redeemed |
+| order_id | uuid (FK to orders) | Which order |
+| discount_applied | numeric | Actual discount amount |
+| created_at | timestamptz | When redeemed |
+
+**RLS policies:**
+- Sellers can CRUD their own coupons
+- Buyers can read active coupons within their society
+- Redemption records scoped to the user
+
+### Seller UI (new section in Seller Dashboard)
+- "Promotions" tab showing active/expired coupons
+- Create coupon form: code, discount type/value, expiry, usage limit
+- Track redemptions per coupon
+
+### Buyer UI (Cart Page integration)
+- "Apply Coupon" input field on CartPage
+- Validate coupon: check society match, expiry, usage limits, min order
+- Show discount breakdown in bill details
+- Add `coupon_id` and `discount_amount` columns to `orders` table
+
+---
+
+## 6. Strict Society-Level Isolation
+
+### Current gaps found in the codebase:
+
+| Page/Query | Society Scoped? | Fix Needed |
+|---|---|---|
+| `HomePage.tsx` seller queries | Yes (has society_id filter) | OK |
+| `SearchPage.tsx` | Yes (passes user_society_id to RPC) | OK |
+| `CategoryGroupPage.tsx` | **NO** -- queries all approved sellers | Add society_id filter |
+| `FavoritesPage.tsx` | **NO** -- shows favorites from any society | Add society_id filter on seller join |
+| `CartPage.tsx` delivery address | Hardcoded "Shriram Greenfield" | Use society name from context |
+| `SellerDetailPage.tsx` | No filter needed (direct ID lookup) | OK (RLS handles it) |
+
+### Fixes required:
+
+1. **CategoryGroupPage.tsx**: Add `.eq('society_id', profile.society_id)` to the seller query
+2. **FavoritesPage.tsx**: Filter favorites to only show sellers from user's society
+3. **CartPage.tsx line 377**: Replace hardcoded "Shriram Greenfield" with `society?.name`
+4. **Coupon system**: All coupon queries will include `society_id` filter
+5. **RLS-level enforcement**: Add a database function `get_user_society_id(user_id)` and use it in RLS policies on `seller_profiles` and `products` tables so that even if client-side filters are bypassed, the database enforces society isolation
+
+### Database-level enforcement (new RLS approach):
 ```text
-parent_groups
-  id          uuid (PK)
-  slug        text (unique) -- e.g. "food", "classes"
-  name        text          -- e.g. "Food & Groceries"
-  icon        text          -- emoji
-  color       text          -- tailwind classes
-  description text
-  is_active   boolean (default true)
-  sort_order  integer (default 0)
-  created_at  timestamptz
-  updated_at  timestamptz
+-- Security definer function
+create function get_user_society_id(_user_id uuid) returns uuid
+  -- Returns the society_id for a given user
+
+-- Update seller_profiles SELECT policy to include:
+  OR (society_id = get_user_society_id(auth.uid()))
+-- This ensures users can only see sellers from their own society
 ```
 
-Migration will:
-- Create the table with RLS (anyone can read active groups, admins can manage)
-- Seed it with all 10 existing parent groups from the hardcoded constant
-- Add a foreign key from `category_config.parent_group` referencing `parent_groups.slug`
-- Add indexes on `slug` and `sort_order`
+---
 
-### 2. Cascading Toggle Logic
+## 7. Complete Branding and Legal Setup
 
-- When a parent group is toggled OFF, all its subcategories in `category_config` are set to `is_active = false`
-- When toggled ON, subcategories retain their individual state (not auto-enabled)
-- Product/seller visibility checks: listings only show if BOTH the parent group AND subcategory are active
+### Logo
+- A logo cannot be generated by code -- you will need to use a design tool (Canva, Figma) or hire a designer
+- The codebase supports `society.logo_url` for per-society branding; the platform logo should be added as a static asset
 
-### 3. New Hook: `useParentGroups`
+### Terms and Conditions Rewrite
+Update `TermsPage.tsx` to:
+- Replace all "BlockEats" references with the new platform name
+- Replace all "Shriram Greenfield" with generic "your registered society"
+- Add Grievance Officer section (required by Consumer Protection Rules 2020)
+- Add FSSAI compliance clause for food sellers
+- Add TCS/GST disclaimer
+- Add marketplace intermediary disclaimer (IT Act Section 79)
+- Add DPDPA (Digital Personal Data Protection Act) compliance section
 
-A new hook in `src/hooks/useParentGroups.ts` that:
-- Fetches parent groups from the database
-- Provides grouped data (parent + its subcategories)
-- Replaces all imports of the hardcoded `PARENT_GROUPS` constant
+### Privacy Policy Rewrite
+Update `PrivacyPolicyPage.tsx` to:
+- Replace hardcoded society references with generic language
+- Add GPS/location data collection disclosure
+- Add push notification data handling
+- Add DPDPA compliance: data principal rights, consent mechanism, data retention policy
+- Add Data Protection Officer contact placeholder
 
-### 4. Remove Hardcoded Constants
+### Pricing Page
+- Create new `/pricing` route and `PricingPage.tsx`
+- Display the tiered pricing model (Free Buyer, Free Seller, Seller Pro, Society Plan)
+- Add to footer navigation on landing page
 
-- **Delete** the `PARENT_GROUPS` array from `src/types/categories.ts`
-- **Delete** the `CATEGORIES` array from `src/types/database.ts`
-- **Keep** the TypeScript types (`ParentGroup`, `ServiceCategory`, etc.) but make them `string` types since values are now dynamic
-- Update all 6+ files that import `PARENT_GROUPS` to use the new hook
-- Update all 5+ files that import `CATEGORIES` to use `useCategoryConfigs()` instead
+---
 
-### 5. Admin UI: Full CRUD for Parent Groups
+## Technical Implementation Sequence
 
-Refactor `CategoryManager.tsx` to:
-- Fetch parent groups from DB instead of iterating over a constant
-- Add "Create Parent Category" button with modal (name, icon, color, description)
-- Edit parent category (name, icon, color, description)
-- Delete parent category (soft-delete if subcategories exist with active listings)
-- Toggle parent category (with cascading disable of subcategories)
-- Reorder parent categories via sort_order
+### Phase 1: Society Isolation Fixes (Critical)
+- Fix CategoryGroupPage.tsx missing society filter
+- Fix FavoritesPage.tsx missing society filter
+- Fix CartPage.tsx hardcoded society name
+- Add `get_user_society_id` database function for RLS enforcement
 
-### 6. Files Affected
+### Phase 2: Branding Update
+- Choose final name (user decision)
+- Update all hardcoded references across ~10 files
+- Update Capacitor configs, manifest.json, index.html meta tags
 
-| File | Change |
+### Phase 3: Landing Page Carousel
+- Rebuild LandingPage.tsx with embla-carousel
+- 5 slides with auto-play, dot indicators, swipe
+- Dynamic stats from database
+
+### Phase 4: Coupon Engine
+- Create `coupons` and `coupon_redemptions` tables with RLS
+- Add `coupon_id` and `discount_amount` to `orders` table
+- Seller coupon management UI
+- Buyer coupon application on CartPage
+
+### Phase 5: Legal and Pricing Pages
+- Rewrite Terms and Privacy Policy with generic, multi-society language
+- Create PricingPage.tsx
+- Add Grievance Officer section
+
+### Phase 6: Final Polish
+- Capacitor config updates for new brand
+- PWA manifest updates
+- OG image and social meta updates
+
+---
+
+## Files to be Created or Modified
+
+| File | Action |
 |---|---|
-| `src/types/categories.ts` | Remove `PARENT_GROUPS` constant, keep types |
-| `src/types/database.ts` | Remove `CATEGORIES` constant |
-| `src/hooks/useParentGroups.ts` | **New** -- DB-driven parent group hook |
-| `src/hooks/useCategoryBehavior.ts` | Update `groupedConfigs` to use DB parent groups |
-| `src/components/admin/CategoryManager.tsx` | Full CRUD for parent groups + subcategories |
-| `src/components/category/CategoryGroupGrid.tsx` | Use hook instead of constant |
-| `src/components/category/CategoryGrid.tsx` | Use `useCategoryConfigs` instead of `CATEGORIES` |
-| `src/pages/BecomeSellerPage.tsx` | Use hook instead of constant |
-| `src/pages/CategoryGroupPage.tsx` | Use hook instead of constant |
-| `src/pages/SellerSettingsPage.tsx` | Use hook instead of constant |
-| `src/pages/SellerDetailPage.tsx` | Use hook instead of `CATEGORIES` |
-| `src/pages/SellerProductsPage.tsx` | Use hook instead of `CATEGORIES` |
-| `src/pages/CategoryPage.tsx` | Use hook instead of `CATEGORIES` |
-
-### 7. Backward Compatibility
-
-- The `parent_groups.slug` values match the existing `parent_group` text values in `category_config`, so no data migration needed for subcategories
-- Existing `seller_profiles.primary_group` and `seller_profiles.categories` continue to work because they reference slugs/category keys
-- Existing orders, products, and listings are unaffected -- they reference category text keys which remain the same
-- The `DEFAULT_GROUP_BEHAVIORS` map in `types/categories.ts` will be kept as a fallback but behavior flags already exist per-subcategory in `category_config`
-
-### 8. Safety Checks
-
-- Delete parent group: check if any active subcategories have products/sellers; if so, soft-delete (set `is_active = false`) with a warning
-- Delete subcategory: existing logic already checks for sellers using it
-- All changes are additive -- no columns removed, no data deleted
-
+| `src/pages/LandingPage.tsx` | Rewrite with carousel |
+| `src/pages/PricingPage.tsx` | **New** |
+| `src/pages/TermsPage.tsx` | Rewrite for multi-society + compliance |
+| `src/pages/PrivacyPolicyPage.tsx` | Rewrite for DPDPA compliance |
+| `src/pages/CategoryGroupPage.tsx` | Add society_id filter |
+| `src/pages/FavoritesPage.tsx` | Add society_id filter |
+| `src/pages/CartPage.tsx` | Dynamic society name |
+| `src/App.tsx` | Add /pricing route |
+| `index.html` | Update meta tags |
+| `public/manifest.json` | Update name/description |
+| `capacitor.config.ts` | Update appName |
+| `capacitor.config.production.ts` | Update appName |
+| Database migration | `coupons`, `coupon_redemptions` tables, `orders` columns, RLS function |
+| `src/components/seller/CouponManager.tsx` | **New** -- seller coupon CRUD |
+| `src/components/cart/CouponInput.tsx` | **New** -- buyer coupon application |
