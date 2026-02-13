@@ -125,37 +125,32 @@ export default function AuthPage() {
     }
   };
 
-  const handleMapConfirm = async (lat: number, lng: number) => {
+  // Pending society data for deferred creation after signup
+  const [pendingNewSociety, setPendingNewSociety] = useState<{
+    name: string; slug: string; address: string; city: string; state: string;
+    pincode: string; latitude: number; longitude: number;
+  } | null>(null);
+
+  const handleMapConfirm = (lat: number, lng: number, updatedName?: string) => {
     if (!selectedPlace) return;
     setAdjustedCoords({ lat, lng });
-    setIsLoading(true);
-    try {
-      // Create new society from Google Place
-      const slug = selectedPlace.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
-      const { data, error } = await supabase.from('societies').insert({
-        name: selectedPlace.name,
-        slug: slug + '-' + Date.now(),
-        address: selectedPlace.formattedAddress,
-        city: selectedPlace.city,
-        state: selectedPlace.state,
-        pincode: selectedPlace.pincode,
-        latitude: lat,
-        longitude: lng,
-        is_verified: false,
-        is_active: false,
-      }).select().single();
-
-      if (error) throw error;
-
-      toast.success('Society registered! It will be activated after admin approval.');
-      // Set as selected (even though not verified yet, user can complete signup)
-      setSelectedSociety(data as Society);
-      setSocietySubStep('search');
-    } catch (error: any) {
-      toast.error(error.message || 'Failed to register society');
-    } finally {
-      setIsLoading(false);
-    }
+    const name = updatedName || selectedPlace.name;
+    const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+    const pending = {
+      name,
+      slug: slug + '-' + Date.now(),
+      address: selectedPlace.formattedAddress,
+      city: selectedPlace.city,
+      state: selectedPlace.state,
+      pincode: selectedPlace.pincode,
+      latitude: lat,
+      longitude: lng,
+    };
+    setPendingNewSociety(pending);
+    // Create a temporary local society object so the user can proceed
+    setSelectedSociety({ id: 'pending', name, slug: pending.slug, is_active: false, is_verified: false, created_at: '', updated_at: '' } as Society);
+    toast.success('Location confirmed! Complete signup to register your society.');
+    setSocietySubStep('search');
   };
 
   const validateEmail = (email: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
@@ -221,25 +216,26 @@ export default function AuthPage() {
     return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   };
 
-  const handleRequestNewSociety = async () => {
+  const handleRequestNewSociety = () => {
     if (!newSocietyData.name || !newSocietyData.city || !newSocietyData.pincode || !newSocietyData.contact) {
       toast.error('Please fill in all required fields'); return;
     }
-    setIsLoading(true);
-    try {
-      const slug = newSocietyData.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
-      const { error } = await supabase.from('societies').insert({
-        name: newSocietyData.name, slug: slug + '-' + Date.now(),
-        address: [newSocietyData.address, newSocietyData.landmark].filter(Boolean).join(', ') || null,
-        city: newSocietyData.city,
-        pincode: newSocietyData.pincode, is_verified: false, is_active: false,
-      }).select().single();
-      if (error) throw error;
-      toast.success("Society request submitted! You'll be notified once approved.");
-      setSocietySubStep('search');
-      setNewSocietyData({ name: '', address: '', city: '', pincode: '', landmark: '', contact: '' });
-    } catch (error: any) { toast.error(error.message || 'Failed to submit request'); }
-    finally { setIsLoading(false); }
+    const slug = newSocietyData.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+    const pending = {
+      name: newSocietyData.name,
+      slug: slug + '-' + Date.now(),
+      address: [newSocietyData.address, newSocietyData.landmark].filter(Boolean).join(', ') || '',
+      city: newSocietyData.city,
+      state: '',
+      pincode: newSocietyData.pincode,
+      latitude: 0,
+      longitude: 0,
+    };
+    setPendingNewSociety(pending);
+    setSelectedSociety({ id: 'pending', name: newSocietyData.name, slug: pending.slug, is_active: false, is_verified: false, created_at: '', updated_at: '' } as Society);
+    toast.success("Society details saved! Complete signup to submit your request.");
+    setSocietySubStep('search');
+    setNewSocietyData({ name: '', address: '', city: '', pincode: '', landmark: '', contact: '' });
   };
 
   const handleSignupComplete = async () => {
@@ -265,21 +261,41 @@ export default function AuthPage() {
           setAuthMode('login'); setSignupStep('credentials'); return;
         }
         try {
+          // If pending new society, create it via edge function first
+          let finalSocietyId = selectedSociety.id;
+          if (pendingNewSociety && selectedSociety.id === 'pending') {
+            try {
+              const { data: validateData, error: validateError } = await supabase.functions.invoke('validate-society', {
+                body: { new_society: pendingNewSociety },
+              });
+              if (validateError) throw validateError;
+              if (validateData?.society?.id) {
+                finalSocietyId = validateData.society.id;
+              }
+            } catch (validateErr) {
+              console.warn('Society creation via edge function failed:', validateErr);
+              toast.error('Failed to register society. Please try again.');
+              setIsLoading(false);
+              return;
+            }
+          } else {
+            // Validate existing society server-side
+            try {
+              await supabase.functions.invoke('validate-society', {
+                body: { society_id: selectedSociety.id },
+              });
+            } catch (validateErr) {
+              console.warn('Society validation call failed, will be validated by admin:', validateErr);
+            }
+          }
+
           const { error: profileError } = await supabase.from('profiles').insert({
             id: data.user.id, phone: `+91${profileData.phone}`, name: profileData.name,
             flat_number: profileData.flat_number, block: profileData.block,
-            phase: profileData.phase || null, society_id: selectedSociety.id,
+            phase: profileData.phase || null, society_id: finalSocietyId,
           });
           if (!profileError) {
             await supabase.from('user_roles').insert({ user_id: data.user.id, role: 'buyer' });
-          }
-          // Server-side validation of society_id
-          try {
-            await supabase.functions.invoke('validate-society', {
-              body: { society_id: selectedSociety.id },
-            });
-          } catch (validateErr) {
-            console.warn('Society validation call failed, will be validated by admin:', validateErr);
           }
         } catch (e) { console.log('Profile will be created after email verification'); }
         setSignupStep('verification');
@@ -408,7 +424,7 @@ export default function AuthPage() {
           </div>
 
           {/* Form Content */}
-          <div className="px-6 pb-6 overflow-hidden">
+          <div className="px-6 pb-6 overflow-visible">
             <AnimatePresence mode="wait">
               {/* Login Form */}
               {authMode === 'login' && (
