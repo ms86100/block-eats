@@ -84,7 +84,7 @@ export default function AdminPage() {
   const fetchData = async () => {
     try {
       const [usersRes, sellersRes, reviewsRes, allSellersRes, paymentsRes, reportsRes, warningsRes, societiesRes, statsRes] = await Promise.all([
-        supabase.from('profiles').select('*').eq('verification_status', 'pending'),
+        supabase.from('profiles').select('*, society:societies!profiles_society_id_fkey(name)').eq('verification_status', 'pending'),
         supabase.from('seller_profiles').select('*, profile:profiles!seller_profiles_user_id_fkey(name, block, flat_number)').eq('verification_status', 'pending'),
         supabase.from('reviews').select('*, buyer:profiles!reviews_buyer_id_fkey(name), seller:seller_profiles(business_name)').order('created_at', { ascending: false }).limit(50),
         supabase.from('seller_profiles').select('*, profile:profiles!seller_profiles_user_id_fkey(name, block)').eq('verification_status', 'approved'),
@@ -103,7 +103,7 @@ export default function AdminPage() {
         ]),
       ]);
 
-      setPendingUsers((usersRes.data as Profile[]) || []);
+      setPendingUsers((usersRes.data as any) || []);
       setPendingSellers((sellersRes.data as any) || []);
       setReviews((reviewsRes.data as any) || []);
       setAllSellers((allSellersRes.data as any) || []);
@@ -302,7 +302,12 @@ export default function AdminPage() {
             <h3 className="text-sm font-semibold text-muted-foreground">Pending Users ({pendingUsers.length})</h3>
             {pendingUsers.length > 0 ? pendingUsers.map((user) => (
               <Card key={user.id}><CardContent className="p-3 flex items-center justify-between">
-                <div><p className="font-medium text-sm">{user.name}</p><p className="text-xs text-muted-foreground">Block {user.block}, {user.flat_number}</p></div>
+                <div>
+                  <p className="font-medium text-sm">{user.name}</p>
+                  <p className="text-xs text-muted-foreground">{(user as any).email && `${(user as any).email} • `}{user.phone}</p>
+                  <p className="text-xs text-muted-foreground">{user.phase && `${user.phase}, `}Block {user.block}, Flat {user.flat_number}</p>
+                  {(user as any).society?.name && <p className="text-xs text-primary font-medium">{(user as any).society.name}</p>}
+                </div>
                 <div className="flex gap-2">
                   <Button size="sm" variant="outline" className="text-destructive h-8 w-8 p-0" onClick={() => updateUserStatus(user.id, 'rejected')}><X size={14} /></Button>
                   <Button size="sm" className="h-8 w-8 p-0" onClick={() => updateUserStatus(user.id, 'approved')}><Check size={14} /></Button>

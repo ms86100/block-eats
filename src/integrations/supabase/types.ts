@@ -758,6 +758,7 @@ export type Database = {
           avatar_url: string | null
           block: string
           created_at: string | null
+          email: string | null
           flat_number: string
           id: string
           name: string
@@ -773,6 +774,7 @@ export type Database = {
           avatar_url?: string | null
           block: string
           created_at?: string | null
+          email?: string | null
           flat_number: string
           id: string
           name: string
@@ -788,6 +790,7 @@ export type Database = {
           avatar_url?: string | null
           block?: string
           created_at?: string | null
+          email?: string | null
           flat_number?: string
           id?: string
           name?: string

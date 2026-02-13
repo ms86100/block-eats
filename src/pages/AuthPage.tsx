@@ -280,7 +280,7 @@ export default function AuthPage() {
           }
 
           const { error: profileError } = await supabase.from('profiles').insert({
-            id: data.user.id, phone: `+91${profileData.phone}`, name: profileData.name,
+            id: data.user.id, email, phone: `+91${profileData.phone}`, name: profileData.name,
             flat_number: profileData.flat_number, block: profileData.block,
             phase: profileData.phase || null, society_id: finalSocietyId,
           });
