@@ -6,6 +6,7 @@ import {
   CategoryConfig, 
   ParentGroup,
   DEFAULT_GROUP_BEHAVIORS,
+  DEFAULT_FALLBACK_BEHAVIOR,
   getListingType,
   getOrderType,
 } from '@/types/categories';
@@ -80,27 +81,15 @@ export function useCategoryConfigs() {
     }
   };
 
-  // Group configs by parent group
+  // Group configs by parent group - fully dynamic
   const groupedConfigs = useMemo(() => {
-    const grouped: Record<ParentGroup, CategoryConfig[]> = {
-      food: [],
-      classes: [],
-      services: [],
-      personal: [],
-      professional: [],
-      rentals: [],
-      resale: [],
-      events: [],
-      pets: [],
-      property: [],
-    };
-
+    const grouped: Record<string, CategoryConfig[]> = {};
     configs.forEach((config) => {
-      if (grouped[config.parentGroup]) {
-        grouped[config.parentGroup].push(config);
+      if (!grouped[config.parentGroup]) {
+        grouped[config.parentGroup] = [];
       }
+      grouped[config.parentGroup].push(config);
     });
-
     return grouped;
   }, [configs]);
 
@@ -149,8 +138,8 @@ export function useCategoryBehavior(category: ServiceCategory | null) {
 // Hook to get behavior for a parent group
 export function useGroupBehavior(parentGroup: ParentGroup | null) {
   return useMemo(() => {
-    if (!parentGroup) return DEFAULT_GROUP_BEHAVIORS.food;
-    return DEFAULT_GROUP_BEHAVIORS[parentGroup] || DEFAULT_GROUP_BEHAVIORS.food;
+    if (!parentGroup) return DEFAULT_FALLBACK_BEHAVIOR;
+    return DEFAULT_GROUP_BEHAVIORS[parentGroup] || DEFAULT_FALLBACK_BEHAVIOR;
   }, [parentGroup]);
 }
 

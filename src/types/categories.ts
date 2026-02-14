@@ -32,17 +32,8 @@ export type PredefinedCategory =
   // Property
   | 'flat_rent' | 'roommate' | 'parking';
 
-export type ParentGroup = 
-  | 'food' 
-  | 'classes' 
-  | 'services' 
-  | 'personal' 
-  | 'professional' 
-  | 'rentals' 
-  | 'resale' 
-  | 'events' 
-  | 'pets' 
-  | 'property';
+// ParentGroup is now a flexible string type to support dynamic groups from the database
+export type ParentGroup = string;
 
 export type ListingType = 'product' | 'service' | 'rental' | 'resale';
 export type OrderType = 'purchase' | 'booking' | 'rental' | 'enquiry';
@@ -77,7 +68,22 @@ export interface CategoryConfig {
 // PARENT_GROUPS constant removed - now fetched from database via useParentGroups hook
 
 // Default behavior flags for each parent group
-export const DEFAULT_GROUP_BEHAVIORS: Record<ParentGroup, CategoryBehavior> = {
+// Default fallback behavior for any unknown parent group
+export const DEFAULT_FALLBACK_BEHAVIOR: CategoryBehavior = {
+  isPhysicalProduct: false,
+  requiresPreparation: false,
+  requiresTimeSlot: false,
+  requiresDelivery: false,
+  supportsCart: false,
+  enquiryOnly: false,
+  hasQuantity: false,
+  hasDuration: false,
+  hasDateRange: false,
+  isNegotiable: false,
+};
+
+// Known default behaviors for common groups (used as hints, not as the source of truth)
+export const DEFAULT_GROUP_BEHAVIORS: Record<string, CategoryBehavior> = {
   food: {
     isPhysicalProduct: true,
     requiresPreparation: true,
