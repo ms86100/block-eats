@@ -9,6 +9,7 @@ export interface SocietyAdmin {
   user_id: string;
   role: 'admin' | 'moderator';
   appointed_by: string | null;
+  deactivated_at: string | null;
   created_at: string;
 }
 
@@ -62,6 +63,7 @@ export interface Society {
   auto_approve_residents: boolean;
   approval_method: string;
   builder_id: string | null;
+  max_society_admins: number;
   created_at: string;
   updated_at: string;
 }
@@ -144,6 +146,7 @@ export interface Order {
   id: string;
   buyer_id: string;
   seller_id: string;
+  society_id: string | null;
   status: OrderStatus;
   total_amount: number;
   payment_type: string;

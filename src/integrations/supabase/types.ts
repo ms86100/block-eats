@@ -44,6 +44,54 @@ export type Database = {
         }
         Relationships: []
       }
+      audit_log: {
+        Row: {
+          action: string
+          actor_id: string | null
+          created_at: string
+          id: string
+          metadata: Json | null
+          society_id: string | null
+          target_id: string | null
+          target_type: string
+        }
+        Insert: {
+          action: string
+          actor_id?: string | null
+          created_at?: string
+          id?: string
+          metadata?: Json | null
+          society_id?: string | null
+          target_id?: string | null
+          target_type: string
+        }
+        Update: {
+          action?: string
+          actor_id?: string | null
+          created_at?: string
+          id?: string
+          metadata?: Json | null
+          society_id?: string | null
+          target_id?: string | null
+          target_type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "audit_log_actor_id_fkey"
+            columns: ["actor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "audit_log_society_id_fkey"
+            columns: ["society_id"]
+            isOneToOne: false
+            referencedRelation: "societies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       builder_members: {
         Row: {
           builder_id: string
@@ -1252,6 +1300,7 @@ export type Database = {
           scheduled_time_end: string | null
           scheduled_time_start: string | null
           seller_id: string | null
+          society_id: string | null
           status: Database["public"]["Enums"]["order_status"] | null
           total_amount: number
           updated_at: string | null
@@ -1279,6 +1328,7 @@ export type Database = {
           scheduled_time_end?: string | null
           scheduled_time_start?: string | null
           seller_id?: string | null
+          society_id?: string | null
           status?: Database["public"]["Enums"]["order_status"] | null
           total_amount: number
           updated_at?: string | null
@@ -1306,6 +1356,7 @@ export type Database = {
           scheduled_time_end?: string | null
           scheduled_time_start?: string | null
           seller_id?: string | null
+          society_id?: string | null
           status?: Database["public"]["Enums"]["order_status"] | null
           total_amount?: number
           updated_at?: string | null
@@ -1330,6 +1381,13 @@ export type Database = {
             columns: ["seller_id"]
             isOneToOne: false
             referencedRelation: "seller_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "orders_society_id_fkey"
+            columns: ["society_id"]
+            isOneToOne: false
+            referencedRelation: "societies"
             referencedColumns: ["id"]
           },
         ]
@@ -2266,6 +2324,7 @@ export type Database = {
           latitude: number | null
           logo_url: string | null
           longitude: number | null
+          max_society_admins: number
           member_count: number | null
           name: string
           pincode: string | null
@@ -2292,6 +2351,7 @@ export type Database = {
           latitude?: number | null
           logo_url?: string | null
           longitude?: number | null
+          max_society_admins?: number
           member_count?: number | null
           name: string
           pincode?: string | null
@@ -2318,6 +2378,7 @@ export type Database = {
           latitude?: number | null
           logo_url?: string | null
           longitude?: number | null
+          max_society_admins?: number
           member_count?: number | null
           name?: string
           pincode?: string | null
@@ -2412,6 +2473,7 @@ export type Database = {
         Row: {
           appointed_by: string | null
           created_at: string
+          deactivated_at: string | null
           id: string
           role: string
           society_id: string
@@ -2420,6 +2482,7 @@ export type Database = {
         Insert: {
           appointed_by?: string | null
           created_at?: string
+          deactivated_at?: string | null
           id?: string
           role?: string
           society_id: string
@@ -2428,6 +2491,7 @@ export type Database = {
         Update: {
           appointed_by?: string | null
           created_at?: string
+          deactivated_at?: string | null
           id?: string
           role?: string
           society_id?: string
@@ -2818,6 +2882,7 @@ export type Database = {
         Returns: boolean
       }
       get_category_parent_group: { Args: { cat: string }; Returns: string }
+      get_user_auth_context: { Args: { _user_id: string }; Returns: Json }
       get_user_society_id: { Args: { _user_id: string }; Returns: string }
       has_role: {
         Args: {
