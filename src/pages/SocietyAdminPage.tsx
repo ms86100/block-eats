@@ -14,6 +14,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Profile, SellerProfile, VerificationStatus, SocietyAdmin } from '@/types/database';
 import { Check, X, Users, Store, Settings, Shield, UserPlus, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { logAudit } from '@/lib/audit';
 
 export default function SocietyAdminPage() {
   const { profile, society, isSocietyAdmin, isAdmin } = useAuth();
@@ -47,7 +48,7 @@ export default function SocietyAdminPage() {
       const [usersRes, sellersRes, adminsRes] = await Promise.all([
         supabase.from('profiles').select('*').eq('society_id', societyId).eq('verification_status', 'pending'),
         supabase.from('seller_profiles').select('*, profile:profiles!seller_profiles_user_id_fkey(name, block, flat_number)').eq('society_id', societyId).eq('verification_status', 'pending'),
-        supabase.from('society_admins').select('*, user:profiles!society_admins_user_id_fkey(name)').eq('society_id', societyId),
+        supabase.from('society_admins').select('*, user:profiles!society_admins_user_id_fkey(name)').eq('society_id', societyId).is('deactivated_at', null),
       ]);
       setPendingUsers((usersRes.data as Profile[]) || []);
       setPendingSellers((sellersRes.data as any) || []);
@@ -60,8 +61,10 @@ export default function SocietyAdminPage() {
   };
 
   const updateUserStatus = async (id: string, status: VerificationStatus) => {
+    if (!societyId) return;
     try {
       await supabase.from('profiles').update({ verification_status: status }).eq('id', id);
+      await logAudit(`user_${status}`, 'profile', id, societyId, { status });
       toast.success(`User ${status}`);
       fetchData();
     } catch (error) {
@@ -70,6 +73,7 @@ export default function SocietyAdminPage() {
   };
 
   const updateSellerStatus = async (id: string, status: VerificationStatus) => {
+    if (!societyId) return;
     try {
       const { data: seller } = await supabase.from('seller_profiles').select('user_id').eq('id', id).single();
       if (!seller) throw new Error('Seller not found');
@@ -79,6 +83,7 @@ export default function SocietyAdminPage() {
       } else if (status === 'rejected' || status === 'suspended') {
         await supabase.from('user_roles').delete().eq('user_id', seller.user_id).eq('role', 'seller');
       }
+      await logAudit(`seller_${status}`, 'seller_profile', id, societyId, { status });
       toast.success(`Seller ${status}`);
       fetchData();
     } catch (error) {
@@ -90,6 +95,7 @@ export default function SocietyAdminPage() {
     if (!societyId) return;
     try {
       await supabase.from('societies').update({ [field]: value }).eq('id', societyId);
+      await logAudit('settings_changed', 'society', societyId, societyId, { field, value });
       toast.success('Settings updated');
     } catch (error) {
       toast.error('Failed to update settings');
@@ -118,6 +124,7 @@ export default function SocietyAdminPage() {
         role,
         appointed_by: profile.id,
       });
+      await logAudit('admin_appointed', 'society_admin', userId, societyId, { role });
       toast.success('Admin appointed');
       setAppointOpen(false);
       setSearchQuery('');
@@ -126,6 +133,8 @@ export default function SocietyAdminPage() {
     } catch (error: any) {
       if (error?.code === '23505') {
         toast.error('This user is already an admin');
+      } else if (error?.message?.includes('Maximum number')) {
+        toast.error('Maximum admin limit reached for this society');
       } else {
         toast.error('Failed to appoint admin');
       }
@@ -133,8 +142,10 @@ export default function SocietyAdminPage() {
   };
 
   const removeAdmin = async (adminId: string) => {
+    if (!societyId) return;
     try {
-      await supabase.from('society_admins').delete().eq('id', adminId);
+      await supabase.from('society_admins').update({ deactivated_at: new Date().toISOString() }).eq('id', adminId);
+      await logAudit('admin_removed', 'society_admin', adminId, societyId);
       toast.success('Admin removed');
       fetchData();
     } catch (error) {

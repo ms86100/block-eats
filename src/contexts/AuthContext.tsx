@@ -40,66 +40,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const fetchProfile = async (userId: string) => {
     try {
-      const { data: profileData } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', userId)
-        .single();
-      
-      setProfile(profileData as Profile | null);
+      // Single consolidated query instead of 6 sequential calls
+      const { data, error } = await supabase.rpc('get_user_auth_context', {
+        _user_id: userId,
+      });
 
-      // Fetch society data if profile has society_id
-      if (profileData?.society_id) {
-        const { data: societyData } = await supabase
-          .from('societies')
-          .select('*')
-          .eq('id', profileData.society_id)
-          .single();
-        setSociety(societyData as Society | null);
-
-        // Check if user is a society admin
-        const { data: saData } = await supabase
-          .from('society_admins')
-          .select('*')
-          .eq('user_id', userId)
-          .eq('society_id', profileData.society_id)
-          .maybeSingle();
-        setSocietyAdminRole(saData as SocietyAdmin | null);
-      } else {
-        setSociety(null);
-        setSocietyAdminRole(null);
+      if (error || !data) {
+        console.error('Error fetching auth context:', error);
+        return;
       }
 
-      const { data: rolesData } = await supabase
-        .from('user_roles')
-        .select('role')
-        .eq('user_id', userId);
-      
-      setRoles((rolesData?.map(r => r.role) as UserRole[]) || []);
+      const ctx = data as any;
 
-      // Fetch all seller profiles for the user (multi-seller support)
-      const { data: sellersData } = await supabase
-        .from('seller_profiles')
-        .select('*')
-        .eq('user_id', userId)
-        .order('created_at', { ascending: true });
-      
-      const sellers = (sellersData as SellerProfile[]) || [];
+      setProfile(ctx.profile as Profile | null);
+      setSociety(ctx.society as Society | null);
+      setSocietyAdminRole(ctx.society_admin_role as SocietyAdmin | null);
+      setRoles((ctx.roles as UserRole[]) || []);
+
+      const sellers = (ctx.seller_profiles as SellerProfile[]) || [];
       setSellerProfiles(sellers);
-      
-      // Set current seller to first one if not already set
+
       if (sellers.length > 0 && !currentSellerId) {
         setCurrentSellerId(sellers[0].id);
       } else if (sellers.length === 0) {
         setCurrentSellerId(null);
       }
 
-      // Check builder membership
-      const { data: builderData } = await supabase
-        .from('builder_members')
-        .select('builder_id')
-        .eq('user_id', userId);
-      setManagedBuilderIds((builderData || []).map(b => b.builder_id));
+      setManagedBuilderIds((ctx.builder_ids as string[]) || []);
     } catch (error) {
       console.error('Error fetching profile:', error);
     }
