@@ -29,7 +29,7 @@ STATUS KEY: [ ] Todo  [~] In Progress  [x] Done
 [x] Help feed as tab within Community page
 [x] Auto-expiry (handled by auto-archive-bulletin cron)
 [x] Private response system (only requester sees responders via RLS)
-[ ] Push notification for new requests in society
+[x] Push notification for new requests in society
 
 ## FEATURE 3: RECURRING SUBSCRIPTIONS
 [x] Database tables: subscriptions, subscription_deliveries
@@ -48,8 +48,8 @@ STATUS KEY: [ ] Todo  [~] In Progress  [x] Done
 [x] TrustDirectoryPage with search (/directory)
 [x] SkillCard component with trust score
 [x] Endorsement/recommendation system
-[ ] Integration with existing seller reviews for trust scoring
-[ ] Profile badge display on profile pages
+[x] Integration with existing seller reviews for trust scoring
+[x] Profile badge display on profile pages
 
 ## ROUTES ADDED
 - /community — Bulletin Board + Quick Help tabs
@@ -60,11 +60,10 @@ STATUS KEY: [ ] Todo  [~] In Progress  [x] Done
 - auto-archive-bulletin — daily cron, archives 30-day posts + expires help requests
 - summarize-thread — AI summary via Lovable AI (Gemini 3 Flash)
 - process-subscriptions — daily cron, auto-generates orders for active subscriptions
+- notify-help-request — sends push notifications to society members on new help requests
 
 ## REMAINING WORK (nice-to-haves)
 - Subscribe button on ProductCard component
 - Seller subscription management dashboard tab
-- Push notifications for help requests + subscriptions
-- Trust score integration with seller reviews
-- Profile badge display
+- Push notifications for subscription delivery reminders
 - Admin UI for pinning bulletin posts

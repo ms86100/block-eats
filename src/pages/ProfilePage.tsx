@@ -23,6 +23,8 @@ import {
   Type,
   FileText,
   Camera,
+  Repeat,
+  Award,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -33,6 +35,21 @@ export default function ProfilePage() {
     return localStorage.getItem('sociva_large_font') === 'true';
   });
   const [isEditingAvatar, setIsEditingAvatar] = useState(false);
+  const [skillBadges, setSkillBadges] = useState<{ skill_name: string; trust_score: number; endorsement_count: number }[]>([]);
+
+  useEffect(() => {
+    if (!user) return;
+    const fetchBadges = async () => {
+      const { data } = await supabase
+        .from('skill_listings')
+        .select('skill_name, trust_score, endorsement_count')
+        .eq('user_id', user.id)
+        .order('trust_score', { ascending: false })
+        .limit(5);
+      setSkillBadges(data || []);
+    };
+    fetchBadges();
+  }, [user]);
 
   useEffect(() => {
     if (largeFont) {
@@ -71,6 +88,8 @@ export default function ProfilePage() {
   const menuItems = [
     { icon: Package, label: 'My Orders', to: '/orders' },
     { icon: Heart, label: 'Favorites', to: '/favorites' },
+    { icon: Repeat, label: 'My Subscriptions', to: '/subscriptions' },
+    { icon: Award, label: 'Community Directory', to: '/directory' },
     ...(isSeller
       ? [{ icon: Store, label: 'Seller Dashboard', to: '/seller' }]
       : [{ icon: Store, label: 'Become a Seller', to: '/become-seller' }]),
@@ -151,6 +170,23 @@ export default function ProfilePage() {
               <div className="mt-3 flex items-center gap-2 text-xs text-success">
                 <Shield size={14} />
                 <span>Verified Resident</span>
+              </div>
+            )}
+
+            {skillBadges.length > 0 && (
+              <div className="mt-3 flex flex-wrap gap-1.5">
+                {skillBadges.map((badge) => (
+                  <div
+                    key={badge.skill_name}
+                    className="flex items-center gap-1 px-2 py-1 rounded-full bg-accent/10 text-accent text-[10px] font-medium"
+                  >
+                    <Award size={10} />
+                    {badge.skill_name}
+                    {badge.trust_score > 0 && (
+                      <span className="text-muted-foreground">· {badge.trust_score}</span>
+                    )}
+                  </div>
+                ))}
               </div>
             )}
           </CardContent>

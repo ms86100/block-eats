@@ -34,15 +34,26 @@ export function CreateHelpSheet({ open, onOpenChange, onCreated }: CreateHelpShe
     if (!title.trim() || !profile?.society_id) return;
     setLoading(true);
     try {
-      const { error } = await supabase.from('help_requests').insert({
+      const { data: inserted, error } = await supabase.from('help_requests').insert({
         society_id: profile.society_id,
         author_id: profile.id,
         title: title.trim(),
         description: description.trim() || null,
         tag,
-      });
+      }).select('id').single();
       if (error) throw error;
       toast({ title: 'Help request posted!' });
+
+      // Fire-and-forget push notification to society members
+      supabase.functions.invoke('notify-help-request', {
+        body: {
+          helpRequestId: inserted.id,
+          societyId: profile.society_id,
+          authorId: profile.id,
+          title: title.trim(),
+          tag,
+        },
+      }).catch(console.error);
       setTitle('');
       setDescription('');
       setTag('question');

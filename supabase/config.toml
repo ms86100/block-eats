@@ -23,3 +23,6 @@ verify_jwt = false
 
 [functions.process-subscriptions]
 verify_jwt = false
+
+[functions.notify-help-request]
+verify_jwt = false

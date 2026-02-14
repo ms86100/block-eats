@@ -1726,6 +1726,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      calculate_trust_score: { Args: { _user_id: string }; Returns: number }
       get_category_parent_group: { Args: { cat: string }; Returns: string }
       get_user_society_id: { Args: { _user_id: string }; Returns: string }
       has_role: {
