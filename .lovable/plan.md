@@ -1,49 +1,52 @@
 
 
-## Revised Plan: Fix Misleading "No Results Found" Label and GPS Unavailable
+## Problem
 
-### Issue 1: "No results found" appears after selecting a location
+The category system has **hardcoded parent group keys** in two critical places, which means any new parent group created by an admin (like "Donation") will never show its sub-categories:
 
-**Root cause:** After a user selects a Google Place, the code sets `selectedSociety` (line 135). This causes `showGoogleResults` (line 318) to become `false` because of the `&& !selectedSociety` condition. Since `showDbResults` is also `false`, the empty state on line 608 triggers, showing "No results found" -- even though the location was successfully selected.
+1. **`src/types/categories.ts`** - The `ParentGroup` type is a hardcoded union of 10 values. "Donation" is not included.
+2. **`src/hooks/useCategoryBehavior.ts`** - The `groupedConfigs` object is initialized with only 10 hardcoded keys. Any category with a `parent_group` not in that list gets silently dropped.
+3. **`src/types/categories.ts`** - `DEFAULT_GROUP_BEHAVIORS` is a hardcoded `Record<ParentGroup, ...>` that only covers 10 groups.
 
-**Fix:** Add `&& !selectedSociety` to the empty state condition on line 608. When a society is already selected, the "No results found" message should not appear.
+When a seller selects "Donation", the code looks up `groupedConfigs['donation']` which is `undefined`, so it falls back to `[]` and shows "No categories available".
 
-Change line 608 from:
+## Solution: Make Everything Dynamic
+
+### 1. Make `ParentGroup` a flexible string type (like `ServiceCategory` already is)
+
+In `src/types/categories.ts`:
+- Change `ParentGroup` from a hardcoded union to `string` (same approach already used for `ServiceCategory`)
+- Change `DEFAULT_GROUP_BEHAVIORS` from `Record<ParentGroup, ...>` to a flexible lookup with a sensible fallback for unknown groups
+
+### 2. Make `groupedConfigs` fully dynamic in `useCategoryBehavior.ts`
+
+Instead of initializing with hardcoded keys:
+```text
+// BEFORE (broken for new groups):
+const grouped: Record<ParentGroup, CategoryConfig[]> = {
+  food: [], classes: [], services: [], ...
+};
+
+// AFTER (dynamic):
+const grouped: Record<string, CategoryConfig[]> = {};
+configs.forEach((config) => {
+  if (!grouped[config.parentGroup]) {
+    grouped[config.parentGroup] = [];
+  }
+  grouped[config.parentGroup].push(config);
+});
 ```
-{societySearch.length >= 3 && !showDbResults && !showGoogleResults && !isSearching && (
-```
-to:
-```
-{societySearch.length >= 3 && !showDbResults && !showGoogleResults && !isSearching && !selectedSociety && (
-```
 
----
+### 3. Make `useGroupBehavior` fallback gracefully for unknown groups
 
-### Issue 2: "GPS not available for this society"
+Instead of requiring a key in `DEFAULT_GROUP_BEHAVIORS`, return a sensible default behavior for any group not in the hardcoded list.
 
-**Root cause:** On line 135, the temporary `selectedSociety` object is created without `latitude` and `longitude` properties. The GPS verification function (line 184) checks `selectedSociety?.latitude` and `selectedSociety?.longitude` -- both are `undefined`, so it immediately sets the status to `'unavailable'`.
+### 4. Update type references across the codebase
 
-The coordinates ARE available in the `details` object at that point but are only stored in `pendingNewSociety`, not in `selectedSociety`.
+Files that cast to `ParentGroup` (like `SellerSettingsPage.tsx`, `BecomeSellerPage.tsx`, `CategoryGroupPage.tsx`) will work automatically once `ParentGroup` becomes `string`, but we need to verify no type errors are introduced.
 
-**Fix:** Add `latitude` and `longitude` to the temporary society object on line 135.
-
-Change line 135 from:
-```
-setSelectedSociety({ id: 'pending', name, slug, is_active: false, is_verified: false, created_at: '', updated_at: '' } as Society);
-```
-to:
-```
-setSelectedSociety({ id: 'pending', name, slug, is_active: false, is_verified: false, latitude: details.latitude, longitude: details.longitude, created_at: '', updated_at: '' } as Society);
-```
-
----
-
-### Summary
-
-| File | Line | Change |
-|------|------|--------|
-| `src/pages/AuthPage.tsx` | 135 | Add `latitude` and `longitude` from place details to temporary society object |
-| `src/pages/AuthPage.tsx` | 608 | Add `&& !selectedSociety` to hide empty state when a society is already selected |
-
-Both fixes are single-line changes with no impact on existing functionality.
+### Files to modify:
+- `src/types/categories.ts` - Make `ParentGroup` dynamic, update `DEFAULT_GROUP_BEHAVIORS` 
+- `src/hooks/useCategoryBehavior.ts` - Make `groupedConfigs` build dynamically from data
+- No other files need changes since they already use string-compatible patterns
 
