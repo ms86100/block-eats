@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Card, CardContent } from '@/components/ui/card';
@@ -7,9 +7,11 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAuth } from '@/contexts/AuthContext';
+import { useSecurityOfficer } from '@/hooks/useSecurityOfficer';
+import { GuardConfirmationPoller } from '@/components/security/GuardConfirmationPoller';
 import { toast } from 'sonner';
 import {
-  Shield, CheckCircle, XCircle, User, Building2, Search, Clock,
+  Shield, CheckCircle, XCircle, User, Search, Clock,
   QrCode, AlertTriangle, Send
 } from 'lucide-react';
 
@@ -22,27 +24,49 @@ interface VerifiedResident {
 }
 
 export default function SecurityVerifyPage() {
-  const { profile, effectiveSocietyId, isSocietyAdmin, isAdmin, roles } = useAuth();
-  const isSecurityOfficer = roles?.includes('security_officer' as any);
+  const { profile, effectiveSocietyId } = useAuth();
+  const { isSecurityOfficer, isLoading: roleLoading } = useSecurityOfficer();
 
   const [tokenInput, setTokenInput] = useState('');
   const [isVerifying, setIsVerifying] = useState(false);
   const [verifiedResident, setVerifiedResident] = useState<VerifiedResident | null>(null);
-  const [verificationStatus, setVerificationStatus] = useState<'idle' | 'success' | 'expired' | 'failed'>('idle');
+  const [verificationStatus, setVerificationStatus] = useState<'idle' | 'success' | 'expired' | 'failed' | 'awaiting'>('idle');
   const [errorMessage, setErrorMessage] = useState('');
-
-  // Manual entry
+  const [pendingEntryId, setPendingEntryId] = useState<string | null>(null);
+  const [confirmTimeout, setConfirmTimeout] = useState(20);
   const [flatInput, setFlatInput] = useState('');
   const [nameInput, setNameInput] = useState('');
-  const [manualStatus, setManualStatus] = useState<'idle' | 'sent' | 'approved' | 'denied'>('idle');
+  const [manualStatus, setManualStatus] = useState<'idle' | 'sent'>('idle');
 
-  // Recent entries
-  const [recentEntries, setRecentEntries] = useState<any[]>([]);
+  const handleConfirmationComplete = useCallback((status: 'confirmed' | 'denied' | 'expired') => {
+    if (status === 'confirmed') {
+      setVerificationStatus('success');
+    }
+  }, []);
 
-  // Route guard: only security officers and society admins
-  if (!isSocietyAdmin && !isAdmin && !isSecurityOfficer) {
+  const resetVerification = useCallback(() => {
+    setTokenInput('');
+    setVerifiedResident(null);
+    setVerificationStatus('idle');
+    setErrorMessage('');
+    setPendingEntryId(null);
+  }, []);
+
+  // Route guard
+  if (roleLoading) {
     return (
-      <AppLayout headerTitle="Security Verify" showLocation={false}>
+      <AppLayout headerTitle="Security Verify" showLocation={false} showNav={false}>
+        <div className="p-4 text-center py-20 text-muted-foreground">
+          <Shield size={48} className="mx-auto mb-4 opacity-50 animate-pulse" />
+          <p className="font-medium">Loading...</p>
+        </div>
+      </AppLayout>
+    );
+  }
+
+  if (!isSecurityOfficer) {
+    return (
+      <AppLayout headerTitle="Security Verify" showLocation={false} showNav={false}>
         <div className="p-4 text-center py-20 text-muted-foreground">
           <Shield size={48} className="mx-auto mb-4 opacity-50" />
           <p className="font-medium">Access Restricted</p>
@@ -59,6 +83,7 @@ export default function SecurityVerifyPage() {
     setIsVerifying(true);
     setVerifiedResident(null);
     setVerificationStatus('idle');
+    setPendingEntryId(null);
 
     try {
       const { data: { session } } = await supabase.auth.getSession();
@@ -78,7 +103,12 @@ export default function SecurityVerifyPage() {
 
       const result = await response.json();
 
-      if (result.valid) {
+      if (result.valid && result.awaiting_confirmation) {
+        setVerifiedResident(result.resident);
+        setVerificationStatus('awaiting');
+        setPendingEntryId(result.entry_id);
+        setConfirmTimeout(result.timeout_seconds || 20);
+      } else if (result.valid) {
         setVerifiedResident(result.resident);
         setVerificationStatus('success');
       } else if (result.expired) {
@@ -100,7 +130,6 @@ export default function SecurityVerifyPage() {
     if (!flatInput.trim() || !nameInput.trim() || !effectiveSocietyId) return;
 
     try {
-      // Find resident by flat number
       const { data: resident } = await supabase
         .from('profiles')
         .select('id, name')
@@ -119,11 +148,9 @@ export default function SecurityVerifyPage() {
       });
 
       if (error) throw error;
-
       setManualStatus('sent');
       toast.success('Verification request sent to resident');
 
-      // If resident exists, send push notification
       if (resident?.id) {
         await supabase.from('notification_queue').insert({
           user_id: resident.id,
@@ -138,22 +165,8 @@ export default function SecurityVerifyPage() {
     }
   };
 
-  const resetVerification = () => {
-    setTokenInput('');
-    setVerifiedResident(null);
-    setVerificationStatus('idle');
-    setErrorMessage('');
-  };
-
-  const statusColor = {
-    idle: '',
-    success: 'border-success/50 bg-success/5',
-    expired: 'border-warning/50 bg-warning/5',
-    failed: 'border-destructive/50 bg-destructive/5',
-  };
-
   return (
-    <AppLayout headerTitle="Security Verify" showLocation={false}>
+    <AppLayout headerTitle="Security Verify" showLocation={false} showNav={false}>
       <div className="p-4 space-y-4">
         <Tabs defaultValue="scan">
           <TabsList className="w-full grid grid-cols-2">
@@ -161,19 +174,14 @@ export default function SecurityVerifyPage() {
             <TabsTrigger value="manual" className="gap-1"><User size={14} /> Manual</TabsTrigger>
           </TabsList>
 
-          {/* SCAN TAB */}
           <TabsContent value="scan" className="space-y-4 mt-4">
-            {/* Input area - Large for guard */}
             <Card className="border-2 border-primary/30">
               <CardContent className="p-6 space-y-4">
                 <div className="text-center">
                   <Shield className="mx-auto text-primary mb-2" size={40} />
                   <h2 className="text-xl font-bold">Verify Resident</h2>
-                  <p className="text-sm text-muted-foreground">
-                    Paste QR code data or scan
-                  </p>
+                  <p className="text-sm text-muted-foreground">Paste QR code data or scan</p>
                 </div>
-
                 <Input
                   value={tokenInput}
                   onChange={e => {
@@ -183,7 +191,6 @@ export default function SecurityVerifyPage() {
                   placeholder="Paste QR code content..."
                   className="text-center h-14 text-sm"
                 />
-
                 <Button
                   onClick={() => handleValidateToken()}
                   disabled={!tokenInput.trim() || isVerifying}
@@ -196,16 +203,25 @@ export default function SecurityVerifyPage() {
               </CardContent>
             </Card>
 
-            {/* Result */}
+            {verificationStatus === 'awaiting' && pendingEntryId && verifiedResident && (
+              <GuardConfirmationPoller
+                entryId={pendingEntryId}
+                timeoutSeconds={confirmTimeout}
+                residentName={verifiedResident.name}
+                flatNumber={verifiedResident.flat_number}
+                block={verifiedResident.block}
+                onComplete={handleConfirmationComplete}
+              />
+            )}
+
             {verificationStatus === 'success' && verifiedResident && (
-              <Card className={statusColor.success}>
+              <Card className="border-success/50 bg-success/5">
                 <CardContent className="p-6 space-y-4">
                   <div className="text-center">
                     <CheckCircle className="mx-auto text-success mb-2" size={64} />
                     <p className="text-2xl font-bold text-success">VERIFIED</p>
                   </div>
-
-                  <div className="bg-background rounded-xl p-4 space-y-3">
+                  <div className="bg-background rounded-xl p-4">
                     <div className="flex items-center gap-3">
                       {verifiedResident.avatar_url ? (
                         <img src={verifiedResident.avatar_url} className="w-14 h-14 rounded-full object-cover" alt="" />
@@ -222,12 +238,7 @@ export default function SecurityVerifyPage() {
                       </div>
                     </div>
                   </div>
-
-                  <Button
-                    variant="outline"
-                    className="w-full h-12"
-                    onClick={resetVerification}
-                  >
+                  <Button variant="outline" className="w-full h-12" onClick={resetVerification}>
                     Verify Next
                   </Button>
                 </CardContent>
@@ -235,7 +246,7 @@ export default function SecurityVerifyPage() {
             )}
 
             {verificationStatus === 'expired' && (
-              <Card className={statusColor.expired}>
+              <Card className="border-warning/50 bg-warning/5">
                 <CardContent className="p-6 text-center">
                   <Clock className="mx-auto text-warning mb-3" size={64} />
                   <p className="text-2xl font-bold text-warning">EXPIRED</p>
@@ -246,7 +257,7 @@ export default function SecurityVerifyPage() {
             )}
 
             {verificationStatus === 'failed' && (
-              <Card className={statusColor.failed}>
+              <Card className="border-destructive/50 bg-destructive/5">
                 <CardContent className="p-6 text-center">
                   <XCircle className="mx-auto text-destructive mb-3" size={64} />
                   <p className="text-2xl font-bold text-destructive">INVALID</p>
@@ -257,42 +268,22 @@ export default function SecurityVerifyPage() {
             )}
           </TabsContent>
 
-          {/* MANUAL ENTRY TAB */}
           <TabsContent value="manual" className="space-y-4 mt-4">
             <Card className="border-2 border-warning/30">
               <CardContent className="p-6 space-y-4">
                 <div className="text-center">
                   <AlertTriangle className="mx-auto text-warning mb-2" size={40} />
                   <h2 className="text-xl font-bold">Manual Verification</h2>
-                  <p className="text-sm text-muted-foreground">
-                    When resident forgot their phone
-                  </p>
+                  <p className="text-sm text-muted-foreground">When resident forgot their phone</p>
                 </div>
-
                 <div className="space-y-3">
-                  <Input
-                    value={flatInput}
-                    onChange={e => setFlatInput(e.target.value)}
-                    placeholder="Enter flat number"
-                    className="h-14 text-center text-lg"
-                  />
-                  <Input
-                    value={nameInput}
-                    onChange={e => setNameInput(e.target.value)}
-                    placeholder="Person's claimed name"
-                    className="h-14 text-center text-lg"
-                  />
-                  <Button
-                    onClick={handleManualEntry}
-                    disabled={!flatInput.trim() || !nameInput.trim() || manualStatus === 'sent'}
-                    className="w-full h-14 text-lg"
-                    variant="outline"
-                  >
+                  <Input value={flatInput} onChange={e => setFlatInput(e.target.value)} placeholder="Enter flat number" className="h-14 text-center text-lg" />
+                  <Input value={nameInput} onChange={e => setNameInput(e.target.value)} placeholder="Person's claimed name" className="h-14 text-center text-lg" />
+                  <Button onClick={handleManualEntry} disabled={!flatInput.trim() || !nameInput.trim() || manualStatus === 'sent'} className="w-full h-14 text-lg" variant="outline">
                     <Send size={20} className="mr-2" />
                     {manualStatus === 'sent' ? 'Request Sent — Waiting...' : 'Send to Resident'}
                   </Button>
                 </div>
-
                 {manualStatus === 'sent' && (
                   <div className="bg-muted rounded-lg p-4 text-center">
                     <Clock className="mx-auto text-muted-foreground mb-2 animate-pulse" size={24} />

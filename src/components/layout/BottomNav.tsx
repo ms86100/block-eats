@@ -1,10 +1,11 @@
-import { Home, Store, Users, Building2, User } from 'lucide-react';
+import { Home, Store, Users, Building2, User, Shield, ClipboardList } from 'lucide-react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { useEffectiveFeatures } from '@/hooks/useEffectiveFeatures';
+import { useSecurityOfficer } from '@/hooks/useSecurityOfficer';
 import type { FeatureKey } from '@/hooks/useEffectiveFeatures';
 
-const navItems: { to: string; icon: typeof Home; label: string; featureKey?: FeatureKey }[] = [
+const residentNavItems: { to: string; icon: typeof Home; label: string; featureKey?: FeatureKey }[] = [
   { to: '/', icon: Home, label: 'Home' },
   { to: '/search', icon: Store, label: 'Marketplace', featureKey: 'marketplace' },
   { to: '/community', icon: Users, label: 'Community', featureKey: 'bulletin' },
@@ -12,13 +13,23 @@ const navItems: { to: string; icon: typeof Home; label: string; featureKey?: Fea
   { to: '/profile', icon: User, label: 'Profile' },
 ];
 
+const securityNavItems: { to: string; icon: typeof Shield; label: string }[] = [
+  { to: '/security/verify', icon: Shield, label: 'Verify' },
+  { to: '/security/audit', icon: ClipboardList, label: 'History' },
+  { to: '/profile', icon: User, label: 'Profile' },
+];
+
 export function BottomNav() {
   const location = useLocation();
   const { isFeatureEnabled, isLoading } = useEffectiveFeatures();
+  const { isSecurityOfficer } = useSecurityOfficer();
+
+  // Security officers get kiosk-mode nav — only security-related pages
+  const navItems = isSecurityOfficer ? securityNavItems : residentNavItems;
 
   const visibleItems = isLoading
     ? navItems
-    : navItems.filter(item => !item.featureKey || isFeatureEnabled(item.featureKey));
+    : navItems.filter(item => !('featureKey' in item && item.featureKey) || isFeatureEnabled((item as any).featureKey));
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-50 glass border-t border-border safe-bottom">

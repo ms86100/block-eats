@@ -4,12 +4,12 @@ import { AppLayout } from '@/components/layout/AppLayout';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Skeleton } from '@/components/ui/skeleton';
 import { useAuth } from '@/contexts/AuthContext';
 import { QrCode, RefreshCw, Shield, Clock, CheckCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import QRCode from '@/components/security/QRCodeDisplay';
 import { ManualEntryApproval } from '@/components/security/ManualEntryApproval';
+import { ResidentConfirmation } from '@/components/security/ResidentConfirmation';
 
 export default function GateEntryPage() {
   const { profile, effectiveSocietyId } = useAuth();
@@ -55,7 +55,6 @@ export default function GateEntryPage() {
     const interval = setInterval(() => {
       setTimeLeft(prev => {
         if (prev <= 1) { setToken(null); return 0; }
-        // Auto-refresh when 5 seconds remaining
         if (prev === 6) { generateToken(); }
         return prev - 1;
       });
@@ -78,6 +77,9 @@ export default function GateEntryPage() {
   return (
     <AppLayout headerTitle="Gate Entry" showLocation={false}>
       <div className="p-4 space-y-4">
+        {/* Resident Confirmation (for confirmation mode) */}
+        <ResidentConfirmation />
+
         {/* QR Code Card */}
         <Card className="border-2 border-primary/20">
           <CardContent className="p-6 text-center space-y-4">
@@ -93,7 +95,6 @@ export default function GateEntryPage() {
               <div className="space-y-3">
                 <QRCode value={token} size={220} />
                 
-                {/* Timer */}
                 <div className="flex items-center justify-center gap-2">
                   <Clock size={16} className={timeLeft <= 10 ? 'text-destructive' : 'text-muted-foreground'} />
                   <span className={`text-2xl font-mono font-bold ${timeLeft <= 10 ? 'text-destructive animate-pulse' : 'text-foreground'}`}>
@@ -144,7 +145,7 @@ export default function GateEntryPage() {
           </CardContent>
         </Card>
 
-        {/* Manual Entry Approval (shows pending requests for this resident) */}
+        {/* Manual Entry Approval */}
         <ManualEntryApproval />
 
         {/* Recent Entries */}

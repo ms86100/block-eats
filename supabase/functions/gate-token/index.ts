@@ -6,7 +6,44 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
 };
 
-// Simple HMAC-like signing using Web Crypto API
+// AES-GCM encryption for token payloads (no PII in QR)
+async function encryptPayload(payload: string, secret: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const keyMaterial = await crypto.subtle.importKey(
+    "raw", encoder.encode(secret.padEnd(32, '0').substring(0, 32)),
+    { name: "AES-GCM" }, false, ["encrypt"]
+  );
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const encrypted = await crypto.subtle.encrypt(
+    { name: "AES-GCM", iv }, keyMaterial, encoder.encode(payload)
+  );
+  // Format: base64(iv):base64(ciphertext)
+  const ivB64 = btoa(String.fromCharCode(...iv));
+  const ctB64 = btoa(String.fromCharCode(...new Uint8Array(encrypted)));
+  return `${ivB64}:${ctB64}`;
+}
+
+async function decryptPayload(token: string, secret: string): Promise<string | null> {
+  try {
+    const [ivB64, ctB64] = token.split(':');
+    if (!ivB64 || !ctB64) return null;
+    const iv = new Uint8Array(atob(ivB64).split('').map(c => c.charCodeAt(0)));
+    const ct = new Uint8Array(atob(ctB64).split('').map(c => c.charCodeAt(0)));
+    const encoder = new TextEncoder();
+    const keyMaterial = await crypto.subtle.importKey(
+      "raw", encoder.encode(secret.padEnd(32, '0').substring(0, 32)),
+      { name: "AES-GCM" }, false, ["decrypt"]
+    );
+    const decrypted = await crypto.subtle.decrypt(
+      { name: "AES-GCM", iv }, keyMaterial, ct
+    );
+    return new TextDecoder().decode(decrypted);
+  } catch {
+    return null;
+  }
+}
+
+// HMAC signature for integrity
 async function signToken(payload: string, secret: string): Promise<string> {
   const encoder = new TextEncoder();
   const key = await crypto.subtle.importKey(
@@ -60,9 +97,10 @@ Deno.serve(async (req) => {
     );
 
     const signingSecret = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!.substring(0, 32);
+    const encryptionSecret = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!.substring(32, 64) || signingSecret;
 
     if (action === 'generate') {
-      // Get user profile
+      // Get user profile - only fetch IDs, no PII in token
       const { data: profile, error: profileError } = await serviceClient
         .from('profiles')
         .select('id, name, society_id, flat_number, block, verification_status, avatar_url')
@@ -80,19 +118,18 @@ Deno.serve(async (req) => {
       const now = Math.floor(Date.now() / 1000);
       const expiresAt = now + 60; // 60 seconds
 
+      // Token payload contains ONLY IDs + timing — NO PII
       const payload = JSON.stringify({
         uid: profile.id,
         sid: profile.society_id,
-        name: profile.name,
-        flat: profile.flat_number,
-        block: profile.block,
-        avatar: profile.avatar_url,
         iat: now,
         exp: expiresAt,
       });
 
-      const signature = await signToken(payload, signingSecret);
-      const gateToken = btoa(payload) + '.' + signature;
+      // Encrypt the payload, then sign the encrypted blob
+      const encrypted = await encryptPayload(payload, encryptionSecret);
+      const signature = await signToken(encrypted, signingSecret);
+      const gateToken = encrypted + '.' + signature;
 
       return new Response(JSON.stringify({
         token: gateToken,
@@ -112,18 +149,28 @@ Deno.serve(async (req) => {
         return new Response(JSON.stringify({ valid: false, error: 'Invalid token format' }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
       }
 
-      const [payloadB64, signature] = gateToken.split('.');
-      let payload: any;
-      try {
-        payload = JSON.parse(atob(payloadB64));
-      } catch {
+      // Split: everything before last '.' is encrypted payload, after is signature
+      const lastDot = gateToken.lastIndexOf('.');
+      const encryptedPayload = gateToken.substring(0, lastDot);
+      const signature = gateToken.substring(lastDot + 1);
+
+      // Verify signature first
+      const isValidSig = await verifySignature(encryptedPayload, signature, signingSecret);
+      if (!isValidSig) {
+        return new Response(JSON.stringify({ valid: false, error: 'Invalid signature' }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
+
+      // Decrypt payload
+      const decrypted = await decryptPayload(encryptedPayload, encryptionSecret);
+      if (!decrypted) {
         return new Response(JSON.stringify({ valid: false, error: 'Corrupted token' }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
       }
 
-      // Verify signature
-      const isValid = await verifySignature(JSON.stringify(payload), signature, signingSecret);
-      if (!isValid) {
-        return new Response(JSON.stringify({ valid: false, error: 'Invalid signature' }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      let payload: any;
+      try {
+        payload = JSON.parse(decrypted);
+      } catch {
+        return new Response(JSON.stringify({ valid: false, error: 'Corrupted token' }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
       }
 
       // Check expiry
@@ -142,7 +189,6 @@ Deno.serve(async (req) => {
         .is('deactivated_at', null)
         .maybeSingle();
 
-      // Also allow society admins
       const isOfficer = !!securityCheck;
       const { data: adminCheck } = await serviceClient.rpc('is_society_admin', { _user_id: userId, _society_id: payload.sid });
       
@@ -150,28 +196,98 @@ Deno.serve(async (req) => {
         return new Response(JSON.stringify({ valid: false, error: 'Not authorized for this society' }), { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
       }
 
-      // Log the gate entry
-      await serviceClient.from('gate_entries').insert({
-        user_id: payload.uid,
-        society_id: payload.sid,
-        entry_type: 'qr_verified',
-        verified_by: userId,
-        flat_number: payload.flat,
-        resident_name: payload.name,
-        confirmation_status: 'not_required',
-      });
+      // Fetch resident details server-side (not from token)
+      const { data: resident } = await serviceClient
+        .from('profiles')
+        .select('id, name, flat_number, block, avatar_url')
+        .eq('id', payload.uid)
+        .eq('society_id', payload.sid)
+        .single();
 
-      return new Response(JSON.stringify({
-        valid: true,
-        resident: {
-          name: payload.name,
-          flat_number: payload.flat,
-          block: payload.block,
-          avatar_url: payload.avatar,
+      if (!resident) {
+        return new Response(JSON.stringify({ valid: false, error: 'Resident not found' }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
+
+      // Check society security mode
+      const { data: societyData } = await serviceClient
+        .from('societies')
+        .select('security_mode, security_confirmation_timeout_seconds')
+        .eq('id', payload.sid)
+        .single();
+
+      const securityMode = societyData?.security_mode || 'basic';
+      const timeoutSeconds = societyData?.security_confirmation_timeout_seconds || 20;
+
+      if (securityMode === 'confirmation') {
+        // Insert pending gate entry, await resident confirmation
+        const expiresAt = new Date(Date.now() + timeoutSeconds * 1000).toISOString();
+        
+        const { data: entry, error: entryError } = await serviceClient.from('gate_entries').insert({
           user_id: payload.uid,
-        },
-        society_id: payload.sid,
-      }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+          society_id: payload.sid,
+          entry_type: 'qr_verified',
+          verified_by: userId,
+          flat_number: resident.flat_number,
+          resident_name: resident.name,
+          confirmation_status: 'pending',
+          awaiting_confirmation: true,
+          confirmation_expires_at: expiresAt,
+        }).select('id').single();
+
+        if (entryError) {
+          console.error('Entry insert error:', entryError);
+          return new Response(JSON.stringify({ valid: false, error: 'Failed to create entry' }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+        }
+
+        // Send push notification to resident
+        await serviceClient.from('notification_queue').insert({
+          user_id: payload.uid,
+          title: '🔐 Confirm Your Entry',
+          body: `Are you entering the gate now? Please confirm in the app within ${timeoutSeconds} seconds.`,
+          type: 'gate_confirmation',
+          reference_path: '/gate-entry',
+        });
+
+        return new Response(JSON.stringify({
+          valid: true,
+          awaiting_confirmation: true,
+          entry_id: entry.id,
+          timeout_seconds: timeoutSeconds,
+          resident: {
+            name: resident.name,
+            flat_number: resident.flat_number,
+            block: resident.block,
+            avatar_url: resident.avatar_url,
+            user_id: resident.id,
+          },
+          society_id: payload.sid,
+        }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+
+      } else {
+        // Basic mode: immediate validation
+        await serviceClient.from('gate_entries').insert({
+          user_id: payload.uid,
+          society_id: payload.sid,
+          entry_type: 'qr_verified',
+          verified_by: userId,
+          flat_number: resident.flat_number,
+          resident_name: resident.name,
+          confirmation_status: 'not_required',
+        });
+
+        return new Response(JSON.stringify({
+          valid: true,
+          awaiting_confirmation: false,
+          resident: {
+            name: resident.name,
+            flat_number: resident.flat_number,
+            block: resident.block,
+            avatar_url: resident.avatar_url,
+            user_id: resident.id,
+          },
+          society_id: payload.sid,
+        }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
 
     } else {
       return new Response(JSON.stringify({ error: 'Invalid action' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });

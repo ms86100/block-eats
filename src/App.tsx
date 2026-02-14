@@ -62,6 +62,7 @@ const ParcelManagementPage = lazy(() => import("./pages/ParcelManagementPage"));
 const GuardKioskPage = lazy(() => import("./pages/GuardKioskPage"));
 const GateEntryPage = lazy(() => import("./pages/GateEntryPage"));
 const SecurityVerifyPage = lazy(() => import("./pages/SecurityVerifyPage"));
+const SecurityAuditPage = lazy(() => import("./pages/SecurityAuditPage"));
 
 const queryClient = new QueryClient();
 
@@ -167,6 +168,7 @@ function AppRoutes() {
         <Route path="/guard-kiosk" element={<ProtectedRoute><GuardKioskPage /></ProtectedRoute>} />
         <Route path="/gate-entry" element={<ProtectedRoute><GateEntryPage /></ProtectedRoute>} />
         <Route path="/security/verify" element={<ProtectedRoute><SecurityVerifyPage /></ProtectedRoute>} />
+        <Route path="/security/audit" element={<ProtectedRoute><SecurityAuditPage /></ProtectedRoute>} />
         <Route path="/become-seller" element={<ProtectedRoute><BecomeSellerPage /></ProtectedRoute>} />
         <Route path="/seller" element={<ProtectedRoute><SellerDashboardPage /></ProtectedRoute>} />
         <Route path="/seller/products" element={<ProtectedRoute><SellerProductsPage /></ProtectedRoute>} />

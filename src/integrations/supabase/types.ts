@@ -1369,7 +1369,11 @@ export type Database = {
       }
       gate_entries: {
         Row: {
+          awaiting_confirmation: boolean
+          confirmation_denied_at: string | null
+          confirmation_expires_at: string | null
           confirmation_status: string | null
+          confirmed_by_resident_at: string | null
           created_at: string
           entry_time: string
           entry_type: string
@@ -1382,7 +1386,11 @@ export type Database = {
           verified_by: string | null
         }
         Insert: {
+          awaiting_confirmation?: boolean
+          confirmation_denied_at?: string | null
+          confirmation_expires_at?: string | null
           confirmation_status?: string | null
+          confirmed_by_resident_at?: string | null
           created_at?: string
           entry_time?: string
           entry_type?: string
@@ -1395,7 +1403,11 @@ export type Database = {
           verified_by?: string | null
         }
         Update: {
+          awaiting_confirmation?: boolean
+          confirmation_denied_at?: string | null
+          confirmation_expires_at?: string | null
           confirmation_status?: string | null
+          confirmed_by_resident_at?: string | null
           created_at?: string
           entry_time?: string
           entry_type?: string
@@ -3512,6 +3524,8 @@ export type Database = {
           name: string
           pincode: string | null
           rules_text: string | null
+          security_confirmation_timeout_seconds: number
+          security_mode: string
           slug: string
           state: string | null
           trust_score: number
@@ -3539,6 +3553,8 @@ export type Database = {
           name: string
           pincode?: string | null
           rules_text?: string | null
+          security_confirmation_timeout_seconds?: number
+          security_mode?: string
           slug: string
           state?: string | null
           trust_score?: number
@@ -3566,6 +3582,8 @@ export type Database = {
           name?: string
           pincode?: string | null
           rules_text?: string | null
+          security_confirmation_timeout_seconds?: number
+          security_mode?: string
           slug?: string
           state?: string | null
           trust_score?: number

@@ -18,6 +18,7 @@ import { toast } from 'sonner';
 import { logAudit } from '@/lib/audit';
 import { SocietySwitcher } from '@/components/admin/SocietySwitcher';
 import { SecurityStaffManager } from '@/components/admin/SecurityStaffManager';
+import { SecurityModeSettings } from '@/components/admin/SecurityModeSettings';
 import { useEffectiveFeatures } from '@/hooks/useEffectiveFeatures';
 import type { FeatureKey } from '@/hooks/useEffectiveFeatures';
 
@@ -333,7 +334,8 @@ export default function SocietyAdminPage() {
           </TabsContent>
 
           {/* Security Staff */}
-          <TabsContent value="security" className="mt-4">
+          <TabsContent value="security" className="mt-4 space-y-4">
+            <SecurityModeSettings />
             <SecurityStaffManager />
           </TabsContent>
 
