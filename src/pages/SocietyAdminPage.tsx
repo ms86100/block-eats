@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { escapeIlike } from '@/lib/query-utils';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -138,7 +139,7 @@ export default function SocietyAdminPage() {
       .select('*')
       .eq('society_id', societyId)
       .eq('verification_status', 'approved')
-      .ilike('name', `%${query}%`)
+      .ilike('name', `%${escapeIlike(query)}%`)
       .limit(10);
     setSearchResults((data as Profile[]) || []);
   };

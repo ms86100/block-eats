@@ -1,8 +1,9 @@
 import { useEffect, lazy, Suspense } from "react";
+import { toast } from "sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClient, QueryClientProvider, QueryCache, MutationCache } from "@tanstack/react-query";
 import { HashRouter, Routes, Route, Navigate, useNavigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { CartProvider } from "@/hooks/useCart";
@@ -19,7 +20,7 @@ const AuthPage = lazy(() => import("./pages/AuthPage"));
 const HomePage = lazy(() => import("./pages/HomePage"));
 const LandingPage = lazy(() => import("./pages/LandingPage"));
 const SearchPage = lazy(() => import("./pages/SearchPage"));
-const CategoryPage = lazy(() => import("./pages/CategoryPage"));
+
 const SellerDetailPage = lazy(() => import("./pages/SellerDetailPage"));
 const CartPage = lazy(() => import("./pages/CartPage"));
 const OrdersPage = lazy(() => import("./pages/OrdersPage"));
@@ -70,7 +71,35 @@ const WorkerMyJobsPage = lazy(() => import("./pages/WorkerMyJobsPage"));
 const WorkerHirePage = lazy(() => import("./pages/WorkerHirePage"));
 const CreateJobRequestPage = lazy(() => import("./pages/CreateJobRequestPage"));
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  queryCache: new QueryCache({
+    onError: (error) => {
+      if (import.meta.env.DEV) {
+        console.error('[Query Error]', error);
+      }
+    },
+  }),
+  mutationCache: new MutationCache({
+    onError: (error) => {
+      const message = error instanceof Error ? error.message : 'Something went wrong';
+      toast.error(message);
+      if (import.meta.env.DEV) {
+        console.error('[Mutation Error]', error);
+      }
+    },
+  }),
+  defaultOptions: {
+    queries: {
+      retry: 1,
+      staleTime: 30 * 1000, // 30 seconds
+      gcTime: 5 * 60 * 1000, // 5 minutes
+      refetchOnWindowFocus: false,
+    },
+    mutations: {
+      retry: 0,
+    },
+  },
+});
 
 function PageLoadingFallback() {
   return (
