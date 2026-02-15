@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { escapeIlike } from '@/lib/query-utils';
 
 export interface GateAuditFilters {
   dateFrom?: string;
@@ -50,7 +51,7 @@ export function useGateAudit(societyId: string | null, filters: GateAuditFilters
         query = query.eq('confirmation_status', filters.confirmationStatus);
       }
       if (filters.residentName) {
-        query = query.ilike('resident_name', `%${filters.residentName}%`);
+        query = query.ilike('resident_name', `%${escapeIlike(filters.residentName)}%`);
       }
       if (filters.officerId) {
         query = query.eq('verified_by', filters.officerId);

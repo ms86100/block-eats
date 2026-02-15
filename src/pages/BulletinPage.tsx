@@ -13,6 +13,7 @@ import { Input } from '@/components/ui/input';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { supabase } from '@/integrations/supabase/client';
+import { escapeIlike } from '@/lib/query-utils';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from '@/hooks/use-toast';
 import { Plus, Search, Loader2, Send, MessageCircle } from 'lucide-react';
@@ -53,7 +54,7 @@ export default function BulletinPage() {
       query = query.eq('category', category);
     }
     if (search.trim()) {
-      const escaped = search.replace(/%/g, '\\%').replace(/_/g, '\\_');
+      const escaped = escapeIlike(search);
       query = query.or(`title.ilike.%${escaped}%,body.ilike.%${escaped}%`);
     }
 

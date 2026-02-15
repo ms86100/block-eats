@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { escapeIlike } from '@/lib/query-utils';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -38,7 +39,7 @@ export function WorkerGateValidation() {
     setResult(null);
 
     // Escape ILIKE special characters
-    const escaped = searchInput.replace(/%/g, '\\%').replace(/_/g, '\\_');
+    const escaped = escapeIlike(searchInput);
     // Search workers by name or phone
     const { data } = await supabase
       .from('society_workers')
