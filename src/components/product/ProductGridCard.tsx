@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Plus, Minus, MessageCircle, Calendar, Phone, ShoppingBag, Send, Home, Handshake, Store } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -7,6 +7,7 @@ import { VegBadge } from '@/components/ui/veg-badge';
 import { useCart } from '@/hooks/useCart';
 import { Product, ProductActionType } from '@/types/database';
 import { CategoryBehavior } from '@/types/categories';
+import { useCategoryConfigs } from '@/hooks/useCategoryBehavior';
 import { ContactSellerModal } from './ContactSellerModal';
 import { cn } from '@/lib/utils';
 
@@ -41,14 +42,28 @@ const ACTION_CONFIG: Record<ProductActionType, { label: string; icon: typeof Plu
 export function ProductGridCard({ product, behavior, onTap, className, viewOnly = false }: ProductGridCardProps) {
   const navigate = useNavigate();
   const { items, addItem, updateQuantity } = useCart();
+  const { configs: categoryConfigs } = useCategoryConfigs();
   const [contactOpen, setContactOpen] = useState(false);
   const cartItem = items.find((item) => item.product_id === product.id);
   const quantity = cartItem?.quantity || 0;
 
   const actionType: ProductActionType = (product as any).action_type || 'add_to_cart';
   const config = ACTION_CONFIG[actionType] || ACTION_CONFIG.add_to_cart;
-  // Show ADD only if action_type is cart-compatible AND category supports it (when behavior is provided)
-  const isCartAction = config.isCart && (behavior ? behavior.supportsCart : actionType === 'add_to_cart' || actionType === 'buy_now');
+
+  // Resolve whether cart is supported: prefer behavior prop, fallback to category_config lookup
+  const isCartAction = useMemo(() => {
+    if (!config.isCart) return false;
+    // If behavior prop is explicitly provided, use it
+    if (behavior) return behavior.supportsCart;
+    // Fallback: look up from category_config cache
+    const productCategory = (product as any).category;
+    if (productCategory) {
+      const catConfig = categoryConfigs.find(c => c.category === productCategory);
+      if (catConfig) return catConfig.behavior.supportsCart;
+    }
+    // Ultimate fallback: only allow if action_type is explicitly cart-compatible
+    return actionType === 'add_to_cart' || actionType === 'buy_now';
+  }, [config.isCart, behavior, product, categoryConfigs, actionType]);
 
   const handleAdd = (e: React.MouseEvent) => {
     e.stopPropagation();
