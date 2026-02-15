@@ -70,72 +70,45 @@ export function ListingCard({
   const ActionIcon = actionConfig.icon;
 
   const renderActionButton = () => {
-    // Cart-compatible items
-    if (actionConfig.isCart && supportsCart) {
-      if (quantity > 0) {
-        return (
-          <div className="flex items-center gap-2">
-            <Button
-              size="icon"
-              variant="outline"
-              className="h-8 w-8 rounded-full"
-              onClick={(e) => {
-                e.preventDefault();
-                onDecrement?.();
-              }}
-            >
-              <Minus size={14} />
-            </Button>
-            <span className="w-6 text-center font-semibold">{quantity}</span>
-            <Button
-              size="icon"
-              className="h-8 w-8 rounded-full"
-              onClick={(e) => {
-                e.preventDefault();
-                onIncrement?.();
-              }}
-            >
-              <Plus size={14} />
-            </Button>
-          </div>
-        );
-      }
+    if (quantity > 0) {
       return (
-        <Button
-          size="sm"
-          className="rounded-full"
-          onClick={(e) => {
-            e.preventDefault();
-            onAdd?.();
-          }}
-        >
-          <Plus size={14} className="mr-1" />
-          {actionConfig.shortLabel}
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            size="icon"
+            variant="outline"
+            className="h-8 w-8 rounded-full"
+            onClick={(e) => {
+              e.preventDefault();
+              onDecrement?.();
+            }}
+          >
+            <Minus size={14} />
+          </Button>
+          <span className="w-6 text-center font-semibold">{quantity}</span>
+          <Button
+            size="icon"
+            className="h-8 w-8 rounded-full"
+            onClick={(e) => {
+              e.preventDefault();
+              onIncrement?.();
+            }}
+          >
+            <Plus size={14} />
+          </Button>
+        </div>
       );
     }
-
-    // Non-cart actions: use the appropriate callback based on action type
-    const handleNonCartAction = (e: React.MouseEvent) => {
-      e.preventDefault();
-      if (actionType === 'contact_seller' || enquiryOnly) {
-        onEnquire?.();
-      } else if (hasDateRange) {
-        onRent?.();
-      } else {
-        onBook?.();
-      }
-    };
-
     return (
       <Button
         size="sm"
-        variant={enquiryOnly ? 'secondary' : 'default'}
         className="rounded-full"
-        onClick={handleNonCartAction}
+        onClick={(e) => {
+          e.preventDefault();
+          onAdd?.();
+        }}
       >
-        <ActionIcon size={14} className="mr-1" />
-        {actionConfig.shortLabel}
+        <Plus size={14} className="mr-1" />
+        ADD
       </Button>
     );
   };

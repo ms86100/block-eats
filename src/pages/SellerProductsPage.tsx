@@ -466,50 +466,6 @@ export default function SellerProductsPage() {
                   ) : null}
                 </div>
 
-                {/* ─── Primary Action Button ─── */}
-                <div className="space-y-2">
-                  <Label>Primary Action Button *</Label>
-                  <Select
-                    value={formData.action_type}
-                    onValueChange={(value) =>
-                      setFormData({ ...formData, action_type: value as ProductActionType })
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select action" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {PRODUCT_ACTION_TYPES.map((type) => (
-                        <SelectItem key={type.value} value={type.value}>
-                          {type.icon} {type.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <p className="text-[11px] text-muted-foreground">
-                    This controls the button buyers see on your product card
-                  </p>
-                </div>
-
-                {/* Contact Phone — shown when action_type = contact_seller */}
-                {formData.action_type === 'contact_seller' && (
-                  <div className="space-y-2">
-                    <Label htmlFor="contact_phone">Contact Phone *</Label>
-                    <Input
-                      id="contact_phone"
-                      type="tel"
-                      placeholder="+91 98765 43210"
-                      value={formData.contact_phone}
-                      onChange={(e) =>
-                        setFormData({ ...formData, contact_phone: e.target.value })
-                      }
-                    />
-                    <p className="text-[11px] text-muted-foreground">
-                      Buyers will see a "Call Now" button with this number
-                    </p>
-                  </div>
-                )}
-
 
                 {showVegToggle && (
                   <div className="flex items-center justify-between p-3 bg-muted rounded-lg">

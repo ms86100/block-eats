@@ -1,15 +1,9 @@
-import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Plus, Minus, Store } from 'lucide-react';
-import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { VegBadge } from '@/components/ui/veg-badge';
 import { useCart } from '@/hooks/useCart';
-import { Product, ProductActionType } from '@/types/database';
-import { CategoryBehavior } from '@/types/categories';
-import { useCategoryConfigs } from '@/hooks/useCategoryBehavior';
-import { ACTION_CONFIG } from '@/lib/marketplace-constants';
-import { ContactSellerModal } from './ContactSellerModal';
+import { Product } from '@/types/database';
 import { cn } from '@/lib/utils';
 
 export interface ProductWithSeller extends Product {
@@ -22,38 +16,17 @@ export interface ProductWithSeller extends Product {
 
 interface ProductGridCardProps {
   product: ProductWithSeller;
-  behavior?: CategoryBehavior | null;
+  behavior?: any;
   onTap?: (product: ProductWithSeller) => void;
   className?: string;
-  /** When true, shows "View" button that navigates to seller page instead of ADD */
   viewOnly?: boolean;
 }
 
 export function ProductGridCard({ product, behavior, onTap, className, viewOnly = false }: ProductGridCardProps) {
   const navigate = useNavigate();
   const { items, addItem, updateQuantity } = useCart();
-  const { configs: categoryConfigs } = useCategoryConfigs();
-  const [contactOpen, setContactOpen] = useState(false);
   const cartItem = items.find((item) => item.product_id === product.id);
   const quantity = cartItem?.quantity || 0;
-
-  const actionType: ProductActionType = (product as any).action_type || 'add_to_cart';
-  const config = ACTION_CONFIG[actionType] || ACTION_CONFIG.add_to_cart;
-
-  // Resolve whether cart is supported: prefer behavior prop, fallback to category_config lookup
-  const isCartAction = useMemo(() => {
-    if (!config.isCart) return false;
-    // If behavior prop is explicitly provided, use it
-    if (behavior) return behavior.supportsCart;
-    // Fallback: look up from category_config cache
-    const productCategory = (product as any).category;
-    if (productCategory) {
-      const catConfig = categoryConfigs.find(c => c.category === productCategory);
-      if (catConfig) return catConfig.behavior.supportsCart;
-    }
-    // Ultimate fallback: only allow if action_type is explicitly cart-compatible
-    return actionType === 'add_to_cart' || actionType === 'buy_now';
-  }, [config.isCart, behavior, product, categoryConfigs, actionType]);
 
   const handleAdd = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -82,11 +55,8 @@ export function ProductGridCard({ product, behavior, onTap, className, viewOnly 
     }
   };
 
-  const ActionIcon = config.icon;
-
   return (
-    <>
-      <div
+    <div
         onClick={handleCardClick}
         className={cn(
           'bg-card rounded-xl border border-border/60 cursor-pointer transition-shadow hover:shadow-md flex flex-col h-full',
@@ -105,7 +75,7 @@ export function ProductGridCard({ product, behavior, onTap, className, viewOnly 
               />
             ) : (
               <div className="w-full h-full flex items-center justify-center bg-muted/50">
-                <span className="text-3xl">{isCartAction ? '🛍️' : '🛠️'}</span>
+                <span className="text-3xl">🛍️</span>
               </div>
             )}
 
@@ -160,71 +130,43 @@ export function ProductGridCard({ product, behavior, onTap, className, viewOnly 
 
           <div className="flex-1" />
 
-          {/* Price + Action row — like Blinkit: price on left, ADD on right */}
+          {/* Price + Action row */}
           <div className="flex items-end justify-between mt-2 gap-1">
             <div className="flex flex-col">
-              {actionType === 'contact_seller' ? (
-                <span className="text-[10px] font-medium text-muted-foreground">Contact for price</span>
-              ) : (
-                <>
-                  <span className="font-bold text-sm text-foreground leading-tight">₹{product.price}</span>
-                  {/* Placeholder for MRP strikethrough if available */}
-                </>
-              )}
+              <span className="font-bold text-sm text-foreground leading-tight">₹{product.price}</span>
             </div>
 
             {/* Action area */}
             <div className="shrink-0">
-              {viewOnly ? (
+              {!product.is_available ? (
+                <span className="text-[10px] font-medium text-muted-foreground">Unavailable</span>
+              ) : quantity === 0 ? (
                 <button
-                  onClick={(e) => { e.stopPropagation(); navigate(`/seller/${product.seller_id}`); }}
-                  className="border border-primary text-primary font-bold text-xs px-3 py-1 rounded-md hover:bg-primary hover:text-primary-foreground transition-colors"
+                  onClick={handleAdd}
+                  className="border border-success text-success font-bold text-xs px-3 py-1 rounded-md hover:bg-success hover:text-white transition-colors"
                 >
-                  View
+                  ADD
                 </button>
-              ) : isCartAction && product.is_available ? (
-                quantity === 0 ? (
-                  <button
-                    onClick={handleAdd}
-                    className="border border-success text-success font-bold text-xs px-3 py-1 rounded-md hover:bg-success hover:text-white transition-colors"
-                  >
-                    ADD
-                  </button>
-                ) : (
-                  <div className="flex items-center bg-success rounded-md overflow-hidden">
-                    <button
-                      onClick={handleDecrement}
-                      className="px-2 py-1 text-white hover:bg-success/80 transition-colors"
-                    >
-                      <Minus size={12} />
-                    </button>
-                    <span className="font-bold text-xs text-white px-1 min-w-[16px] text-center">{quantity}</span>
-                    <button
-                      onClick={handleIncrement}
-                      className="px-2 py-1 text-white hover:bg-success/80 transition-colors"
-                    >
-                      <Plus size={12} />
-                    </button>
-                  </div>
-                )
               ) : (
-                <span className="text-[10px] font-medium text-primary">
-                  {product.is_available ? 'View →' : 'Unavailable'}
-                </span>
+                <div className="flex items-center bg-success rounded-md overflow-hidden">
+                  <button
+                    onClick={handleDecrement}
+                    className="px-2 py-1 text-white hover:bg-success/80 transition-colors"
+                  >
+                    <Minus size={12} />
+                  </button>
+                  <span className="font-bold text-xs text-white px-1 min-w-[16px] text-center">{quantity}</span>
+                  <button
+                    onClick={handleIncrement}
+                    className="px-2 py-1 text-white hover:bg-success/80 transition-colors"
+                  >
+                    <Plus size={12} />
+                  </button>
+                </div>
               )}
             </div>
           </div>
         </div>
       </div>
-
-      {actionType === 'contact_seller' && (
-        <ContactSellerModal
-          open={contactOpen}
-          onOpenChange={setContactOpen}
-          sellerName={product.seller_name || (product.seller as any)?.business_name || 'Seller'}
-          phone={(product as any).contact_phone || ''}
-        />
-      )}
-    </>
   );
 }

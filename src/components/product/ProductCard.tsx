@@ -3,10 +3,8 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { VegBadge } from '@/components/ui/veg-badge';
 import { Badge } from '@/components/ui/badge';
-import { Product, ProductActionType } from '@/types/database';
+import { Product } from '@/types/database';
 import { useCart } from '@/hooks/useCart';
-import { useCategoryBehavior } from '@/hooks/useCategoryBehavior';
-import { ACTION_CONFIG } from '@/lib/marketplace-constants';
 import { cn } from '@/lib/utils';
 
 interface ProductCardProps {
@@ -17,22 +15,10 @@ interface ProductCardProps {
 
 export function ProductCard({ product, variant = 'horizontal', onTap }: ProductCardProps) {
   const { items, addItem, updateQuantity } = useCart();
-  const { supportsCart } = useCategoryBehavior(product.category as any);
   const cartItem = items.find((item) => item.product_id === product.id);
   const quantity = cartItem?.quantity || 0;
 
-  // Derive action from product's action_type (set by DB trigger from category_config)
-  const actionType: ProductActionType = (product as any).action_type || 'add_to_cart';
-  const config = ACTION_CONFIG[actionType] || ACTION_CONFIG.add_to_cart;
-  const canAddToCart = config.isCart && supportsCart;
-  const ActionIcon = config.icon;
-  const actionLabel = config.shortLabel;
-
   const handleAdd = () => {
-    if (!canAddToCart) {
-      onTap?.(product);
-      return;
-    }
     addItem(product);
   };
 
@@ -91,38 +77,26 @@ export function ProductCard({ product, variant = 'horizontal', onTap }: ProductC
             </div>
           </div>
           <div className="mt-3">
-            {canAddToCart ? (
-              quantity === 0 ? (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="w-full border-primary text-primary hover:bg-primary hover:text-primary-foreground"
-                  onClick={handleAdd}
-                  disabled={!product.is_available}
-                >
-                  <Plus size={14} className="mr-1" /> Add
-                </Button>
-              ) : (
-                <div className="flex items-center justify-center gap-3 border border-primary rounded-md">
-                  <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-primary" onClick={handleDecrement}>
-                    <Minus size={16} />
-                  </Button>
-                  <span className="font-semibold text-primary w-6 text-center">{quantity}</span>
-                  <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-primary" onClick={handleIncrement}>
-                    <Plus size={16} />
-                  </Button>
-                </div>
-              )
-            ) : (
+            {quantity === 0 ? (
               <Button
                 size="sm"
                 variant="outline"
                 className="w-full border-primary text-primary hover:bg-primary hover:text-primary-foreground"
-                onClick={() => onTap?.(product)}
+                onClick={handleAdd}
                 disabled={!product.is_available}
               >
-                <ActionIcon size={14} className="mr-1" /> {actionLabel}
+                <Plus size={14} className="mr-1" /> ADD
               </Button>
+            ) : (
+              <div className="flex items-center justify-center gap-3 border border-primary rounded-md">
+                <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-primary" onClick={handleDecrement}>
+                  <Minus size={16} />
+                </Button>
+                <span className="font-semibold text-primary w-6 text-center">{quantity}</span>
+                <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-primary" onClick={handleIncrement}>
+                  <Plus size={16} />
+                </Button>
+              </div>
             )}
           </div>
         </CardContent>
@@ -173,38 +147,26 @@ export function ProductCard({ product, variant = 'horizontal', onTap }: ProductC
             </div>
           )}
         </div>
-        {canAddToCart ? (
-          quantity === 0 ? (
-            <Button
-              size="sm"
-              variant="outline"
-              className="w-full border-primary text-primary hover:bg-primary hover:text-primary-foreground -mt-4 relative z-10 bg-background shadow-sm"
-              onClick={handleAdd}
-              disabled={!product.is_available}
-            >
-              Add +
-            </Button>
-          ) : (
-            <div className="flex items-center gap-2 -mt-4 relative z-10 bg-primary rounded-md px-2 shadow-sm">
-              <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-primary-foreground hover:bg-primary-foreground/20" onClick={handleDecrement}>
-                <Minus size={14} />
-              </Button>
-              <span className="font-semibold text-primary-foreground w-4 text-center">{quantity}</span>
-              <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-primary-foreground hover:bg-primary-foreground/20" onClick={handleIncrement}>
-                <Plus size={14} />
-              </Button>
-            </div>
-          )
-        ) : (
+        {quantity === 0 ? (
           <Button
             size="sm"
             variant="outline"
             className="w-full border-primary text-primary hover:bg-primary hover:text-primary-foreground -mt-4 relative z-10 bg-background shadow-sm"
-            onClick={() => onTap?.(product)}
+            onClick={handleAdd}
             disabled={!product.is_available}
           >
-            <ActionIcon size={14} className="mr-1" /> {actionLabel}
+            ADD +
           </Button>
+        ) : (
+          <div className="flex items-center gap-2 -mt-4 relative z-10 bg-primary rounded-md px-2 shadow-sm">
+            <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-primary-foreground hover:bg-primary-foreground/20" onClick={handleDecrement}>
+              <Minus size={14} />
+            </Button>
+            <span className="font-semibold text-primary-foreground w-4 text-center">{quantity}</span>
+            <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-primary-foreground hover:bg-primary-foreground/20" onClick={handleIncrement}>
+              <Plus size={14} />
+            </Button>
+          </div>
         )}
       </div>
     </div>
