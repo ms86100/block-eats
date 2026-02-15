@@ -2660,6 +2660,7 @@ export type Database = {
         Row: {
           avatar_url: string | null
           block: string
+          browse_beyond_community: boolean
           created_at: string | null
           email: string | null
           flat_number: string
@@ -2667,6 +2668,7 @@ export type Database = {
           name: string
           phase: string | null
           phone: string
+          search_radius_km: number
           society_id: string | null
           updated_at: string | null
           verification_status:
@@ -2676,6 +2678,7 @@ export type Database = {
         Insert: {
           avatar_url?: string | null
           block: string
+          browse_beyond_community?: boolean
           created_at?: string | null
           email?: string | null
           flat_number: string
@@ -2683,6 +2686,7 @@ export type Database = {
           name: string
           phase?: string | null
           phone: string
+          search_radius_km?: number
           society_id?: string | null
           updated_at?: string | null
           verification_status?:
@@ -2692,6 +2696,7 @@ export type Database = {
         Update: {
           avatar_url?: string | null
           block?: string
+          browse_beyond_community?: boolean
           created_at?: string | null
           email?: string | null
           flat_number?: string
@@ -2699,6 +2704,7 @@ export type Database = {
           name?: string
           phase?: string | null
           phone?: string
+          search_radius_km?: number
           society_id?: string | null
           updated_at?: string | null
           verification_status?:
@@ -3228,6 +3234,7 @@ export type Database = {
           categories: string[]
           cover_image_url: string | null
           created_at: string | null
+          delivery_radius_km: number
           description: string | null
           food_license_reviewed_at: string | null
           food_license_status: string | null
@@ -3243,6 +3250,7 @@ export type Database = {
           rating: number | null
           razorpay_account_id: string | null
           razorpay_onboarding_status: string | null
+          sell_beyond_community: boolean
           society_id: string | null
           total_reviews: number | null
           updated_at: string | null
@@ -3264,6 +3272,7 @@ export type Database = {
           categories?: string[]
           cover_image_url?: string | null
           created_at?: string | null
+          delivery_radius_km?: number
           description?: string | null
           food_license_reviewed_at?: string | null
           food_license_status?: string | null
@@ -3279,6 +3288,7 @@ export type Database = {
           rating?: number | null
           razorpay_account_id?: string | null
           razorpay_onboarding_status?: string | null
+          sell_beyond_community?: boolean
           society_id?: string | null
           total_reviews?: number | null
           updated_at?: string | null
@@ -3300,6 +3310,7 @@ export type Database = {
           categories?: string[]
           cover_image_url?: string | null
           created_at?: string | null
+          delivery_radius_km?: number
           description?: string | null
           food_license_reviewed_at?: string | null
           food_license_status?: string | null
@@ -3315,6 +3326,7 @@ export type Database = {
           rating?: number | null
           razorpay_account_id?: string | null
           razorpay_onboarding_status?: string | null
+          sell_beyond_community?: boolean
           society_id?: string | null
           total_reviews?: number | null
           updated_at?: string | null
@@ -4812,6 +4824,10 @@ export type Database = {
         }
         Returns: boolean
       }
+      haversine_km: {
+        Args: { lat1: number; lat2: number; lon1: number; lon2: number }
+        Returns: number
+      }
       is_admin: { Args: { _user_id: string }; Returns: boolean }
       is_builder_member: {
         Args: { _builder_id: string; _user_id: string }
@@ -4875,6 +4891,33 @@ export type Database = {
               user_id: string
             }[]
           }
+      search_nearby_sellers: {
+        Args: {
+          _buyer_society_id: string
+          _category?: string
+          _radius_km?: number
+          _search_term?: string
+        }
+        Returns: {
+          availability_end: string
+          availability_start: string
+          business_name: string
+          categories: string[]
+          cover_image_url: string
+          description: string
+          distance_km: number
+          is_available: boolean
+          is_featured: boolean
+          matching_products: Json
+          primary_group: string
+          profile_image_url: string
+          rating: number
+          seller_id: string
+          society_name: string
+          total_reviews: number
+          user_id: string
+        }[]
+      }
       validate_worker_entry: {
         Args: { _society_id: string; _worker_id: string }
         Returns: Json

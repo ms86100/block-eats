@@ -12,7 +12,9 @@ import { useCategoryConfigs } from '@/hooks/useCategoryBehavior';
 import { useParentGroups } from '@/hooks/useParentGroups';
 import { ServiceCategory } from '@/types/categories';
 import { DraftProductManager } from '@/components/seller/DraftProductManager';
-import { ArrowLeft, Store, Loader2, ChevronRight, Settings, Shield, Save, Send } from 'lucide-react';
+import { Slider } from '@/components/ui/slider';
+import { Switch } from '@/components/ui/switch';
+import { ArrowLeft, Store, Loader2, ChevronRight, Settings, Shield, Save, Send, Globe } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 
@@ -87,6 +89,8 @@ export default function BecomeSellerPage() {
     availability_start: '09:00',
     availability_end: '21:00',
     accepts_cod: true,
+    sell_beyond_community: false,
+    delivery_radius_km: 5,
   });
   const [draftProducts, setDraftProducts] = useState<any[]>([]);
   const [acceptedDeclaration, setAcceptedDeclaration] = useState(false);
@@ -186,7 +190,9 @@ export default function BecomeSellerPage() {
             availability_start: formData.availability_start,
             availability_end: formData.availability_end,
             accepts_cod: formData.accepts_cod,
-          })
+            sell_beyond_community: formData.sell_beyond_community,
+            delivery_radius_km: formData.delivery_radius_km,
+          } as any)
           .eq('id', draftSellerId);
         if (error) throw error;
         return draftSellerId;
@@ -203,9 +209,11 @@ export default function BecomeSellerPage() {
             availability_start: formData.availability_start,
             availability_end: formData.availability_end,
             accepts_cod: formData.accepts_cod,
+            sell_beyond_community: formData.sell_beyond_community,
+            delivery_radius_km: formData.delivery_radius_km,
             society_id: profile?.society_id || null,
             verification_status: 'draft' as any,
-          })
+          } as any)
           .select('id')
           .single();
         if (error) throw error;
@@ -263,7 +271,9 @@ export default function BecomeSellerPage() {
           availability_start: formData.availability_start,
           availability_end: formData.availability_end,
           accepts_cod: formData.accepts_cod,
-        })
+          sell_beyond_community: formData.sell_beyond_community,
+          delivery_radius_km: formData.delivery_radius_km,
+        } as any)
         .eq('id', draftSellerId);
 
       if (error) throw error;
@@ -542,6 +552,49 @@ export default function BecomeSellerPage() {
               </div>
             </label>
 
+            {/* Sell Beyond Community */}
+            <div className="border rounded-lg p-4 space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <Globe className="text-primary" size={20} />
+                  <div>
+                    <p className="font-medium text-sm">Sell beyond my community</p>
+                    <p className="text-xs text-muted-foreground">
+                      Allow buyers from nearby societies to order
+                    </p>
+                  </div>
+                </div>
+                <Switch
+                  checked={formData.sell_beyond_community}
+                  onCheckedChange={(checked) =>
+                    setFormData({ ...formData, sell_beyond_community: checked })
+                  }
+                />
+              </div>
+              {formData.sell_beyond_community && (
+                <div className="space-y-2 pt-2 border-t">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs text-muted-foreground">Delivery Radius</Label>
+                    <span className="text-sm font-medium text-primary">
+                      {formData.delivery_radius_km} km
+                    </span>
+                  </div>
+                  <Slider
+                    value={[formData.delivery_radius_km]}
+                    onValueChange={([v]) =>
+                      setFormData({ ...formData, delivery_radius_km: v })
+                    }
+                    min={1}
+                    max={10}
+                    step={1}
+                  />
+                  <p className="text-[10px] text-muted-foreground">
+                    Buyers within {formData.delivery_radius_km} km of your society can order
+                  </p>
+                </div>
+              )}
+            </div>
+
             <Button
               className="w-full"
               onClick={handleProceedToProducts}
@@ -622,6 +675,12 @@ export default function BecomeSellerPage() {
                   <span className="text-muted-foreground">COD</span>
                   <span className="font-medium">
                     {formData.accepts_cod ? 'Yes' : 'No'}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Cross-Society</span>
+                  <span className="font-medium">
+                    {formData.sell_beyond_community ? `Yes (${formData.delivery_radius_km} km)` : 'No'}
                   </span>
                 </div>
               </div>

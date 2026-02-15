@@ -16,7 +16,8 @@ import { SellerProfile, ProductCategory, DAYS_OF_WEEK } from '@/types/database';
 import { useCategoryConfigs } from '@/hooks/useCategoryBehavior';
 import { useParentGroups } from '@/hooks/useParentGroups';
 import { ParentGroup, ServiceCategory } from '@/types/categories';
-import { ArrowLeft, Loader2, PauseCircle, PlayCircle, Clock, Smartphone, Banknote, AlertTriangle, Building2 } from 'lucide-react';
+import { Slider } from '@/components/ui/slider';
+import { ArrowLeft, Loader2, PauseCircle, PlayCircle, Clock, Smartphone, Banknote, AlertTriangle, Building2, Globe } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { logAudit } from '@/lib/audit';
@@ -70,6 +71,9 @@ export default function SellerSettingsPage() {
     bank_account_number: '',
     bank_ifsc_code: '',
     bank_account_holder: '',
+    // Cross-society commerce
+    sell_beyond_community: false,
+    delivery_radius_km: 5,
   });
 
   useEffect(() => {
@@ -112,6 +116,8 @@ export default function SellerSettingsPage() {
           bank_account_number: profile.bank_account_number || '',
           bank_ifsc_code: profile.bank_ifsc_code || '',
           bank_account_holder: profile.bank_account_holder || '',
+          sell_beyond_community: profile.sell_beyond_community ?? false,
+          delivery_radius_km: profile.delivery_radius_km ?? 5,
         });
       }
     } catch (error) {
@@ -231,6 +237,8 @@ export default function SellerSettingsPage() {
           bank_account_number: formData.bank_account_number.trim() || null,
           bank_ifsc_code: formData.bank_ifsc_code.trim() || null,
           bank_account_holder: formData.bank_account_holder.trim() || null,
+          sell_beyond_community: formData.sell_beyond_community,
+          delivery_radius_km: formData.delivery_radius_km,
         } as any)
         .eq('id', sellerProfile.id);
 
@@ -541,6 +549,52 @@ export default function SellerSettingsPage() {
                       setFormData({ ...formData, upi_id: e.target.value })
                     }
                   />
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Sell Beyond Community */}
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <Globe size={16} className="text-muted-foreground" />
+              <Label>Cross-Society Sales</Label>
+            </div>
+            <div className="p-4 bg-muted rounded-lg space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="font-medium text-sm">Sell beyond my community</p>
+                  <p className="text-xs text-muted-foreground">
+                    Allow buyers from nearby societies to order
+                  </p>
+                </div>
+                <Switch
+                  checked={formData.sell_beyond_community}
+                  onCheckedChange={(checked) =>
+                    setFormData({ ...formData, sell_beyond_community: checked })
+                  }
+                />
+              </div>
+              {formData.sell_beyond_community && (
+                <div className="space-y-2 pt-2 border-t">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-muted-foreground">Delivery Radius</span>
+                    <span className="text-sm font-medium text-primary">
+                      {formData.delivery_radius_km} km
+                    </span>
+                  </div>
+                  <Slider
+                    value={[formData.delivery_radius_km]}
+                    onValueChange={([v]) =>
+                      setFormData({ ...formData, delivery_radius_km: v })
+                    }
+                    min={1}
+                    max={10}
+                    step={1}
+                  />
+                  <p className="text-[10px] text-muted-foreground">
+                    Buyers within {formData.delivery_radius_km} km can order from you
+                  </p>
                 </div>
               )}
             </div>

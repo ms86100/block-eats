@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { SocietyHealthDashboard } from '@/components/dashboard/SocietyHealthDashboard';
@@ -9,9 +10,11 @@ import { VerificationPendingScreen } from '@/components/onboarding/VerificationP
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Switch } from '@/components/ui/switch';
+import { Slider } from '@/components/ui/slider';
 import { useAuth } from '@/contexts/AuthContext';
 import { useEffectiveFeatures } from '@/hooks/useEffectiveFeatures';
-import { Search, ChevronRight, Store, Heart, Award, MapPin, Utensils, Star, TrendingUp, Activity, ShoppingBag, Shield } from 'lucide-react';
+import { Search, ChevronRight, Store, Heart, Award, MapPin, Utensils, Star, TrendingUp, Activity, ShoppingBag, Shield, Globe } from 'lucide-react';
 import {
   useOpenNowSellers,
   useNearbyBlockSellers,
@@ -19,17 +22,23 @@ import {
   useFeaturedSellers,
   useFavoriteSellers,
 } from '@/hooks/queries/useHomeSellers';
+import { useNearbySellers } from '@/hooks/queries/useNearbySellers';
 
 export default function HomePage() {
   const { user, profile, isApproved, isSeller, society } = useAuth();
   const { showOnboarding, hasChecked, completeOnboarding } = useOnboarding();
   const { isFeatureEnabled } = useEffectiveFeatures();
 
+  // Cross-society browsing state
+  const [browseBeyond, setBrowseBeyond] = useState((profile as any)?.browse_beyond_community ?? false);
+  const [searchRadius, setSearchRadius] = useState((profile as any)?.search_radius_km ?? 5);
+
   const { data: openNowSellers = [], isLoading: loadingOpen } = useOpenNowSellers();
   const { data: nearbyBlockSellers = [] } = useNearbyBlockSellers();
   const { data: topRatedSellers = [], isLoading: loadingTop } = useTopRatedSellers();
   const { data: featuredSellers = [] } = useFeaturedSellers();
   const { data: favorites = [] } = useFavoriteSellers();
+  const { data: nearbySellers = [] } = useNearbySellers(searchRadius, browseBeyond);
 
   const isLoading = loadingOpen || loadingTop;
 
@@ -250,7 +259,86 @@ export default function HomePage() {
           </div>
         )}
 
-        {/* Become a Seller CTA */}
+        {/* Become a Seller CTA or Nearby Sellers */}
+
+        {/* Browse Beyond Community */}
+        <div className="mx-4 mt-6">
+          <div className="border rounded-xl p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <Globe className="text-primary" size={20} />
+                <div>
+                  <p className="font-medium text-sm">Browse beyond my community</p>
+                  <p className="text-xs text-muted-foreground">
+                    Discover sellers from nearby societies
+                  </p>
+                </div>
+              </div>
+              <Switch checked={browseBeyond} onCheckedChange={setBrowseBeyond} />
+            </div>
+            {browseBeyond && (
+              <div className="space-y-2 pt-2 border-t">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-muted-foreground">Search Radius</span>
+                  <span className="text-sm font-medium text-primary">{searchRadius} km</span>
+                </div>
+                <Slider
+                  value={[searchRadius]}
+                  onValueChange={([v]) => setSearchRadius(v)}
+                  min={1}
+                  max={10}
+                  step={1}
+                />
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Nearby Society Sellers */}
+        {browseBeyond && nearbySellers.length > 0 && (
+          <div className="mt-4">
+            <div className="flex items-center justify-between px-4 mb-3">
+              <div className="flex items-center gap-2">
+                <Globe className="text-primary" size={18} />
+                <h3 className="font-semibold text-sm">Nearby Sellers</h3>
+              </div>
+            </div>
+            <div className="px-4 space-y-3">
+              {nearbySellers.map((seller: any) => (
+                <Link key={seller.seller_id} to={`/seller/${seller.seller_id}`}>
+                  <div className="bg-card rounded-xl overflow-hidden shadow-sm p-3">
+                    <div className="flex items-center gap-3">
+                      {seller.profile_image_url ? (
+                        <img src={seller.profile_image_url} alt={seller.business_name} className="w-12 h-12 rounded-lg object-cover" />
+                      ) : (
+                        <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center">
+                          <Store className="text-primary" size={20} />
+                        </div>
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-sm truncate">{seller.business_name}</p>
+                        <p className="text-xs text-muted-foreground truncate">{seller.society_name}</p>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          {seller.rating > 0 && (
+                            <span className="text-xs flex items-center gap-0.5">
+                              <Star size={10} className="fill-warning text-warning" />
+                              {Number(seller.rating).toFixed(1)}
+                            </span>
+                          )}
+                          <span className="text-[10px] text-muted-foreground">
+                            {seller.distance_km} km away
+                          </span>
+                        </div>
+                      </div>
+                      <ChevronRight size={16} className="text-muted-foreground" />
+                    </div>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </div>
+        )}
+
         {!isSeller && (
           <div className="mx-4 mt-6">
             <Link to="/become-seller">

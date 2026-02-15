@@ -3,6 +3,8 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { Input } from '@/components/ui/input';
+import { Switch } from '@/components/ui/switch';
+import { Slider } from '@/components/ui/slider';
 import { SellerCard } from '@/components/seller/SellerCard';
 import { ProductCard } from '@/components/product/ProductCard';
 import { SearchFilters, FilterState, defaultFilters } from '@/components/search/SearchFilters';
@@ -10,8 +12,9 @@ import { FilterPresets } from '@/components/search/FilterPresets';
 import { Skeleton } from '@/components/ui/skeleton';
 import { SellerProfile, Product } from '@/types/database';
 import { useCategoryConfigs } from '@/hooks/useCategoryBehavior';
-import { ArrowLeft, Search as SearchIcon, X } from 'lucide-react';
+import { ArrowLeft, Search as SearchIcon, X, Globe, Star, Store, ChevronRight } from 'lucide-react';
 import { AppLayout } from '@/components/layout/AppLayout';
+import { useNearbySellers } from '@/hooks/queries/useNearbySellers';
 
 // Persist last filters in localStorage
 const FILTER_STORAGE_KEY = 'sociva_search_filters';
@@ -71,7 +74,7 @@ function useDebounce<T>(value: T, delay: number): T {
 }
 
 export default function SearchPage() {
-  const { effectiveSocietyId } = useAuth();
+  const { effectiveSocietyId, profile } = useAuth();
   const [searchParams] = useSearchParams();
   const [query, setQuery] = useState('');
   const debouncedQuery = useDebounce(query, 300);
@@ -80,6 +83,11 @@ export default function SearchPage() {
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
+
+  // Cross-society browsing
+  const [browseBeyond, setBrowseBeyond] = useState((profile as any)?.browse_beyond_community ?? false);
+  const [searchRadius, setSearchRadius] = useState((profile as any)?.search_radius_km ?? 5);
+  const { data: nearbySellers = [] } = useNearbySellers(searchRadius, browseBeyond);
 
   // Apply URL params on mount
   useEffect(() => {
@@ -405,6 +413,81 @@ export default function SearchPage() {
             <p className="text-muted-foreground">
               Search for sellers or use filters to discover
             </p>
+          </div>
+        )}
+
+        {/* Cross-Society Toggle */}
+        <div className="mt-6 border rounded-xl p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <Globe className="text-primary" size={18} />
+              <div>
+                <p className="font-medium text-sm">Browse beyond my community</p>
+                <p className="text-xs text-muted-foreground">
+                  Discover sellers from nearby societies
+                </p>
+              </div>
+            </div>
+            <Switch checked={browseBeyond} onCheckedChange={setBrowseBeyond} />
+          </div>
+          {browseBeyond && (
+            <div className="space-y-2 pt-2 border-t">
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-muted-foreground">Search Radius</span>
+                <span className="text-sm font-medium text-primary">{searchRadius} km</span>
+              </div>
+              <Slider
+                value={[searchRadius]}
+                onValueChange={([v]) => setSearchRadius(v)}
+                min={1}
+                max={10}
+                step={1}
+              />
+            </div>
+          )}
+        </div>
+
+        {/* Nearby Society Results */}
+        {browseBeyond && nearbySellers.length > 0 && (
+          <div className="mt-4 space-y-3">
+            <div className="flex items-center gap-2">
+              <Globe className="text-primary" size={16} />
+              <h3 className="font-semibold text-sm">Nearby Societies</h3>
+              <span className="text-xs text-muted-foreground">
+                ({nearbySellers.length} seller{nearbySellers.length !== 1 ? 's' : ''})
+              </span>
+            </div>
+            {nearbySellers.map((seller: any) => (
+              <Link key={seller.seller_id} to={`/seller/${seller.seller_id}`}>
+                <div className="bg-card rounded-xl overflow-hidden shadow-sm p-3">
+                  <div className="flex items-center gap-3">
+                    {seller.profile_image_url ? (
+                      <img src={seller.profile_image_url} alt={seller.business_name} className="w-12 h-12 rounded-lg object-cover" />
+                    ) : (
+                      <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center">
+                        <Store className="text-primary" size={20} />
+                      </div>
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-sm truncate">{seller.business_name}</p>
+                      <p className="text-xs text-muted-foreground truncate">{seller.society_name}</p>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        {seller.rating > 0 && (
+                          <span className="text-xs flex items-center gap-0.5">
+                            <Star size={10} className="fill-warning text-warning" />
+                            {Number(seller.rating).toFixed(1)}
+                          </span>
+                        )}
+                        <span className="text-[10px] text-muted-foreground">
+                          {seller.distance_km} km away
+                        </span>
+                      </div>
+                    </div>
+                    <ChevronRight size={16} className="text-muted-foreground" />
+                  </div>
+                </div>
+              </Link>
+            ))}
           </div>
         )}
       </div>
