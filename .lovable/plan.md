@@ -1,97 +1,189 @@
 
 
-# Seller Control Gaps: Audit & Fix Plan
+# Marketplace Product Listing Redesign
 
-## Current State: What's Real vs What's Broken
+## The Problem
 
-After auditing every seller-facing page, here is the honest truth about which features have proper seller controls and which are "display-only" with no way for the seller to manage them.
+Currently, when a user taps a category (e.g., "Food & Groceries") from the homepage, they land on `CategoryGroupPage` which shows **a list of seller cards** -- not products. This is like tapping "Biryani" on Zomato and seeing a list of restaurant logos instead of actual dishes with photos and prices.
 
----
+The big apps (Zomato, Blinkit, Zepto, Amazon) all follow a **product-first** listing pattern:
+- **Zomato**: Tap a cuisine -> see dishes from multiple restaurants, with images, prices, ratings, delivery time
+- **Blinkit/Zepto**: Tap a category -> see a grid of product cards with images, price, "Add" buttons
+- **Amazon**: Tap a category -> see product cards in a grid with image carousels, ratings, price
 
-## GAP AUDIT
+Our current flow: Homepage -> Category -> Seller list -> Tap seller -> See products. That is **3 taps** to see a single product. It should be **1 tap**.
 
-### SUPPORTED (Seller has full UI control)
-- Business name, description, profile/cover images
-- Category selection (within locked primary group)
-- Operating days and availability hours
-- Store open/close toggle
-- Payment methods (COD, UPI, bank details)
-- Cross-society sales toggle + delivery radius slider
-- Product CRUD: name, price, description, image, category, veg/non-veg, bestseller, recommended, urgent, availability toggle
-- License upload (for regulated categories)
+## The Solution
 
-### PARTIALLY SUPPORTED (exists somewhere but not where it matters)
-1. **Preparation Time (`prep_time_minutes`)** -- exists in `DraftProductManager` (onboarding) but is COMPLETELY MISSING from `SellerProductsPage` (the main product management page). A seller who onboarded without setting it, or wants to update it later, has zero way to do so. The column exists in DB, the buyer-side shows it, but the seller's primary product edit form doesn't include it.
-
-### NOT SUPPORTED AT ALL (no seller UI exists)
-2. **Delivery/Pickup Mode** -- We show "FREE delivery" on buyer-side but there is no column or toggle for the seller to specify: "I only do self-pickup" vs "I deliver within my society" vs "I deliver cross-society." No `delivery_type` or `fulfillment_mode` field exists anywhere.
-3. **Seller Response Time Display** -- We show "Responds in ~X min" on `SellerDetailPage` computed from order data, but the seller cannot see their own response time metric anywhere on their dashboard. They have no visibility into what buyers see about them.
-4. **"Your Neighbor" / Block Info** -- We display block info from the seller's profile on buyer-side, but sellers cannot see or edit their block/flat info from the seller settings. They'd have to go to their personal profile page.
-5. **Price Range on Seller Cards** -- Buyer-side shows price range, but sellers have no visibility into how their store appears to buyers (no "preview my store" feature).
-6. **Per-Product Stock/Inventory** -- There is no stock quantity field. A seller can only toggle `is_available` on/off. They cannot say "I have 5 left" or "Out of stock until tomorrow."
-7. **Seller Analytics Visibility into Trust Signals** -- The `SellerAnalytics` component shows repeat buyers, cancellation rate, and peak hours. But the seller CANNOT see: their own rating/review count, their fulfillment rate, their avg response time, or what badges buyers see on their profile. These metrics are computed and stored in `seller_profiles` columns (`avg_response_minutes`, `completed_order_count`, `cancellation_rate`) but never shown to the seller.
+Redesign `CategoryGroupPage` from a seller-centric listing to a **product-first listing** with carousels, sub-category tabs, and inline cart controls -- similar to how Blinkit/Zepto organize products within a category.
 
 ---
 
-## Implementation Plan
+## Detailed Implementation
 
-### Task 1: Add `prep_time_minutes` to the Product Edit Form (SellerProductsPage)
+### Task 1: Redesign CategoryGroupPage to Product-First Layout
 
-**The gap:** The main product management dialog (`SellerProductsPage.tsx`) has no prep time field. Only the onboarding draft manager has it.
+**Current state:** Shows seller cards only.
+**New state:** Shows products organized by sub-category, with horizontal carousels per sub-category and a "See All" grid view.
 
-**Fix:**
-- Add a "Preparation Time (minutes)" input field to the product add/edit dialog in `SellerProductsPage.tsx`
-- Include `prep_time_minutes` in the `formData` state, `resetForm()`, `openEditDialog()`, and `handleSave()` functions
-- Show it between the price field and the veg/non-veg toggle
+**Layout structure (inspired by Blinkit/Zepto):**
 
-### Task 2: Add Delivery/Fulfillment Mode to Seller Settings
+```text
++------------------------------------------+
+| <- Back    Food & Groceries    Search     |
++------------------------------------------+
+| [All] [Home Food] [Bakery] [Snacks] ...  |  <- Sub-category pill tabs (horizontal scroll)
++------------------------------------------+
+|                                          |
+| -- Home Food (29 items) ---------- See All|
+| [Card] [Card] [Card] [Card] ->          |  <- Horizontal carousel
+|                                          |
+| -- Bakery (3 items) ------------- See All|
+| [Card] [Card] [Card] ->                 |  <- Horizontal carousel
+|                                          |
+| -- Snacks (3 items) ------------- See All|
+| [Card] [Card] [Card] ->                 |  <- Horizontal carousel
+|                                          |
+| -- Top Sellers in Food -----------       |
+| [SellerCard] [SellerCard] ->             |  <- Seller carousel at bottom
++------------------------------------------+
+```
 
-**The gap:** No way for seller to specify how they fulfill orders.
+When a sub-category tab is tapped, switch to a **grid view** showing all products in that sub-category (2 columns, vertical product cards with image, name, price, seller name, "Add" button).
 
-**Fix:**
-- Add a `fulfillment_mode` column to `seller_profiles` table via migration (enum-like text: `self_pickup`, `delivery`, `both`, default `self_pickup`)
-- Add a `delivery_note` text column for sellers to write custom delivery instructions (e.g., "Pickup from Gate 2" or "Will deliver to your door within 1 hour")
-- Add a "Fulfillment Mode" section in `SellerSettingsPage.tsx` with radio/toggle options:
-  - "Self Pickup Only" -- buyer picks up from seller
-  - "I Deliver" -- seller delivers within society/radius  
-  - "Both" -- buyer can choose
-- Add a text input for delivery instructions
-- Display this info on `SellerDetailPage` and `ProductDetailSheet` on buyer side
+**Product card design (vertical, carousel-optimized):**
+- 140px wide, image on top (square, rounded corners)
+- Veg/Non-veg badge overlay on image
+- Product name (1 line, truncated)
+- Price in bold
+- Seller name in muted small text
+- Prep time if available (e.g., "~30 min")
+- "Add +" button or quantity stepper at the bottom
 
-### Task 3: Add "My Store Performance" Section to Seller Dashboard
+**Files modified:**
+- `src/pages/CategoryGroupPage.tsx` -- Complete redesign from seller-list to product-first layout with carousels
 
-**The gap:** Sellers cannot see what trust signals buyers see about them.
+**Data fetching changes:**
+- Fetch all products for the parent group (join with seller_profiles for seller name, rating)
+- Group products by sub-category client-side
+- Keep existing seller fetch for the "Top Sellers" section at the bottom
 
-**Fix:**
-- Add a "Your Store Profile" card to `SellerDashboardPage.tsx` showing:
-  - Current rating + review count (from `seller_profiles.rating` and `total_reviews`)
-  - Avg response time (from `avg_response_minutes`)
-  - Fulfillment count (from `completed_order_count`)
-  - Cancellation rate (from `cancellation_rate`)
-  - "New Seller" badge status (if `completed_order_count < 5`)
-  - Last active timestamp
-- This is read-only (seller can see but not edit -- these are computed from real data)
-- Label it "How buyers see your store" so sellers understand these are public signals
+### Task 2: Create Reusable ProductCarousel Component
 
-### Task 4: Add Store Preview Link
+A horizontal scroll carousel component that can be reused on:
+- CategoryGroupPage (per sub-category)
+- HomePage (popular products section)
+- SearchPage (category browse mode)
 
-**The gap:** Sellers have no way to see their store the way buyers see it.
+**Props:**
+- `title` (string) -- section header
+- `products` (array) -- product data with seller info
+- `onSeeAll` (callback) -- when "See All" is tapped
+- `variant` -- `'compact'` (small cards) or `'featured'` (larger cards with more detail)
 
-**Fix:**
-- Add a "Preview My Store" button on `SellerDashboardPage` and `SellerSettingsPage` that links to `/seller/{sellerId}` (the buyer-facing seller detail page)
-- Simple but powerful -- lets sellers verify their images, descriptions, product listings, and trust signals
+Uses `embla-carousel-react` (already installed) for smooth swipe behavior with snap points.
+
+**New file:** `src/components/product/ProductCarousel.tsx`
+
+### Task 3: Create Vertical ProductGridCard Component
+
+A compact vertical card designed for grid/carousel display (different from the existing horizontal `ProductCard` which is designed for seller detail page lists).
+
+**Design:**
+- Square image (aspect-ratio 1:1)
+- Bestseller/Recommended badge overlay
+- Veg badge
+- Product name (truncated)
+- Price
+- Seller name (small, tappable)
+- Prep time indicator
+- "Add +" / quantity stepper
+- Category emoji in corner
+
+**New file:** `src/components/product/ProductGridCard.tsx`
+
+### Task 4: Add Product Carousels to HomePage
+
+Replace the current "seller-only" homepage with a mixed layout:
+
+**Current:** Category icons -> Open Now sellers -> Nearby sellers -> Featured sellers
+**New additions (inserted between existing sections):**
+- "Popular Right Now" -- horizontal carousel of top-ordered products (from real order data)
+- "Quick Bites" -- carousel filtered to food category products
+- Keep existing seller sections but add product carousels between them
+
+This gives the homepage a Zomato/Blinkit feel where users see actual products with prices immediately.
+
+**File modified:** `src/pages/HomePage.tsx`
+**New hook:** `src/hooks/queries/usePopularProducts.ts` -- fetches top products by order count
+
+### Task 5: Add Service Listings to CategoryGroupPage
+
+For non-product categories (services, classes, personal, professional, etc.), the same page should adapt its card design:
+
+**Service card differences:**
+- Instead of "Add +", show "Book" or "Contact" based on category behavior flags
+- Show duration instead of price per item (e.g., "1 hr session")
+- Show seller's availability hours
+- Show "Starting from ₹X" pricing
+- For workers (maid, cook, driver), show experience/availability
+
+This uses the existing `CategoryBehavior` flags (`requiresTimeSlot`, `enquiryOnly`, `hasDuration`) to determine which card variant to render.
+
+**Handled within:** `src/components/product/ProductGridCard.tsx` (behavior-aware rendering)
+
+### Task 6: Enhance Search Page Category Browse Mode
+
+When a user taps a category bubble on the SearchPage without typing a search term, show the products in carousel layout (same as CategoryGroupPage) instead of the current flat list.
+
+**File modified:** `src/pages/SearchPage.tsx` -- When `selectedCategory` is set and no search term, render carousels grouped by sub-category instead of flat list.
 
 ---
 
-## Technical Summary
+## Technical Details
 
-| Task | Files Modified | Files Created | DB Changes |
-|------|---------------|---------------|------------|
-| 1. Prep time in product edit | `SellerProductsPage.tsx` | None | None (column exists) |
-| 2. Fulfillment mode | `SellerSettingsPage.tsx`, `SellerDetailPage.tsx`, `ProductDetailSheet.tsx`, `SearchPage.tsx`, `types/database.ts` | None | Migration: add `fulfillment_mode` + `delivery_note` to `seller_profiles` |
-| 3. Store performance card | `SellerDashboardPage.tsx` | None | None (columns exist) |
-| 4. Store preview link | `SellerDashboardPage.tsx`, `SellerSettingsPage.tsx` | None | None |
+### Data Flow
 
-### Implementation Order
-Task 1 first (smallest, highest impact -- unblocks prep time for all existing sellers), then Task 2 (new schema), then Tasks 3-4 together (dashboard polish).
+```text
+CategoryGroupPage
+  |
+  +-- Fetch products WHERE category IN (sub-categories of parent group)
+  |     JOIN seller_profiles for seller_name, rating, fulfillment_mode
+  |     Scoped by society_id
+  |
+  +-- Group by category client-side
+  |
+  +-- Render ProductCarousel per sub-category
+  |     Each carousel uses ProductGridCard
+  |
+  +-- "See All" -> switches to grid view (2-col) for that sub-category
+  |
+  +-- Bottom section: Top Sellers carousel (existing SellerCard)
+```
+
+### Carousel Implementation
+
+Using `embla-carousel-react` (already installed at v8.6.0):
+
+```text
+- Snap alignment: start
+- Slide spacing: 12px
+- Slide width: 152px (compact) or 200px (featured)
+- Drag-free scrolling enabled
+- Touch/swipe support built-in
+```
+
+### Files Summary
+
+| Action | File | Purpose |
+|--------|------|---------|
+| Create | `src/components/product/ProductGridCard.tsx` | Vertical product card for grids/carousels |
+| Create | `src/components/product/ProductCarousel.tsx` | Reusable horizontal carousel wrapper |
+| Create | `src/hooks/queries/usePopularProducts.ts` | Fetch popular products by order volume |
+| Rewrite | `src/pages/CategoryGroupPage.tsx` | Product-first layout with carousels |
+| Modify | `src/pages/HomePage.tsx` | Add product carousels between seller sections |
+| Modify | `src/pages/SearchPage.tsx` | Carousel layout for category browse mode |
+
+### No Database Changes Required
+All data already exists in the `products` and `seller_profiles` tables. We just need smarter queries and better UI presentation.
 
