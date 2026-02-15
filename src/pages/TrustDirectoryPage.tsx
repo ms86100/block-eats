@@ -45,7 +45,8 @@ export default function TrustDirectoryPage() {
       .order('trust_score', { ascending: false });
 
     if (search.trim()) {
-      query = query.ilike('skill_name', `%${search}%`);
+      const escaped = search.replace(/%/g, '\\%').replace(/_/g, '\\_');
+      query = query.ilike('skill_name', `%${escaped}%`);
     }
 
     const { data } = await query;

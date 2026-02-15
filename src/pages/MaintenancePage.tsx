@@ -46,10 +46,12 @@ export default function MaintenancePage() {
   };
 
   const handleMarkPaid = async (id: string) => {
+    if (!effectiveSocietyId) return;
     const { error } = await supabase
       .from('maintenance_dues')
       .update({ status: 'paid', paid_date: new Date().toISOString().split('T')[0] })
-      .eq('id', id);
+      .eq('id', id)
+      .eq('society_id', effectiveSocietyId);
     if (error) { toast.error('Failed to update'); return; }
     toast.success('Marked as paid');
     fetchDues();

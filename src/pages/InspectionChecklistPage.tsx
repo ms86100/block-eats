@@ -182,10 +182,12 @@ export default function InspectionChecklistPage() {
   };
 
   const updateItemStatus = async (itemId: string, newStatus: string) => {
+    if (!activeChecklist) return;
     const { error } = await supabase
       .from('inspection_items')
       .update({ status: newStatus, updated_at: new Date().toISOString() })
-      .eq('id', itemId);
+      .eq('id', itemId)
+      .eq('checklist_id', activeChecklist.id);
 
     if (!error) {
       setItems(prev => prev.map(item =>
@@ -200,25 +202,28 @@ export default function InspectionChecklistPage() {
         failed_items: failed,
         overall_score: Math.round((passed / updated.length) * 100),
         status: 'in_progress',
-      }).eq('id', activeChecklist!.id);
+      }).eq('id', activeChecklist.id).eq('resident_id', user!.id);
     }
   };
 
   const updateItemNotes = async (itemId: string, notes: string) => {
+    if (!activeChecklist) return;
     await supabase.from('inspection_items')
       .update({ notes })
-      .eq('id', itemId);
+      .eq('id', itemId)
+      .eq('checklist_id', activeChecklist.id);
     setItems(prev => prev.map(item =>
       item.id === itemId ? { ...item, notes } : item
     ));
   };
 
   const submitChecklist = async () => {
-    if (!activeChecklist) return;
+    if (!activeChecklist || !user) return;
     const { error } = await supabase
       .from('inspection_checklists')
       .update({ status: 'submitted', submitted_at: new Date().toISOString() })
-      .eq('id', activeChecklist.id);
+      .eq('id', activeChecklist.id)
+      .eq('resident_id', user.id);
     if (!error) {
       toast.success('Checklist submitted to builder!');
       fetchChecklists();
