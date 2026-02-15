@@ -20,17 +20,10 @@ export function ProductCard({ product, variant = 'horizontal', onTap }: ProductC
   const cartItem = items.find((item) => item.product_id === product.id);
   const quantity = cartItem?.quantity || 0;
 
-  // Product-level action_type overrides category-level behavior
-  const actionType = (product as any).action_type as string | null;
-  const isCartActionByType = !actionType || actionType === 'add_to_cart' || actionType === 'buy_now';
-  const isService = requiresTimeSlot || enquiryOnly;
-  const canAddToCart = isCartActionByType && supportsCart && !isService;
+  // All products are directly addable to cart
+  const canAddToCart = true;
 
   const handleAdd = () => {
-    if (!canAddToCart) {
-      onTap?.(product);
-      return;
-    }
     addItem(product);
   };
 

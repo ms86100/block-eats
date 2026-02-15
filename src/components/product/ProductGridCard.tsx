@@ -45,20 +45,12 @@ export function ProductGridCard({ product, behavior, onTap, className }: Product
 
   const actionType: ProductActionType = (product as any).action_type || 'add_to_cart';
   const config = ACTION_CONFIG[actionType] || ACTION_CONFIG.add_to_cart;
-  // Only treat as cart action if BOTH the action type says so AND the category behavior supports cart
-  const isCartAction = config.isCart && (behavior?.supportsCart !== false);
+  // All products are directly addable to cart
+  const isCartAction = true;
 
   const handleAdd = (e: React.MouseEvent) => {
     e.stopPropagation();
     e.preventDefault();
-    if (actionType === 'contact_seller' && (product as any).contact_phone) {
-      setContactOpen(true);
-      return;
-    }
-    if (!isCartAction) {
-      onTap?.(product);
-      return;
-    }
     addItem(product);
   };
 
@@ -75,11 +67,6 @@ export function ProductGridCard({ product, behavior, onTap, className }: Product
   };
 
   const handleCardClick = () => {
-    if (!isCartAction && product.seller_id) {
-      // Non-cart items: go directly to seller page (no intermediate popup)
-      navigate(`/seller/${product.seller_id}`);
-      return;
-    }
     onTap?.(product);
   };
 

@@ -94,21 +94,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    // Client-side guard: check product-level action_type first, then category
-    const actionType = (product as any).action_type || 'add_to_cart';
-    if (actionType !== 'add_to_cart' && actionType !== 'buy_now') {
-      // Silently ignore — the UI routes these to their proper flow
-      return;
-    }
-
-    const productCategory = (product as any).category;
-    if (productCategory && categoryConfigs.length > 0) {
-      const catConfig = categoryConfigs.find(c => c.category === productCategory);
-      if (catConfig && !catConfig.behavior?.supportsCart) {
-        // Silently ignore — non-cart items open detail/enquiry sheets instead
-        return;
-      }
-    }
+    // All products can be added to cart regardless of action_type or category
 
     const existingItem = items.find(item => item.product_id === product.id);
     const prevItems = [...items];
