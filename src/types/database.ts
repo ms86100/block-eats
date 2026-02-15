@@ -113,6 +113,21 @@ export interface SellerProfile {
   is_favorite?: boolean;
 }
 
+export type ProductActionType = 
+  | 'add_to_cart' | 'buy_now' | 'book' | 'request_service' 
+  | 'request_quote' | 'contact_seller' | 'schedule_visit' | 'make_offer';
+
+export const PRODUCT_ACTION_TYPES: { value: ProductActionType; label: string; icon: string }[] = [
+  { value: 'add_to_cart', label: 'Add to Cart', icon: '🛒' },
+  { value: 'buy_now', label: 'Buy Now', icon: '⚡' },
+  { value: 'book', label: 'Book', icon: '📅' },
+  { value: 'request_service', label: 'Request Service', icon: '🔧' },
+  { value: 'request_quote', label: 'Request Quote', icon: '💬' },
+  { value: 'contact_seller', label: 'Contact Seller', icon: '📞' },
+  { value: 'schedule_visit', label: 'Schedule Visit', icon: '🏠' },
+  { value: 'make_offer', label: 'Make Offer', icon: '🤝' },
+];
+
 export interface Product {
   id: string;
   seller_id: string;
@@ -126,6 +141,8 @@ export interface Product {
   is_bestseller: boolean;
   is_recommended: boolean;
   is_urgent: boolean;
+  action_type?: ProductActionType;
+  contact_phone?: string | null;
   // New fields for services/rentals/resale (optional for backward compat)
   listing_type?: ListingType | string;
   service_duration_minutes?: number | null;

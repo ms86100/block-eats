@@ -26,7 +26,7 @@ import { VegBadge } from '@/components/ui/veg-badge';
 import { Badge } from '@/components/ui/badge';
 import { ImageUpload } from '@/components/ui/image-upload';
 import { useAuth } from '@/contexts/AuthContext';
-import { Product, ProductCategory, SellerProfile } from '@/types/database';
+import { Product, ProductCategory, SellerProfile, ProductActionType, PRODUCT_ACTION_TYPES } from '@/types/database';
 import { useCategoryConfigs } from '@/hooks/useCategoryBehavior';
 import { ParentGroup } from '@/types/categories';
 import { SellerSwitcher } from '@/components/seller/SellerSwitcher';
@@ -59,6 +59,8 @@ export default function SellerProductsPage() {
     is_recommended: false,
     is_urgent: false,
     image_url: null as string | null,
+    action_type: 'add_to_cart' as ProductActionType,
+    contact_phone: '',
   });
 
   // Get the active category config for dynamic form hints
@@ -173,6 +175,8 @@ export default function SellerProductsPage() {
       is_recommended: false,
       is_urgent: false,
       image_url: null,
+      action_type: 'add_to_cart',
+      contact_phone: '',
     });
     setEditingProduct(null);
   };
@@ -191,6 +195,8 @@ export default function SellerProductsPage() {
       is_recommended: product.is_recommended,
       is_urgent: product.is_urgent || false,
       image_url: product.image_url,
+      action_type: (product as any).action_type || 'add_to_cart',
+      contact_phone: (product as any).contact_phone || '',
     });
     setIsDialogOpen(true);
   };
@@ -198,14 +204,28 @@ export default function SellerProductsPage() {
   const handleSave = async () => {
     if (!sellerProfile || !user) return;
 
-    if (!formData.name.trim() || !formData.price || !formData.category) {
+    if (!formData.name.trim() || !formData.category) {
       toast.error('Please fill in all required fields');
       return;
     }
 
+    // Price validation based on action_type
+    const needsPrice = ['add_to_cart', 'buy_now', 'book', 'request_service', 'schedule_visit'].includes(formData.action_type);
     const price = parseFloat(formData.price);
-    if (isNaN(price) || price <= 0) {
+    if (needsPrice && (isNaN(price) || price <= 0)) {
       toast.error('Please enter a valid price');
+      return;
+    }
+
+    // Contact phone validation
+    if (formData.action_type === 'contact_seller' && !formData.contact_phone.trim()) {
+      toast.error('Phone number is required for Contact Seller action');
+      return;
+    }
+
+    // Phone format validation
+    if (formData.contact_phone.trim() && !/^[\d+\-\s()]{7,15}$/.test(formData.contact_phone.trim())) {
+      toast.error('Please enter a valid phone number');
       return;
     }
 
@@ -216,7 +236,7 @@ export default function SellerProductsPage() {
         seller_id: sellerProfile.id,
         name: formData.name.trim(),
         description: formData.description.trim() || null,
-        price,
+        price: isNaN(price) ? 0 : price,
         prep_time_minutes: (prepTime && !isNaN(prepTime) && prepTime > 0) ? prepTime : null,
         category: formData.category,
         is_veg: formData.is_veg,
@@ -225,6 +245,8 @@ export default function SellerProductsPage() {
         is_recommended: formData.is_recommended,
         is_urgent: formData.is_urgent,
         image_url: formData.image_url,
+        action_type: formData.action_type,
+        contact_phone: formData.contact_phone.trim() || null,
         ...(editingProduct ? {} : { approval_status: 'draft' }),
       };
 
@@ -440,7 +462,51 @@ export default function SellerProductsPage() {
                   ) : null}
                 </div>
 
-                {/* Veg/Non-Veg Toggle - DB-driven via showVegToggle */}
+                {/* ─── Primary Action Button ─── */}
+                <div className="space-y-2">
+                  <Label>Primary Action Button *</Label>
+                  <Select
+                    value={formData.action_type}
+                    onValueChange={(value) =>
+                      setFormData({ ...formData, action_type: value as ProductActionType })
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select action" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {PRODUCT_ACTION_TYPES.map((type) => (
+                        <SelectItem key={type.value} value={type.value}>
+                          {type.icon} {type.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-[11px] text-muted-foreground">
+                    This controls the button buyers see on your product card
+                  </p>
+                </div>
+
+                {/* Contact Phone — shown when action_type = contact_seller */}
+                {formData.action_type === 'contact_seller' && (
+                  <div className="space-y-2">
+                    <Label htmlFor="contact_phone">Contact Phone *</Label>
+                    <Input
+                      id="contact_phone"
+                      type="tel"
+                      placeholder="+91 98765 43210"
+                      value={formData.contact_phone}
+                      onChange={(e) =>
+                        setFormData({ ...formData, contact_phone: e.target.value })
+                      }
+                    />
+                    <p className="text-[11px] text-muted-foreground">
+                      Buyers will see a "Call Now" button with this number
+                    </p>
+                  </div>
+                )}
+
+
                 {showVegToggle && (
                   <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
                     <div className="flex items-center gap-2">

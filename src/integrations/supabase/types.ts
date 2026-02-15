@@ -2625,10 +2625,12 @@ export type Database = {
       }
       products: {
         Row: {
+          action_type: string
           approval_status: string
           available_slots: Json | null
           category: string
           condition: string | null
+          contact_phone: string | null
           created_at: string | null
           deposit_amount: number | null
           description: string | null
@@ -2653,10 +2655,12 @@ export type Database = {
           updated_at: string | null
         }
         Insert: {
+          action_type?: string
           approval_status?: string
           available_slots?: Json | null
           category: string
           condition?: string | null
+          contact_phone?: string | null
           created_at?: string | null
           deposit_amount?: number | null
           description?: string | null
@@ -2681,10 +2685,12 @@ export type Database = {
           updated_at?: string | null
         }
         Update: {
+          action_type?: string
           approval_status?: string
           available_slots?: Json | null
           category?: string
           condition?: string | null
+          contact_phone?: string | null
           created_at?: string | null
           deposit_amount?: number | null
           description?: string | null

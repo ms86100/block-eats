@@ -93,7 +93,13 @@ export function CartProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    // Client-side guard: check if category supports cart
+    // Client-side guard: check product-level action_type first, then category
+    const actionType = (product as any).action_type || 'add_to_cart';
+    if (actionType !== 'add_to_cart' && actionType !== 'buy_now') {
+      toast.error('This item uses a different flow — tap to view details.');
+      return;
+    }
+
     const productCategory = (product as any).category;
     if (productCategory && categoryConfigs.length > 0) {
       const catConfig = categoryConfigs.find(c => c.category === productCategory);
