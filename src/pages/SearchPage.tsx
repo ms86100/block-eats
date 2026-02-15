@@ -12,7 +12,7 @@ import { FilterPresets } from '@/components/search/FilterPresets';
 import { Skeleton } from '@/components/ui/skeleton';
 import { SellerProfile, Product } from '@/types/database';
 import { useCategoryConfigs } from '@/hooks/useCategoryBehavior';
-import { ArrowLeft, Search as SearchIcon, X, Globe, Star, Store, ChevronRight } from 'lucide-react';
+import { ArrowLeft, Search as SearchIcon, X, Globe, Star, Store, ChevronRight, MapPin } from 'lucide-react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { useNearbySellers } from '@/hooks/queries/useNearbySellers';
 
@@ -335,7 +335,106 @@ export default function SearchPage() {
           </div>
         )}
 
-        {/* Results */}
+        {/* Cross-Society Discovery */}
+        <div className="mb-5 bg-card border border-border rounded-2xl overflow-hidden">
+          <div className="flex items-center justify-between p-4">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center">
+                <Globe className="text-primary" size={18} />
+              </div>
+              <div>
+                <p className="font-semibold text-sm">Browse beyond my community</p>
+                <p className="text-xs text-muted-foreground">
+                  Discover sellers from nearby societies
+                </p>
+              </div>
+            </div>
+            <Switch checked={browseBeyond} onCheckedChange={setBrowseBeyond} />
+          </div>
+          {browseBeyond && (
+            <div className="px-4 pb-4 pt-0">
+              <div className="border-t pt-3 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-muted-foreground">Search Radius</span>
+                  <span className="text-sm font-semibold text-primary">{searchRadius} km</span>
+                </div>
+                <Slider
+                  value={[searchRadius]}
+                  onValueChange={([v]) => setSearchRadius(v)}
+                  min={1}
+                  max={10}
+                  step={1}
+                />
+                <div className="flex justify-between text-[10px] text-muted-foreground">
+                  <span>1 km</span>
+                  <span>5 km</span>
+                  <span>10 km</span>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Nearby Society Sellers */}
+        {browseBeyond && nearbySellers.length > 0 && (
+          <div className="mb-5 space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Globe className="text-primary" size={16} />
+                <h3 className="font-semibold text-sm">Nearby Sellers</h3>
+              </div>
+              <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
+                {nearbySellers.length} found
+              </span>
+            </div>
+            <div className="space-y-2">
+              {nearbySellers.map((seller: any) => (
+                <Link key={seller.seller_id} to={`/seller/${seller.seller_id}`}>
+                  <div className="bg-card border border-border rounded-xl p-3 hover:shadow-md transition-shadow">
+                    <div className="flex items-center gap-3">
+                      {seller.profile_image_url ? (
+                        <img src={seller.profile_image_url} alt={seller.business_name} className="w-12 h-12 rounded-xl object-cover" />
+                      ) : (
+                        <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center">
+                          <Store className="text-primary" size={20} />
+                        </div>
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <p className="font-semibold text-sm truncate">{seller.business_name}</p>
+                        <p className="text-xs text-muted-foreground truncate flex items-center gap-1">
+                          <MapPin size={10} />
+                          {seller.society_name}
+                        </p>
+                        <div className="flex items-center gap-2 mt-1">
+                          {seller.rating > 0 && (
+                            <span className="text-xs flex items-center gap-0.5 bg-warning/10 text-warning px-1.5 py-0.5 rounded">
+                              <Star size={10} className="fill-warning" />
+                              {Number(seller.rating).toFixed(1)}
+                            </span>
+                          )}
+                          <span className="text-[10px] text-muted-foreground">
+                            {seller.distance_km} km away
+                          </span>
+                        </div>
+                      </div>
+                      <ChevronRight size={16} className="text-muted-foreground shrink-0" />
+                    </div>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {browseBeyond && nearbySellers.length === 0 && (
+          <div className="mb-5 text-center py-8 bg-muted/30 rounded-xl border border-dashed border-border">
+            <Globe className="mx-auto text-muted-foreground mb-2" size={28} />
+            <p className="text-sm text-muted-foreground">No nearby sellers found</p>
+            <p className="text-xs text-muted-foreground mt-1">Try increasing your search radius</p>
+          </div>
+        )}
+
+        {/* Search Results */}
         {isLoading ? (
           <div className="space-y-3">
             {[1, 2, 3].map((i) => (
@@ -345,7 +444,7 @@ export default function SearchPage() {
         ) : hasSearched ? (
           searchResults.length > 0 ? (
             <div className="space-y-4">
-              <p className="text-sm text-muted-foreground mb-2">
+              <p className="text-sm text-muted-foreground">
                 {searchResults.length} result{searchResults.length !== 1 ? 's' : ''} found
               </p>
               {searchResults.map((result) => (
@@ -368,12 +467,9 @@ export default function SearchPage() {
                       user_id: result.user_id,
                     } as any} 
                   />
-                  {/* Show matching products if any */}
                   {result.matching_products && result.matching_products.length > 0 && (
                     <div className="pl-4 border-l-2 border-primary/20 ml-2">
-                      <p className="text-xs text-muted-foreground mb-2">
-                        Matching products:
-                      </p>
+                      <p className="text-xs text-muted-foreground mb-2">Matching products:</p>
                       <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-2">
                         {result.matching_products.slice(0, 3).map((product: any) => (
                           <Link 
@@ -402,92 +498,22 @@ export default function SearchPage() {
             </div>
           ) : (
             <div className="text-center py-12">
-              <p className="text-muted-foreground">No sellers found</p>
-              <p className="text-sm text-muted-foreground mt-1">
+              <SearchIcon className="mx-auto text-muted-foreground mb-3" size={32} />
+              <p className="font-medium text-muted-foreground">No sellers found</p>
+              <p className="text-xs text-muted-foreground mt-1">
                 Try a different search term or adjust filters
               </p>
             </div>
           )
         ) : (
-          <div className="text-center py-12">
-            <p className="text-muted-foreground">
+          <div className="text-center py-8">
+            <SearchIcon className="mx-auto text-muted-foreground/50 mb-3" size={36} />
+            <p className="text-sm text-muted-foreground">
               Search for sellers or use filters to discover
             </p>
-          </div>
-        )}
-
-        {/* Cross-Society Toggle */}
-        <div className="mt-6 border rounded-xl p-4 space-y-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <Globe className="text-primary" size={18} />
-              <div>
-                <p className="font-medium text-sm">Browse beyond my community</p>
-                <p className="text-xs text-muted-foreground">
-                  Discover sellers from nearby societies
-                </p>
-              </div>
-            </div>
-            <Switch checked={browseBeyond} onCheckedChange={setBrowseBeyond} />
-          </div>
-          {browseBeyond && (
-            <div className="space-y-2 pt-2 border-t">
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-muted-foreground">Search Radius</span>
-                <span className="text-sm font-medium text-primary">{searchRadius} km</span>
-              </div>
-              <Slider
-                value={[searchRadius]}
-                onValueChange={([v]) => setSearchRadius(v)}
-                min={1}
-                max={10}
-                step={1}
-              />
-            </div>
-          )}
-        </div>
-
-        {/* Nearby Society Results */}
-        {browseBeyond && nearbySellers.length > 0 && (
-          <div className="mt-4 space-y-3">
-            <div className="flex items-center gap-2">
-              <Globe className="text-primary" size={16} />
-              <h3 className="font-semibold text-sm">Nearby Societies</h3>
-              <span className="text-xs text-muted-foreground">
-                ({nearbySellers.length} seller{nearbySellers.length !== 1 ? 's' : ''})
-              </span>
-            </div>
-            {nearbySellers.map((seller: any) => (
-              <Link key={seller.seller_id} to={`/seller/${seller.seller_id}`}>
-                <div className="bg-card rounded-xl overflow-hidden shadow-sm p-3">
-                  <div className="flex items-center gap-3">
-                    {seller.profile_image_url ? (
-                      <img src={seller.profile_image_url} alt={seller.business_name} className="w-12 h-12 rounded-lg object-cover" />
-                    ) : (
-                      <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center">
-                        <Store className="text-primary" size={20} />
-                      </div>
-                    )}
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium text-sm truncate">{seller.business_name}</p>
-                      <p className="text-xs text-muted-foreground truncate">{seller.society_name}</p>
-                      <div className="flex items-center gap-2 mt-0.5">
-                        {seller.rating > 0 && (
-                          <span className="text-xs flex items-center gap-0.5">
-                            <Star size={10} className="fill-warning text-warning" />
-                            {Number(seller.rating).toFixed(1)}
-                          </span>
-                        )}
-                        <span className="text-[10px] text-muted-foreground">
-                          {seller.distance_km} km away
-                        </span>
-                      </div>
-                    </div>
-                    <ChevronRight size={16} className="text-muted-foreground" />
-                  </div>
-                </div>
-              </Link>
-            ))}
+            <p className="text-xs text-muted-foreground mt-1">
+              Try "biryani", "yoga", or "pet grooming"
+            </p>
           </div>
         )}
       </div>
