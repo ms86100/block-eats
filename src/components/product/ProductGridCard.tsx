@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Minus, MessageCircle, Calendar, Phone, ShoppingBag, Send, Home, Handshake } from 'lucide-react';
+import { Plus, Minus, MessageCircle, Calendar, Phone, ShoppingBag, Send, Home, Handshake, Store } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { VegBadge } from '@/components/ui/veg-badge';
@@ -136,6 +136,21 @@ export function ProductGridCard({ product, behavior, onTap, className }: Product
           <h4 className="font-semibold text-xs leading-tight line-clamp-2 text-foreground min-h-[2rem]">
             {product.name}
           </h4>
+
+          {/* Seller name + fulfillment — key info visible without tapping */}
+          {product.seller_name && (
+            <div className="flex items-center gap-1 mt-0.5">
+              <Store size={9} className="text-muted-foreground shrink-0" />
+              <span className="text-[10px] text-muted-foreground truncate">{product.seller_name}</span>
+            </div>
+          )}
+
+          {/* Fulfillment mode badge */}
+          {product.fulfillment_mode && (
+            <span className="text-[9px] text-primary/80 font-medium mt-0.5">
+              {product.fulfillment_mode === 'delivery' ? '🚚 Delivery' : product.fulfillment_mode === 'pickup' ? '📍 Pickup' : '🚚 Delivery & Pickup'}
+            </span>
+          )}
 
           {/* Description / weight line */}
           {product.description && (
