@@ -4957,7 +4957,12 @@ export type Database = {
         | "roommate"
         | "parking"
       user_role: "buyer" | "seller" | "admin" | "security_officer"
-      verification_status: "pending" | "approved" | "rejected" | "suspended"
+      verification_status:
+        | "draft"
+        | "pending"
+        | "approved"
+        | "rejected"
+        | "suspended"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -5158,7 +5163,13 @@ export const Constants = {
         "parking",
       ],
       user_role: ["buyer", "seller", "admin", "security_officer"],
-      verification_status: ["pending", "approved", "rejected", "suspended"],
+      verification_status: [
+        "draft",
+        "pending",
+        "approved",
+        "rejected",
+        "suspended",
+      ],
     },
   },
 } as const
