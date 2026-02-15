@@ -205,7 +205,11 @@ export function ProductGridCard({ product, behavior, onTap, className }: Product
               size="sm"
               variant="outline"
               className="w-full h-7 text-xs border-primary text-primary hover:bg-primary hover:text-primary-foreground"
-              onClick={handleAdd}
+              onClick={(e) => {
+                e.stopPropagation();
+                e.preventDefault();
+                onTap?.(product);
+              }}
               disabled={!product.is_available}
             >
               <ActionIcon size={12} className="mr-0.5" /> {actionLabel}
