@@ -38,11 +38,11 @@ export default function CreateJobRequestPage() {
 
   const createJob = useMutation({
     mutationFn: async () => {
-      if (!profile?.id || !effectiveSocietyId) throw new Error('Not authenticated');
+      if (!profile?.id || !profile?.society_id) throw new Error('Not authenticated');
       if (!jobType) throw new Error('Please select a job type');
 
       const { error } = await supabase.from('worker_job_requests').insert({
-        society_id: effectiveSocietyId,
+        society_id: profile.society_id,
         resident_id: profile.id,
         job_type: jobType,
         description: description || null,

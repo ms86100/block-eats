@@ -37,12 +37,14 @@ export function WorkerGateValidation() {
     setIsValidating(true);
     setResult(null);
 
+    // Escape ILIKE special characters
+    const escaped = searchInput.replace(/%/g, '\\%').replace(/_/g, '\\_');
     // Search workers by name or phone
     const { data } = await supabase
       .from('society_workers')
       .select('*')
       .eq('society_id', effectiveSocietyId)
-      .or(`skills->name.ilike.%${searchInput}%,skills->phone.ilike.%${searchInput}%`)
+      .or(`skills->name.ilike.%${escaped}%,skills->phone.ilike.%${escaped}%`)
       .limit(10);
 
     setSearchResults(data || []);

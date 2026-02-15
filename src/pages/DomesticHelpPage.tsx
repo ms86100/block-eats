@@ -121,9 +121,11 @@ export default function DomesticHelpPage() {
   };
 
   const handleCheckOut = async (attendanceId: string) => {
+    if (!user) return;
     const { error } = await supabase.from('domestic_help_attendance')
       .update({ check_out_at: new Date().toISOString() })
-      .eq('id', attendanceId);
+      .eq('id', attendanceId)
+      .eq('marked_by', user.id);
     if (!error) { toast.success('Checked out'); fetchData(); }
   };
 

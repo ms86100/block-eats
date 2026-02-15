@@ -44,11 +44,13 @@ export function ResidentJobsList() {
 
   const cancelJob = useMutation({
     mutationFn: async (jobId: string) => {
+      if (!profile?.id) throw new Error('Not logged in');
       const { error } = await supabase
         .from('worker_job_requests')
         .update({ status: 'cancelled', cancelled_at: new Date().toISOString() })
         .eq('id', jobId)
-        .eq('resident_id', profile?.id!);
+        .eq('resident_id', profile.id)
+        .eq('status', 'open');
       if (error) throw error;
     },
     onSuccess: () => {

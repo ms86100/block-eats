@@ -85,7 +85,8 @@ export default function WorkforceManagementPage() {
     if (reason) update.suspension_reason = reason;
     if (status === 'active') { update.suspension_reason = null; update.deactivated_at = null; }
 
-    const { error } = await supabase.from('society_workers').update(update).eq('id', workerId);
+    if (!effectiveSocietyId) return;
+    const { error } = await supabase.from('society_workers').update(update).eq('id', workerId).eq('society_id', effectiveSocietyId);
     if (!error) {
       toast.success(`Worker ${status}`);
       await logAudit(`worker_${status}`, 'society_worker', workerId, effectiveSocietyId!, { status });
