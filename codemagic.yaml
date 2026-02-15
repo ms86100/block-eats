@@ -48,7 +48,13 @@ workflows:
         script: cd ios/App && pod install
           
       - name: Set up code signing
-        script: xcode-project use-profiles
+        script: |
+          keychain initialize
+          app-store-connect fetch-signing-files "app.sociva.community" \
+            --type IOS_APP_STORE \
+            --create
+          keychain add-certificates
+          xcode-project use-profiles
           
       - name: Build iOS app
         script: |
@@ -155,7 +161,13 @@ workflows:
         script: cd ios/App && pod install
           
       - name: Set up iOS code signing
-        script: xcode-project use-profiles
+        script: |
+          keychain initialize
+          app-store-connect fetch-signing-files "app.sociva.community" \
+            --type IOS_APP_STORE \
+            --create
+          keychain add-certificates
+          xcode-project use-profiles
           
       - name: Build iOS IPA
         script: |
