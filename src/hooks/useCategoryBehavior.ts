@@ -6,7 +6,6 @@ import {
   CategoryBehavior, 
   CategoryConfig, 
   ParentGroup,
-  DEFAULT_GROUP_BEHAVIORS,
   DEFAULT_FALLBACK_BEHAVIOR,
   getListingType,
   getOrderType,
@@ -41,6 +40,10 @@ interface CategoryConfigRow {
   primary_button_label: string | null;
   price_prefix: string | null;
   placeholder_emoji: string | null;
+  supports_brand_display: boolean;
+  supports_warranty_display: boolean;
+  image_aspect_ratio: string;
+  image_object_fit: string;
 }
 
 const fetchCategoryConfigs = async (): Promise<CategoryConfig[]> => {
@@ -83,6 +86,12 @@ const fetchCategoryConfigs = async (): Promise<CategoryConfig[]> => {
       pricePrefix: row.price_prefix || null,
       placeholderEmoji: row.placeholder_emoji || null,
     },
+    display: {
+      supportsBrandDisplay: row.supports_brand_display,
+      supportsWarrantyDisplay: row.supports_warranty_display,
+      imageAspectRatio: row.image_aspect_ratio || 'square',
+      imageObjectFit: row.image_object_fit || 'cover',
+    },
     displayOrder: row.display_order,
     isActive: row.is_active,
   }));
@@ -92,10 +101,9 @@ export function useCategoryConfigs() {
   const { data: configs = [], isLoading, refetch } = useQuery({
     queryKey: ['category-configs'],
     queryFn: fetchCategoryConfigs,
-    staleTime: 10 * 60 * 1000, // 10 minutes
+    staleTime: 10 * 60 * 1000,
   });
 
-  // Group configs by parent group - fully dynamic
   const groupedConfigs = useMemo(() => {
     const grouped: Record<string, CategoryConfig[]> = {};
     configs.forEach((config) => {
@@ -138,7 +146,6 @@ export function useCategoryBehavior(category: ServiceCategory | null) {
     behavior,
     listingType,
     orderType,
-    // Convenience accessors
     supportsCart: behavior?.supportsCart ?? false,
     requiresTimeSlot: behavior?.requiresTimeSlot ?? false,
     hasDateRange: behavior?.hasDateRange ?? false,
@@ -149,15 +156,12 @@ export function useCategoryBehavior(category: ServiceCategory | null) {
   };
 }
 
-// Hook to get behavior for a parent group
-export function useGroupBehavior(parentGroup: ParentGroup | null) {
-  return useMemo(() => {
-    if (!parentGroup) return DEFAULT_FALLBACK_BEHAVIOR;
-    return DEFAULT_GROUP_BEHAVIORS[parentGroup] || DEFAULT_FALLBACK_BEHAVIOR;
-  }, [parentGroup]);
+// Hook to get behavior for a parent group — now just returns fallback
+// Category-level config from DB is the source of truth
+export function useGroupBehavior(_parentGroup: ParentGroup | null) {
+  return DEFAULT_FALLBACK_BEHAVIOR;
 }
 
-// Hook to check if a category supports a specific feature
 export function useCategoryFeature(category: ServiceCategory | null, feature: keyof CategoryBehavior) {
   const { behavior } = useCategoryBehavior(category);
   return behavior?.[feature] ?? false;

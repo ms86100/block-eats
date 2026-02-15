@@ -4,7 +4,8 @@ import { Calendar } from '@/components/ui/calendar';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { CalendarDays, ArrowRight } from 'lucide-react';
-import { RentalPeriodType, RENTAL_PERIOD_LABELS } from '@/types/categories';
+import { RentalPeriodType } from '@/types/categories';
+import { useMarketplaceConfig } from '@/hooks/useMarketplaceConfig';
 import { DateRange } from 'react-day-picker';
 
 interface DateRangePickerProps {

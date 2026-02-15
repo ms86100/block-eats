@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import { useCategoryBehavior } from '@/hooks/useCategoryBehavior';
-import { ServiceCategory, ITEM_CONDITION_LABELS, RENTAL_PERIOD_LABELS, ItemCondition, RentalPeriodType } from '@/types/categories';
+import { ServiceCategory, ItemCondition, RentalPeriodType } from '@/types/categories';
+import { useMarketplaceConfig } from '@/hooks/useMarketplaceConfig';
 import { ProductActionType } from '@/types/database';
 import { ACTION_CONFIG } from '@/lib/marketplace-constants';
 import { VegBadge } from '@/components/ui/veg-badge';
@@ -61,6 +62,7 @@ export function ListingCard({
 }: ListingCardProps) {
   const { behavior, listingType, supportsCart, requiresTimeSlot, hasDateRange, enquiryOnly, isNegotiable, hasDuration } = 
     useCategoryBehavior(listing.category);
+  const marketplaceConfig = useMarketplaceConfig();
 
   // Use action_type from the listing (set by DB trigger), fallback to deriving from behavior
   const actionType: ProductActionType = (listing.action_type as ProductActionType) || 'add_to_cart';
@@ -145,7 +147,7 @@ export function ListingCard({
         <div>
           <span className="font-bold text-lg">₹{listing.price}</span>
           <span className="text-xs text-muted-foreground ml-1">
-            {RENTAL_PERIOD_LABELS[listing.rental_period_type]}
+            {marketplaceConfig.rentalPeriodLabels[listing.rental_period_type] || listing.rental_period_type}
           </span>
           {listing.deposit_amount && listing.deposit_amount > 0 && (
             <p className="text-xs text-muted-foreground">
@@ -204,7 +206,7 @@ export function ListingCard({
     }
 
     if (listing.condition) {
-      const conditionInfo = ITEM_CONDITION_LABELS[listing.condition];
+      const conditionInfo = marketplaceConfig.itemConditionLabels[listing.condition] || { label: listing.condition, color: '' };
       badges.push(
         <Badge key="condition" variant="outline" className={cn('text-[10px]', conditionInfo.color)}>
           {conditionInfo.label}

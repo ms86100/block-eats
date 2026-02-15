@@ -68,12 +68,19 @@ interface ProductListingCardProps {
   viewOnly?: boolean;
 }
 
-/* ━━━ Constants — visual only (spice emoji) ━━━ */
-const SPICE_EMOJI: Record<string, string> = {
-  mild: '🌶️',
-  medium: '🌶️🌶️',
-  hot: '🌶️🌶️🌶️',
-  extra_hot: '🔥',
+/* ━━━ Aspect ratio map — values from DB ━━━ */
+const ASPECT_MAP: Record<string, string> = {
+  'square': 'aspect-square',
+  '4:3': 'aspect-[4/3]',
+  '16:10': 'aspect-[16/10]',
+  '16:9': 'aspect-video',
+  '3:2': 'aspect-[3/2]',
+};
+
+const FIT_MAP: Record<string, string> = {
+  'contain': 'object-contain',
+  'cover': 'object-cover',
+  'fill': 'object-fill',
 };
 
 /* ━━━ Main Component ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
@@ -88,7 +95,7 @@ export function ProductListingCard({
   const navigate = useNavigate();
   const { items, addItem, updateQuantity } = useCart();
   const { configs: categoryConfigs } = useCategoryConfigs();
-  const marketplaceConfig = useMarketplaceConfig();
+  const mc = useMarketplaceConfig();
   const { badges: badgeConfigs } = useBadgeConfig();
   const [contactOpen, setContactOpen] = useState(false);
 
@@ -115,9 +122,15 @@ export function ProductListingCard({
   }, [catConfig, actionType]);
 
   const showVegBadge = catConfig?.formHints?.showVegToggle ?? false;
-  const placeholderEmoji = catConfig?.formHints?.placeholderEmoji || '🛒';
+  const placeholderEmoji = catConfig?.formHints?.placeholderEmoji || mc.labels.defaultPlaceholderEmoji;
   const pricePrefix = catConfig?.formHints?.pricePrefix || '';
-  const buttonLabel = catConfig?.formHints?.primaryButtonLabel || 'ADD';
+  const buttonLabel = catConfig?.formHints?.primaryButtonLabel || mc.labels.defaultButtonLabel;
+
+  /* ── Display config from DB ── */
+  const supportsBrand = catConfig?.display?.supportsBrandDisplay ?? false;
+  const supportsWarranty = catConfig?.display?.supportsWarrantyDisplay ?? false;
+  const imageAspect = ASPECT_MAP[catConfig?.display?.imageAspectRatio || 'square'] || 'aspect-square';
+  const imageObjectFit = FIT_MAP[catConfig?.display?.imageObjectFit || 'cover'] || 'object-cover';
 
   /* ── Analytics — DB-backed ── */
   const { ref: cardRef, onCardClick: trackClick, onAddClick: trackAdd } = useCardAnalytics({
@@ -137,7 +150,6 @@ export function ProductListingCard({
       setContactOpen(true);
       return;
     }
-    // Non-cart actions: navigate to seller store instead of adding to cart
     if (!isCartAction) {
       navigate(`/seller/${product.seller_id}`);
       return;
@@ -164,17 +176,17 @@ export function ProductListingCard({
   };
 
   /* ── Derived values — all thresholds from DB ── */
-  const sellerName = product.seller_name || (product.seller as any)?.business_name || 'Seller';
+  const sellerName = product.seller_name || (product.seller as any)?.business_name || mc.labels.fallbackSeller;
   const isOutOfStock = !product.is_available;
-  const isLowStock = marketplaceConfig.enableScarcity &&
+  const isLowStock = mc.enableScarcity &&
     product.stock_quantity != null &&
     product.stock_quantity > 0 &&
-    product.stock_quantity <= marketplaceConfig.lowStockThreshold;
+    product.stock_quantity <= mc.lowStockThreshold;
 
   /* ── Badge system — fully DB-driven via badge_config ── */
   const badges = useMemo(() => {
     const result: { label: string; color: string }[] = [];
-    const maxBadges = marketplaceConfig.maxBadgesPerCard;
+    const maxBadges = mc.maxBadgesPerCard;
 
     for (const bc of badgeConfigs) {
       if (result.length >= maxBadges) break;
@@ -186,7 +198,7 @@ export function ProductListingCard({
         const label = bc.badge_label.replace('{stock}', String(product.stock_quantity));
         result.push({
           label,
-          color: marketplaceConfig.enablePulseAnimation
+          color: mc.enablePulseAnimation
             ? `${bc.color} animate-low-stock-pulse`
             : bc.color,
         });
@@ -195,15 +207,9 @@ export function ProductListingCard({
       }
     }
     return result;
-  }, [badgeConfigs, product, resolvedLayout, isLowStock, marketplaceConfig]);
+  }, [badgeConfigs, product, resolvedLayout, isLowStock, mc]);
 
-  /* Image aspect ratio per layout */
-  const imageAspect = resolvedLayout === 'food' ? 'aspect-[4/3]'
-    : resolvedLayout === 'service' ? 'aspect-[16/10]'
-    : 'aspect-square';
-  const imageObjectFit = resolvedLayout === 'ecommerce' ? 'object-contain' : 'object-cover';
-
-  const currencySymbol = marketplaceConfig.currencySymbol;
+  const currencySymbol = mc.currencySymbol;
 
   return (
     <>
@@ -242,7 +248,7 @@ export function ProductListingCard({
             {isOutOfStock && (
               <div className="absolute inset-0 bg-background/60 backdrop-blur-[2px] flex items-center justify-center rounded-lg">
                 <span className="text-[10px] font-bold text-muted-foreground bg-muted/90 px-2.5 py-1 rounded-full uppercase tracking-wider">
-                  Out of stock
+                  {mc.labels.outOfStock}
                 </span>
               </div>
             )}
@@ -273,7 +279,7 @@ export function ProductListingCard({
 
         {/* ━━━ CONTENT SECTION ━━━ */}
         <div className="px-3 pb-3 pt-2 flex flex-col flex-1 space-y-1">
-          {resolvedLayout === 'ecommerce' && product.brand && (
+          {supportsBrand && product.brand && (
             <span className="text-[10px] font-semibold text-primary/70 uppercase tracking-wider truncate leading-none">
               {product.brand}
             </span>
@@ -284,21 +290,21 @@ export function ProductListingCard({
           </h4>
 
           {resolvedLayout === 'ecommerce' && <EcommerceMetadata product={product} sellerName={sellerName} />}
-          {resolvedLayout === 'food' && <FoodMetadata product={product} sellerName={sellerName} />}
+          {resolvedLayout === 'food' && <FoodMetadata product={product} sellerName={sellerName} mc={mc} />}
           {resolvedLayout === 'service' && (
             <ServiceMetadata
               product={product}
               sellerName={sellerName}
-              fulfillmentLabels={marketplaceConfig.fulfillmentLabels}
+              mc={mc}
             />
           )}
 
-          <TrustRow product={product} layout={resolvedLayout} />
+          <TrustRow product={product} supportsWarranty={supportsWarranty} mc={mc} />
 
           <div className="flex-1 min-h-1" />
 
           <div className="flex items-end justify-between gap-2 pt-1">
-            <PriceBlock product={product} actionType={actionType} pricePrefix={pricePrefix} currencySymbol={currencySymbol} />
+            <PriceBlock product={product} actionType={actionType} pricePrefix={pricePrefix} mc={mc} />
             <ActionButton
               actionType={actionType}
               buttonLabel={buttonLabel}
@@ -311,6 +317,7 @@ export function ProductListingCard({
               onDecrement={handleDecrement}
               sellerId={product.seller_id}
               isAvailable={product.is_available}
+              mc={mc}
             />
           </div>
         </div>
@@ -329,8 +336,10 @@ export function ProductListingCard({
 }
 
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-   SUB-COMPONENTS
+   SUB-COMPONENTS — all labels from MarketplaceConfig
    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+import type { MarketplaceConfig } from '@/hooks/useMarketplaceConfig';
 
 function SellerRow({ name, verified }: { name: string; verified?: boolean }) {
   return (
@@ -342,7 +351,7 @@ function SellerRow({ name, verified }: { name: string; verified?: boolean }) {
   );
 }
 
-function TrustRow({ product, layout }: { product: ProductWithSeller; layout: string }) {
+function TrustRow({ product, supportsWarranty, mc }: { product: ProductWithSeller; supportsWarranty: boolean; mc: MarketplaceConfig }) {
   const hasRating = product.seller_rating && product.seller_rating > 0;
   const hasOrders = product.completed_order_count && product.completed_order_count > 0;
   if (!hasRating && !hasOrders && !product.warranty_period) return null;
@@ -363,11 +372,11 @@ function TrustRow({ product, layout }: { product: ProductWithSeller; layout: str
       {hasOrders && (
         <span className="text-[9px] font-medium text-muted-foreground leading-none">
           {product.completed_order_count! > 1000
-            ? `${Math.floor(product.completed_order_count! / 1000)}k+ orders`
-            : `${product.completed_order_count}+ orders`}
+            ? `${Math.floor(product.completed_order_count! / 1000)}k+ ${mc.labels.ordersSuffix}`
+            : `${product.completed_order_count}+ ${mc.labels.ordersSuffix}`}
         </span>
       )}
-      {layout === 'service' && product.warranty_period && (
+      {supportsWarranty && product.warranty_period && (
         <div className="flex items-center gap-0.5">
           <Shield size={8} className="text-primary" />
           <span className="text-[9px] font-medium text-primary leading-none">{product.warranty_period}</span>
@@ -389,7 +398,7 @@ function EcommerceMetadata({ product, sellerName }: { product: ProductWithSeller
   );
 }
 
-function FoodMetadata({ product, sellerName }: { product: ProductWithSeller; sellerName: string }) {
+function FoodMetadata({ product, sellerName, mc }: { product: ProductWithSeller; sellerName: string; mc: MarketplaceConfig }) {
   return (
     <div className="space-y-0.5">
       <SellerRow name={sellerName} verified={product.seller_verified} />
@@ -400,13 +409,13 @@ function FoodMetadata({ product, sellerName }: { product: ProductWithSeller; sel
         {product.serving_size && <span className="text-xs text-muted-foreground">{product.serving_size}</span>}
         {product.prep_time_minutes && (
           <span className="text-xs text-muted-foreground flex items-center gap-0.5">
-            <Timer size={9} /> ~{product.prep_time_minutes}m
+            <Timer size={9} /> {mc.labels.prepTimeFormat.replace('{value}', String(product.prep_time_minutes))}
           </span>
         )}
       </div>
       {product.spice_level && (
         <span className="text-[10px] text-muted-foreground">
-          {SPICE_EMOJI[product.spice_level] || ''} {product.spice_level}
+          {mc.spiceEmojiMap[product.spice_level] || ''} {product.spice_level}
         </span>
       )}
     </div>
@@ -416,11 +425,11 @@ function FoodMetadata({ product, sellerName }: { product: ProductWithSeller; sel
 function ServiceMetadata({
   product,
   sellerName,
-  fulfillmentLabels,
+  mc,
 }: {
   product: ProductWithSeller;
   sellerName: string;
-  fulfillmentLabels: Record<string, string>;
+  mc: MarketplaceConfig;
 }) {
   return (
     <div className="space-y-0.5">
@@ -428,16 +437,16 @@ function ServiceMetadata({
       {product.service_duration_minutes && (
         <div className="flex items-center gap-1">
           <Clock size={10} className="text-muted-foreground" />
-          <span className="text-xs text-muted-foreground">{product.service_duration_minutes} min</span>
+          <span className="text-xs text-muted-foreground">{product.service_duration_minutes} {mc.labels.durationSuffix}</span>
         </div>
       )}
       {product.fulfillment_mode && (
         <span className="text-[10px] text-primary font-medium">
-          {fulfillmentLabels[product.fulfillment_mode] || product.fulfillment_mode}
+          {mc.fulfillmentLabels[product.fulfillment_mode] || product.fulfillment_mode}
         </span>
       )}
       {product.visit_charge != null && product.visit_charge > 0 && (
-        <span className="text-xs text-muted-foreground">Visit: ₹{product.visit_charge}</span>
+        <span className="text-xs text-muted-foreground">{mc.labels.visitPrefix} {mc.currencySymbol}{product.visit_charge}</span>
       )}
     </div>
   );
@@ -456,15 +465,15 @@ function PriceBlock({
   product,
   actionType,
   pricePrefix,
-  currencySymbol,
+  mc,
 }: {
   product: ProductWithSeller;
   actionType: ProductActionType;
   pricePrefix: string;
-  currencySymbol: string;
+  mc: MarketplaceConfig;
 }) {
   if (actionType === 'contact_seller') {
-    return <span className="text-xs font-medium text-muted-foreground italic">Contact for price</span>;
+    return <span className="text-xs font-medium text-muted-foreground italic">{mc.labels.contactForPrice}</span>;
   }
 
   const hasDiscount = product.mrp && product.mrp > product.price;
@@ -475,19 +484,19 @@ function PriceBlock({
     <div className="flex flex-col min-w-0">
       <div className="flex items-baseline gap-1 flex-wrap">
         <span className="font-bold text-base text-foreground leading-none">
-          {pricePrefix}{currencySymbol}{product.price}
+          {pricePrefix}{mc.currencySymbol}{product.price}
         </span>
       </div>
       {hasDiscount && (
         <div className="flex items-center gap-1 mt-0.5">
-          <span className="text-[10px] text-muted-foreground line-through leading-none">{currencySymbol}{product.mrp}</span>
+          <span className="text-[10px] text-muted-foreground line-through leading-none">{mc.currencySymbol}{product.mrp}</span>
           <span className="text-[10px] font-bold text-success bg-success/10 px-1 py-0 rounded leading-none">
-            {discountPct}% OFF
+            {discountPct}{mc.labels.discountSuffix}
           </span>
         </div>
       )}
       {product.minimum_charge != null && product.minimum_charge > 0 && (
-        <span className="text-[9px] text-muted-foreground mt-0.5 leading-none">Min {currencySymbol}{product.minimum_charge}</span>
+        <span className="text-[9px] text-muted-foreground mt-0.5 leading-none">{mc.labels.minChargePrefix} {mc.currencySymbol}{product.minimum_charge}</span>
       )}
     </div>
   );
@@ -505,6 +514,7 @@ function ActionButton({
   onDecrement,
   sellerId,
   isAvailable,
+  mc,
 }: {
   actionType: ProductActionType;
   buttonLabel: string;
@@ -517,6 +527,7 @@ function ActionButton({
   onDecrement: (e: React.MouseEvent) => void;
   sellerId: string;
   isAvailable: boolean;
+  mc: MarketplaceConfig;
 }) {
   const navigate = useNavigate();
 
@@ -526,7 +537,7 @@ function ActionButton({
         onClick={(e) => { e.stopPropagation(); navigate(`/seller/${sellerId}`); }}
         className="border border-primary text-primary font-bold text-xs px-3.5 py-1.5 rounded-full hover:bg-primary hover:text-primary-foreground transition-colors duration-200 shrink-0"
       >
-        View
+        {mc.labels.viewButton}
       </button>
     );
   }
@@ -534,7 +545,7 @@ function ActionButton({
   if (isOutOfStock) {
     return (
       <button disabled className="bg-muted text-muted-foreground font-semibold text-[10px] px-3 py-1.5 rounded-full cursor-not-allowed shrink-0">
-        Sold out
+        {mc.labels.soldOut}
       </button>
     );
   }
@@ -564,7 +575,7 @@ function ActionButton({
   }
 
   if (!isAvailable) {
-    return <span className="text-[10px] font-medium text-muted-foreground shrink-0">Unavailable</span>;
+    return <span className="text-[10px] font-medium text-muted-foreground shrink-0">{mc.labels.unavailable}</span>;
   }
 
   return (

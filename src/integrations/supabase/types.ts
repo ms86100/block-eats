@@ -558,6 +558,8 @@ export type Database = {
           has_quantity: boolean
           icon: string
           id: string
+          image_aspect_ratio: string
+          image_object_fit: string
           is_active: boolean
           is_negotiable: boolean
           is_physical_product: boolean
@@ -575,7 +577,9 @@ export type Database = {
           requires_time_slot: boolean
           show_duration_field: boolean
           show_veg_toggle: boolean
+          supports_brand_display: boolean
           supports_cart: boolean
+          supports_warranty_display: boolean
           transaction_type: string
           updated_at: string | null
         }
@@ -593,6 +597,8 @@ export type Database = {
           has_quantity?: boolean
           icon: string
           id?: string
+          image_aspect_ratio?: string
+          image_object_fit?: string
           is_active?: boolean
           is_negotiable?: boolean
           is_physical_product?: boolean
@@ -610,7 +616,9 @@ export type Database = {
           requires_time_slot?: boolean
           show_duration_field?: boolean
           show_veg_toggle?: boolean
+          supports_brand_display?: boolean
           supports_cart?: boolean
+          supports_warranty_display?: boolean
           transaction_type?: string
           updated_at?: string | null
         }
@@ -628,6 +636,8 @@ export type Database = {
           has_quantity?: boolean
           icon?: string
           id?: string
+          image_aspect_ratio?: string
+          image_object_fit?: string
           is_active?: boolean
           is_negotiable?: boolean
           is_physical_product?: boolean
@@ -645,7 +655,9 @@ export type Database = {
           requires_time_slot?: boolean
           show_duration_field?: boolean
           show_veg_toggle?: boolean
+          supports_brand_display?: boolean
           supports_cart?: boolean
+          supports_warranty_display?: boolean
           transaction_type?: string
           updated_at?: string | null
         }
@@ -2036,6 +2048,36 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      order_status_config: {
+        Row: {
+          color: string
+          created_at: string
+          id: string
+          is_active: boolean
+          label: string
+          sort_order: number
+          status_key: string
+        }
+        Insert: {
+          color: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          label: string
+          sort_order?: number
+          status_key: string
+        }
+        Update: {
+          color?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          label?: string
+          sort_order?: number
+          status_key?: string
+        }
+        Relationships: []
       }
       orders: {
         Row: {
