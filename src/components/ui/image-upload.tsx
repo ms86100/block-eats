@@ -33,20 +33,49 @@ export function ImageUpload({
     portrait: 'aspect-[3/4]',
   };
 
+  const validateImageDimensions = (file: File, minW: number, minH: number, maxW: number, maxH: number): Promise<boolean> => {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+        URL.revokeObjectURL(img.src);
+        if (img.width < minW || img.height < minH) {
+          toast.error(`Image must be at least ${minW}×${minH}px. Yours is ${img.width}×${img.height}px.`);
+          resolve(false);
+        } else if (img.width > maxW || img.height > maxH) {
+          toast.error(`Image must be at most ${maxW}×${maxH}px. Yours is ${img.width}×${img.height}px.`);
+          resolve(false);
+        } else {
+          resolve(true);
+        }
+      };
+      img.onerror = () => { resolve(true); };
+      img.src = URL.createObjectURL(file);
+    });
+  };
+
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     // Validate file type
-    if (!file.type.startsWith('image/')) {
-      toast.error('Please select an image file');
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
+    if (!allowedTypes.includes(file.type)) {
+      toast.error('Only JPG, PNG, or WebP images are allowed');
       return;
     }
 
-    // Validate file size (5MB)
-    if (file.size > 5 * 1024 * 1024) {
-      toast.error('Image must be less than 5MB');
+    // Validate file size (2MB for products, 5MB otherwise)
+    const maxSize = folder === 'products' ? 2 * 1024 * 1024 : 5 * 1024 * 1024;
+    const maxLabel = folder === 'products' ? '2MB' : '5MB';
+    if (file.size > maxSize) {
+      toast.error(`Image must be less than ${maxLabel}`);
       return;
+    }
+
+    // Validate dimensions for product images
+    if (folder === 'products') {
+      const valid = await validateImageDimensions(file, 400, 400, 4000, 4000);
+      if (!valid) return;
     }
 
     setIsUploading(true);
@@ -106,7 +135,7 @@ export function ImageUpload({
       <input
         ref={inputRef}
         type="file"
-        accept="image/*"
+        accept="image/jpeg,image/png,image/webp"
         onChange={handleFileSelect}
         className="hidden"
         disabled={isUploading}
@@ -165,7 +194,9 @@ export function ImageUpload({
               </div>
               <div className="text-left">
                 <span className="text-sm font-medium block">{placeholder}</span>
-                <span className="text-[10px]">JPG, PNG, WebP (max 5MB)</span>
+                <span className="text-[10px]">
+                  {folder === 'products' ? 'JPG, PNG, WebP · Max 2MB · Min 400×400px' : 'JPG, PNG, WebP (max 5MB)'}
+                </span>
               </div>
             </>
           )}
