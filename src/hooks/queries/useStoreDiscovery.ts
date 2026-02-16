@@ -49,10 +49,12 @@ export function useLocalSellers() {
 
       const { data, error } = await supabase
         .from('seller_profiles')
-        .select('id, business_name, profile_image_url, rating, total_reviews, primary_group, categories, is_featured')
+        .select('id, business_name, profile_image_url, rating, total_reviews, primary_group, categories, is_featured, products!inner(id)')
         .eq('society_id', effectiveSocietyId)
         .eq('verification_status', 'approved')
         .eq('is_available', true)
+        .eq('products.is_available', true)
+        .eq('products.approval_status', 'approved')
         .order('is_featured', { ascending: false })
         .order('rating', { ascending: false })
         .limit(20);
@@ -62,9 +64,10 @@ export function useLocalSellers() {
         return {};
       }
 
-      // Group by primary_group
+      // Strip joined products and group by primary_group
+      const cleaned = (data || []).map(({ products, ...rest }: any) => rest);
       const grouped: Record<string, LocalSeller[]> = {};
-      for (const seller of (data || [])) {
+      for (const seller of cleaned) {
         const group = seller.primary_group || 'Other';
         if (!grouped[group]) grouped[group] = [];
         grouped[group].push(seller as LocalSeller);

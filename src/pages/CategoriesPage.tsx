@@ -3,16 +3,56 @@ import { AppLayout } from '@/components/layout/AppLayout';
 import { useCategoryConfigs } from '@/hooks/useCategoryBehavior';
 import { useParentGroups } from '@/hooks/useParentGroups';
 import { useProductsByCategory } from '@/hooks/queries/useProductsByCategory';
+import { useNearbySocietySellers } from '@/hooks/queries/useStoreDiscovery';
+import { useAuth } from '@/contexts/AuthContext';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
 
 export default function CategoriesPage() {
+  const { user } = useAuth();
   const { configs, isLoading: configsLoading } = useCategoryConfigs();
   const { groups, isLoading: groupsLoading } = useParentGroups();
   const { data: productCategories = [], isLoading: productsLoading } = useProductsByCategory();
 
-  const isLoading = configsLoading || groupsLoading || productsLoading;
+  // Check if user has browse_beyond enabled
+  const { data: prefs } = useQuery({
+    queryKey: ['user-browse-prefs', user?.id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('profiles')
+        .select('browse_beyond_community, search_radius_km')
+        .eq('id', user!.id)
+        .single();
+      return data as any;
+    },
+    enabled: !!user?.id,
+    staleTime: 60_000,
+  });
+
+  const browseBeyond = prefs?.browse_beyond_community ?? false;
+  const { data: nearbyBands = [] } = useNearbySocietySellers();
+
+  // Merge local + nearby categories
   const activeCategorySet = new Set(productCategories.map(c => c.category));
+
+  // Add categories from nearby sellers when browse_beyond is enabled
+  if (browseBeyond && nearbyBands.length > 0) {
+    for (const band of nearbyBands) {
+      for (const society of band.societies) {
+        for (const group of Object.keys(society.sellersByGroup)) {
+          for (const seller of society.sellersByGroup[group]) {
+            if (seller.categories) {
+              seller.categories.forEach(cat => activeCategorySet.add(cat));
+            }
+          }
+        }
+      }
+    }
+  }
+
+  const isLoading = configsLoading || groupsLoading || productsLoading;
 
   // Group categories by parent_group
   const grouped = groups

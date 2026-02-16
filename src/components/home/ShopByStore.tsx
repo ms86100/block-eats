@@ -15,16 +15,19 @@ export function ShopByStore() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('seller_profiles')
-        .select('id, business_name, profile_image_url, cover_image_url, rating, total_reviews, primary_group, is_featured')
+        .select('id, business_name, profile_image_url, cover_image_url, rating, total_reviews, primary_group, is_featured, products!inner(id)')
         .eq('verification_status', 'approved')
         .eq('is_available', true)
         .eq('society_id', effectiveSocietyId!)
+        .eq('products.is_available', true)
+        .eq('products.approval_status', 'approved')
         .order('is_featured', { ascending: false })
         .order('rating', { ascending: false })
         .limit(10);
 
       if (error) throw error;
-      return data || [];
+      // Remove the joined products array from the response to keep shape clean
+      return (data || []).map(({ products, ...rest }: any) => rest);
     },
     enabled: !!effectiveSocietyId,
     staleTime: 60_000,

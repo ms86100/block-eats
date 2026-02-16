@@ -3,7 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { SellerProfile } from '@/types/database';
 
-const SELLER_SELECT = `*, profile:profiles!seller_profiles_user_id_fkey(name, block), products(price)`;
+const SELLER_SELECT = `*, profile:profiles!seller_profiles_user_id_fkey(name, block), products!inner(id, price)`;
 
 export function useOpenNowSellers() {
   const { profile, isApproved, effectiveSocietyId } = useAuth();
@@ -15,6 +15,8 @@ export function useOpenNowSellers() {
         .select(SELLER_SELECT)
         .eq('verification_status', 'approved')
         .eq('is_available', true)
+        .eq('products.is_available', true)
+        .eq('products.approval_status', 'approved')
         .order('rating', { ascending: false })
         .limit(6);
 
@@ -40,6 +42,8 @@ export function useNearbyBlockSellers() {
         .select(SELLER_SELECT)
         .eq('verification_status', 'approved')
         .eq('society_id', effectiveSocietyId)
+        .eq('products.is_available', true)
+        .eq('products.approval_status', 'approved')
         .order('rating', { ascending: false })
         .limit(5);
 
@@ -63,6 +67,8 @@ export function useTopRatedSellers() {
         .select(SELLER_SELECT)
         .eq('verification_status', 'approved')
         .eq('society_id', effectiveSocietyId!)
+        .eq('products.is_available', true)
+        .eq('products.approval_status', 'approved')
         .gte('rating', 4)
         .order('rating', { ascending: false })
         .limit(5);
@@ -84,6 +90,8 @@ export function useFeaturedSellers() {
         .select(SELLER_SELECT)
         .eq('verification_status', 'approved')
         .eq('society_id', effectiveSocietyId!)
+        .eq('products.is_available', true)
+        .eq('products.approval_status', 'approved')
         .eq('is_featured', true)
         .limit(5);
 
