@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { jitteredStaleTime } from '@/lib/query-utils';
 
 export interface LocalSeller {
   id: string;
@@ -75,7 +76,7 @@ export function useLocalSellers() {
       return grouped;
     },
     enabled: !!isApproved && !!effectiveSocietyId,
-    staleTime: 60_000,
+    staleTime: jitteredStaleTime(60_000),
   });
 }
 
@@ -136,6 +137,6 @@ export function useNearbySocietySellers() {
       return bands;
     },
     enabled: !!isApproved && !!effectiveSocietyId,
-    staleTime: 60_000,
+    staleTime: jitteredStaleTime(60_000),
   });
 }

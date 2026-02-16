@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { jitteredStaleTime } from '@/lib/query-utils';
 import { useNavigate } from 'react-router-dom';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Star, Store } from 'lucide-react';
@@ -30,7 +31,7 @@ export function ShopByStore() {
       return (data || []).map(({ products, ...rest }: any) => rest);
     },
     enabled: !!effectiveSocietyId,
-    staleTime: 60_000,
+    staleTime: jitteredStaleTime(60_000),
   });
 
   if (isLoading) {

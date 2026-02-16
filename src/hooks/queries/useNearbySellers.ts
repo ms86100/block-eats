@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { jitteredStaleTime } from '@/lib/query-utils';
 
 export function useNearbySellers(radiusKm: number, enabled: boolean) {
   const { effectiveSocietyId, isApproved } = useAuth();
@@ -23,6 +24,6 @@ export function useNearbySellers(radiusKm: number, enabled: boolean) {
       return (data as any[]) || [];
     },
     enabled: !!isApproved && !!effectiveSocietyId && enabled,
-    staleTime: 60_000,
+    staleTime: jitteredStaleTime(60_000),
   });
 }

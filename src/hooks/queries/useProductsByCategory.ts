@@ -2,6 +2,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { ProductWithSeller } from '@/components/product/ProductListingCard';
+import { jitteredStaleTime } from '@/lib/query-utils';
 
 interface CategoryGroup {
   category: string;
@@ -97,6 +98,6 @@ export function useProductsByCategory(limit = 50) {
       return result;
     },
     enabled: !!effectiveSocietyId,
-    staleTime: 5 * 60 * 1000,
+    staleTime: jitteredStaleTime(5 * 60 * 1000),
   });
 }

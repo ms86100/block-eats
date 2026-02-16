@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { jitteredStaleTime } from '@/lib/query-utils';
 
 export function useCategoryConfig() {
   return useQuery({
@@ -12,6 +13,6 @@ export function useCategoryConfig() {
         .order('display_order', { ascending: true });
       return data || [];
     },
-    staleTime: 10 * 60 * 1000, // 10 minutes — matches useCategoryConfigs
+    staleTime: jitteredStaleTime(10 * 60 * 1000), // 10 min + jitter to prevent stampede
   });
 }

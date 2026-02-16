@@ -36,3 +36,25 @@ export function handleApiError(
   toast.error(message);
   return message;
 }
+
+/**
+ * Adds ±20% jitter to a staleTime value to prevent cache stampedes.
+ * When thousands of clients share the same TTL, they all refetch simultaneously
+ * on expiry. Jitter spreads refetches across a time window.
+ *
+ * @param baseMs - The base staleTime in milliseconds (e.g., 60_000)
+ * @returns A jittered staleTime value within ±20% of the base
+ *
+ * @example
+ * useQuery({
+ *   queryKey: ['sellers'],
+ *   queryFn: fetchSellers,
+ *   staleTime: jitteredStaleTime(60_000), // 48_000–72_000ms
+ * });
+ */
+export function jitteredStaleTime(baseMs: number): number {
+  const jitter = 0.2; // ±20%
+  const min = baseMs * (1 - jitter);
+  const max = baseMs * (1 + jitter);
+  return Math.round(min + Math.random() * (max - min));
+}
