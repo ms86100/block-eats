@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Bell, ChevronDown } from 'lucide-react';
+import { Bell, Building, ChevronDown } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { ThemeToggle } from '@/components/ui/theme-toggle';
@@ -75,32 +75,31 @@ export function Header({
         <div className="px-3 pt-2.5 pb-1.5">
           {/* Top row: delivery info + actions */}
           <div className="flex items-start justify-between">
-            {showLocation && profile ? (
-              <div className="min-w-0 flex-1">
-                <p className="text-[10px] font-bold text-muted-foreground tracking-widest uppercase">Delivery in</p>
-                <p className="text-[22px] font-extrabold text-foreground leading-tight tracking-tight">
-                  16 minutes
-                </p>
-                <button 
-                  className="flex items-center gap-1 mt-0.5"
-                  onClick={() => selectionChanged()}
-                >
-                  <span className="text-[11px] font-bold text-foreground tracking-wide">
-                    HOME
-                  </span>
-                  <span className="text-[11px] text-muted-foreground mx-0.5">—</span>
-                  <span className="text-[11px] text-muted-foreground truncate max-w-[180px]">
-                    {profile.block}, {profile.flat_number}
-                  </span>
-                  <ChevronDown size={12} className="text-muted-foreground shrink-0" />
-                </button>
-              </div>
-            ) : title ? (
+            {title ? (
               <h1 className="text-lg font-bold text-foreground">{title}</h1>
             ) : (
-              <div>
-                <p className="text-[10px] font-bold text-muted-foreground tracking-widest uppercase">Delivery in</p>
-                <p className="text-[22px] font-extrabold text-foreground leading-tight">16 minutes</p>
+              <div className="min-w-0 flex-1">
+                <h1 className="text-[22px] font-extrabold tracking-tight leading-tight">
+                  <span className="text-primary">S</span>
+                  <span className="text-foreground">oci</span>
+                  <span style={{ color: 'hsl(var(--warning))' }}>v</span>
+                  <span className="text-foreground">a</span>
+                </h1>
+                <p className="text-[10px] font-bold text-muted-foreground tracking-widest uppercase">
+                  Your Society, Your Store
+                </p>
+                {showLocation && displaySociety && (
+                  <button 
+                    className="flex items-center gap-1 mt-1"
+                    onClick={() => selectionChanged()}
+                  >
+                    <Building size={12} className="text-muted-foreground shrink-0" />
+                    <span className="text-[11px] font-semibold text-foreground truncate max-w-[200px]">
+                      {displaySociety.name}
+                    </span>
+                    <ChevronDown size={12} className="text-muted-foreground shrink-0" />
+                  </button>
+                )}
               </div>
             )}
 
