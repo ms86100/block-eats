@@ -153,19 +153,20 @@ export function ImageUpload({
           disabled={isUploading}
           className={cn(
             'w-full rounded-lg border-2 border-dashed border-muted-foreground/25 hover:border-primary/50 transition-colors',
-            'flex flex-col items-center justify-center gap-2 text-muted-foreground',
-            aspectClasses[aspectRatio]
+            'flex items-center justify-center gap-3 text-muted-foreground h-24 px-4'
           )}
         >
           {isUploading ? (
             <Loader2 className="animate-spin" size={24} />
           ) : (
             <>
-              <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center">
-                <ImageIcon size={20} />
+              <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center flex-shrink-0">
+                <ImageIcon size={18} />
               </div>
-              <span className="text-sm font-medium">{placeholder}</span>
-              <span className="text-xs">JPG, PNG, WebP (max 5MB)</span>
+              <div className="text-left">
+                <span className="text-sm font-medium block">{placeholder}</span>
+                <span className="text-[10px]">JPG, PNG, WebP (max 5MB)</span>
+              </div>
             </>
           )}
         </button>

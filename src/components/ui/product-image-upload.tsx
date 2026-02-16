@@ -110,7 +110,7 @@ export function ProductImageUpload({
           onChange={onChange}
           folder="products"
           userId={userId}
-          aspectRatio="square"
+          aspectRatio="video"
           placeholder="Upload product photo"
         />
       </TabsContent>
@@ -118,7 +118,7 @@ export function ProductImageUpload({
       <TabsContent value="ai" className="mt-2">
         {previewUrl ? (
           <div className="space-y-2">
-            <div className="relative aspect-square rounded-lg overflow-hidden border border-border bg-muted/20">
+            <div className="relative h-32 rounded-lg overflow-hidden border border-border bg-muted/20">
               <img src={previewUrl} alt="AI Generated" className="w-full h-full object-contain" />
             </div>
             <div className="flex gap-2">
@@ -131,29 +131,32 @@ export function ProductImageUpload({
             </div>
           </div>
         ) : (
-          <div className="space-y-3">
-            <div className="aspect-square rounded-lg border-2 border-dashed border-muted-foreground/25 flex flex-col items-center justify-center gap-2 text-muted-foreground">
+          <div className="space-y-2">
+            <div className="h-24 rounded-lg border-2 border-dashed border-muted-foreground/25 flex items-center justify-center gap-3 text-muted-foreground px-4">
               {isGenerating ? (
                 <>
-                  <Loader2 className="animate-spin text-primary" size={28} />
-                  <span className="text-xs font-medium">Generating image…</span>
-                  <span className="text-[10px]">This may take 10-15 seconds</span>
+                  <Loader2 className="animate-spin text-primary flex-shrink-0" size={22} />
+                  <div>
+                    <span className="text-xs font-medium block">Generating image…</span>
+                    <span className="text-[10px]">This may take 10-15 seconds</span>
+                  </div>
                 </>
               ) : (
                 <>
-                  <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
-                    <Sparkles size={20} className="text-primary" />
+                  <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                    <Sparkles size={18} className="text-primary" />
                   </div>
-                  <span className="text-xs font-medium">AI Product Image</span>
-                  <span className="text-[10px] text-center px-4">
-                    Generate a professional product photo using AI based on the product name and category
-                  </span>
+                  <div>
+                    <span className="text-xs font-medium block">AI Product Image</span>
+                    <span className="text-[10px]">Auto-generate a photo from the product name</span>
+                  </div>
                 </>
               )}
             </div>
             <Button
               type="button"
               variant="outline"
+              size="sm"
               className="w-full"
               onClick={handleGenerate}
               disabled={isGenerating || !productName?.trim()}
