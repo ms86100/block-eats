@@ -6,6 +6,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { OrderItem } from '@/types/database';
 import { RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
+import { cn } from '@/lib/utils';
 
 interface ReorderButtonProps {
   orderItems: OrderItem[];
@@ -19,7 +20,7 @@ export function ReorderButton({
   orderItems, 
   sellerId, 
   variant = 'default',
-  size = 'default',
+  size = 'sm',
   className 
 }: ReorderButtonProps) {
   const { user } = useAuth();
@@ -39,7 +40,6 @@ export function ReorderButton({
 
     setIsLoading(true);
     try {
-      // First, check which products still exist and are available
       const productIds = orderItems
         .filter(item => item.product_id)
         .map(item => item.product_id);
@@ -56,13 +56,11 @@ export function ReorderButton({
         return;
       }
 
-      // Clear existing cart items from this seller (optional - or merge)
       await supabase
         .from('cart_items')
         .delete()
         .eq('user_id', user.id);
 
-      // Add items to cart
       const cartInserts = orderItems
         .filter(item => 
           item.product_id && 
@@ -107,10 +105,15 @@ export function ReorderButton({
       size={size}
       onClick={handleReorder}
       disabled={isLoading}
-      className={className}
+      className={cn(
+        'rounded-lg bg-accent text-accent-foreground hover:bg-accent/90 font-semibold text-xs',
+        className
+      )}
     >
-      <RefreshCw size={16} className={isLoading ? 'animate-spin' : ''} />
-      {size !== 'icon' && <span className="ml-2">{isLoading ? 'Adding...' : 'Reorder'}</span>}
+      <RefreshCw size={14} className={isLoading ? 'animate-spin' : ''} />
+      {size !== 'icon' && (
+        <span className="ml-1.5">{isLoading ? 'Adding...' : 'Reorder'}</span>
+      )}
     </Button>
   );
 }
