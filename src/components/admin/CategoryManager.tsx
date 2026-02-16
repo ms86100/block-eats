@@ -32,7 +32,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { toast } from 'sonner';
-import { Loader2, Grid3X3, GripVertical, Edit2, Save, X, Plus, Trash2 } from 'lucide-react';
+import { Loader2, Grid3X3, GripVertical, Edit2, Save, X, Plus, Trash2, Sparkles, ImageIcon } from 'lucide-react';
 import { useParentGroups, ParentGroupRow } from '@/hooks/useParentGroups';
 import { cn } from '@/lib/utils';
 
@@ -63,6 +63,7 @@ interface CategoryConfigRow {
   parent_group: string;
   display_order: number;
   is_active: boolean;
+  image_url?: string | null;
   name_placeholder?: string | null;
   description_placeholder?: string | null;
   price_label?: string | null;
@@ -96,6 +97,96 @@ const EMOJI_PRESETS = [
   '🛋️', '📱', '📖', '🧸', '🍳', '👕', '🎂', '🏡',
   '🛒', '🎟️', '⭐', '🌟', '🔥', '💎', '🏪', '🌿',
 ];
+
+// === Generate Image Button Component ===
+function GenerateImageButton({
+  categoryName,
+  categoryKey,
+  parentGroup,
+  imageUrl,
+  onImageGenerated,
+}: {
+  categoryName: string;
+  categoryKey: string;
+  parentGroup: string;
+  imageUrl?: string | null;
+  onImageGenerated: (url: string) => void;
+}) {
+  const [isGenerating, setIsGenerating] = useState(false);
+
+  const handleGenerate = async () => {
+    if (!categoryName.trim()) {
+      toast.error('Enter a category name first');
+      return;
+    }
+    setIsGenerating(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('generate-category-image', {
+        body: { categoryName, categoryKey, parentGroup },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      if (data?.image_url) {
+        onImageGenerated(data.image_url);
+        toast.success('Image generated successfully!');
+      }
+    } catch (err: any) {
+      console.error('Image generation error:', err);
+      toast.error(err.message || 'Failed to generate image');
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  return (
+    <div className="space-y-2">
+      <Label className="flex items-center gap-1.5">
+        <ImageIcon size={14} />
+        Category Image
+      </Label>
+      {imageUrl ? (
+        <div className="relative rounded-xl overflow-hidden border border-border aspect-square w-32">
+          <img src={imageUrl} alt={categoryName} className="w-full h-full object-cover" />
+          <div className="absolute inset-0 bg-black/40 opacity-0 hover:opacity-100 transition-opacity flex items-center justify-center">
+            <Button
+              type="button"
+              size="sm"
+              variant="secondary"
+              onClick={handleGenerate}
+              disabled={isGenerating}
+            >
+              {isGenerating ? <Loader2 className="animate-spin mr-1" size={14} /> : <Sparkles size={14} className="mr-1" />}
+              Regenerate
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <Button
+          type="button"
+          variant="outline"
+          onClick={handleGenerate}
+          disabled={isGenerating || !categoryName.trim()}
+          className="w-full gap-2"
+        >
+          {isGenerating ? (
+            <>
+              <Loader2 className="animate-spin" size={16} />
+              Generating AI Image...
+            </>
+          ) : (
+            <>
+              <Sparkles size={16} />
+              Generate AI Image
+            </>
+          )}
+        </Button>
+      )}
+      {isGenerating && (
+        <p className="text-xs text-muted-foreground">This may take 10-15 seconds...</p>
+      )}
+    </div>
+  );
+}
 
 // === Sortable Group Item ===
 function SortableGroupItem({
@@ -215,11 +306,18 @@ function SortableCategoryItem({
         >
           <GripVertical size={14} />
         </button>
-        <span className="text-lg">{cat.icon}</span>
+        {cat.image_url ? (
+          <img src={cat.image_url} alt={cat.display_name} className="w-7 h-7 rounded-md object-cover" />
+        ) : (
+          <span className="text-lg">{cat.icon}</span>
+        )}
         <span className={cn('text-sm', !cat.is_active && 'text-muted-foreground')}>
           {cat.display_name}
         </span>
         <span className="text-[10px] text-muted-foreground font-mono">({cat.category})</span>
+        {!cat.image_url && (
+          <span className="text-[10px] text-amber-500 font-medium">No image</span>
+        )}
       </div>
       <div className="flex items-center gap-2">
         <Button
@@ -254,7 +352,7 @@ export function CategoryManager() {
   const [isLoading, setIsLoading] = useState(true);
   const [selectedGroupSlug, setSelectedGroupSlug] = useState<string | null>(null);
   const [editingCategory, setEditingCategory] = useState<CategoryConfigRow | null>(null);
-  const [editForm, setEditForm] = useState({ display_name: '', icon: '', color: '', name_placeholder: '', description_placeholder: '', price_label: '', duration_label: '', show_veg_toggle: false, show_duration_field: false });
+  const [editForm, setEditForm] = useState({ display_name: '', icon: '', color: '', image_url: '' as string | null, name_placeholder: '', description_placeholder: '', price_label: '', duration_label: '', show_veg_toggle: false, show_duration_field: false });
   const [isSaving, setIsSaving] = useState(false);
 
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
@@ -264,6 +362,7 @@ export function CategoryManager() {
     icon: '',
     color: 'bg-blue-100 text-blue-600',
     parent_group: '',
+    image_url: null as string | null,
   });
 
   const [deleteCategory, setDeleteCategory] = useState<CategoryConfigRow | null>(null);
@@ -319,6 +418,7 @@ export function CategoryManager() {
       display_name: category.display_name,
       icon: category.icon,
       color: category.color,
+      image_url: category.image_url || null,
       name_placeholder: category.name_placeholder || '',
       description_placeholder: category.description_placeholder || '',
       price_label: category.price_label || 'Price',
@@ -339,6 +439,7 @@ export function CategoryManager() {
           display_name: editForm.display_name.trim(),
           icon: editForm.icon.trim(),
           color: editForm.color.trim(),
+          image_url: editForm.image_url || null,
           name_placeholder: editForm.name_placeholder.trim() || null,
           description_placeholder: editForm.description_placeholder.trim() || null,
           price_label: editForm.price_label.trim() || 'Price',
@@ -363,7 +464,7 @@ export function CategoryManager() {
 
   const openAddDialog = (groupSlug: string) => {
     setAddingToGroup(groupSlug);
-    setAddForm({ display_name: '', icon: '', color: 'bg-blue-100 text-blue-600', parent_group: groupSlug });
+    setAddForm({ display_name: '', icon: '', color: 'bg-blue-100 text-blue-600', parent_group: groupSlug, image_url: null });
     setIsAddDialogOpen(true);
   };
 
@@ -378,13 +479,39 @@ export function CategoryManager() {
       const maxOrder = groupCats.length > 0 ? Math.max(...groupCats.map(c => c.display_order)) : 0;
       const { data, error } = await supabase
         .from('category_config')
-        .insert({ category: categoryKey, display_name: addForm.display_name.trim(), icon: addForm.icon.trim(), color: addForm.color, parent_group: addForm.parent_group, display_order: maxOrder + 1, is_active: true })
+        .insert({
+          category: categoryKey,
+          display_name: addForm.display_name.trim(),
+          icon: addForm.icon.trim(),
+          color: addForm.color,
+          parent_group: addForm.parent_group,
+          display_order: maxOrder + 1,
+          is_active: true,
+          image_url: addForm.image_url || null,
+        })
         .select()
         .single();
       if (error) throw error;
       setCategories([...categories, data]);
       toast.success('Category added successfully');
       setIsAddDialogOpen(false);
+
+      // Auto-generate image if none was set
+      if (!addForm.image_url) {
+        toast.info('Generating AI image for the new category...');
+        try {
+          const { data: imgData, error: imgError } = await supabase.functions.invoke('generate-category-image', {
+            body: { categoryName: addForm.display_name, categoryKey, parentGroup: addForm.parent_group },
+          });
+          if (!imgError && imgData?.image_url) {
+            setCategories(prev => prev.map(c => c.category === categoryKey ? { ...c, image_url: imgData.image_url } : c));
+            toast.success('AI image generated for ' + addForm.display_name);
+          }
+        } catch {
+          // Non-blocking - image generation failure shouldn't prevent category creation
+          console.log('Auto image generation failed, can be retried from edit');
+        }
+      }
     } catch (error: any) {
       toast.error(error.message || 'Failed to add category');
     } finally {
@@ -512,7 +639,6 @@ export function CategoryManager() {
 
     const reordered = arrayMove(filteredGroups, oldIndex, newIndex);
 
-    // Optimistic: update via refreshGroups after DB write
     try {
       const updates = reordered.map((g, i) => supabase.from('parent_groups').update({ sort_order: i }).eq('id', g.id));
       await Promise.all(updates);
@@ -538,7 +664,6 @@ export function CategoryManager() {
 
     const reordered = arrayMove(groupCats, oldIndex, newIndex);
 
-    // Optimistic local update
     const orderMap = new Map(reordered.map((c, i) => [c.id, i]));
     setCategories(prev =>
       prev.map(c => orderMap.has(c.id) ? { ...c, display_order: orderMap.get(c.id)! } : c)
@@ -550,7 +675,7 @@ export function CategoryManager() {
       toast.success('Category order updated');
     } catch {
       toast.error('Failed to reorder categories');
-      fetchCategories(); // rollback
+      fetchCategories();
     }
   }, [categories]);
 
@@ -670,11 +795,26 @@ export function CategoryManager() {
           <DialogHeader>
             <DialogTitle>Edit Category</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4 py-4">
+          <div className="space-y-4 py-4 max-h-[70vh] overflow-y-auto">
             <div className="space-y-2">
               <Label htmlFor="display_name">Display Name</Label>
               <Input id="display_name" value={editForm.display_name} onChange={(e) => setEditForm({ ...editForm, display_name: e.target.value })} placeholder="e.g., Home Food" />
             </div>
+
+            {/* AI Image Generation */}
+            {editingCategory && (
+              <GenerateImageButton
+                categoryName={editForm.display_name}
+                categoryKey={editingCategory.category}
+                parentGroup={editingCategory.parent_group}
+                imageUrl={editForm.image_url}
+                onImageGenerated={(url) => {
+                  setEditForm({ ...editForm, image_url: url });
+                  setCategories(prev => prev.map(c => c.id === editingCategory.id ? { ...c, image_url: url } : c));
+                }}
+              />
+            )}
+
             <div className="space-y-2">
               <Label htmlFor="icon">Icon (Emoji)</Label>
               <Input id="icon" value={editForm.icon} onChange={(e) => setEditForm({ ...editForm, icon: e.target.value })} placeholder="e.g., 🍲" className="text-2xl" />
@@ -739,7 +879,11 @@ export function CategoryManager() {
             <div className="p-4 bg-muted rounded-lg">
               <Label className="text-xs text-muted-foreground mb-2 block">Preview</Label>
               <div className="flex items-center gap-3">
-                <div className={cn('w-12 h-12 rounded-lg flex items-center justify-center text-2xl', editForm.color)}>{editForm.icon || '❓'}</div>
+                {editForm.image_url ? (
+                  <img src={editForm.image_url} alt="" className="w-12 h-12 rounded-lg object-cover" />
+                ) : (
+                  <div className={cn('w-12 h-12 rounded-lg flex items-center justify-center text-2xl', editForm.color)}>{editForm.icon || '❓'}</div>
+                )}
                 <span className="font-medium">{editForm.display_name || 'Category Name'}</span>
               </div>
             </div>
@@ -760,7 +904,7 @@ export function CategoryManager() {
           <DialogHeader>
             <DialogTitle>Add New Subcategory</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4 py-4">
+          <div className="space-y-4 py-4 max-h-[70vh] overflow-y-auto">
             <div className="space-y-2">
               <Label htmlFor="add_display_name">Display Name *</Label>
               <Input id="add_display_name" value={addForm.display_name} onChange={(e) => setAddForm({ ...addForm, display_name: e.target.value })} placeholder="e.g., Home Food" />
@@ -770,6 +914,16 @@ export function CategoryManager() {
                 </p>
               )}
             </div>
+
+            {/* AI Image Generation for Add */}
+            <GenerateImageButton
+              categoryName={addForm.display_name}
+              categoryKey={generateCategoryKey(addForm.display_name)}
+              parentGroup={addForm.parent_group}
+              imageUrl={addForm.image_url}
+              onImageGenerated={(url) => setAddForm({ ...addForm, image_url: url })}
+            />
+
             <div className="space-y-2">
               <Label htmlFor="add_icon">Icon (Emoji) *</Label>
               <Input id="add_icon" value={addForm.icon} onChange={(e) => setAddForm({ ...addForm, icon: e.target.value })} placeholder="e.g., 🍲" className="text-2xl" />
@@ -816,10 +970,18 @@ export function CategoryManager() {
             <div className="p-4 bg-muted rounded-lg">
               <Label className="text-xs text-muted-foreground mb-2 block">Preview</Label>
               <div className="flex items-center gap-3">
-                <div className={cn('w-12 h-12 rounded-lg flex items-center justify-center text-2xl', addForm.color)}>{addForm.icon || '❓'}</div>
+                {addForm.image_url ? (
+                  <img src={addForm.image_url} alt="" className="w-12 h-12 rounded-lg object-cover" />
+                ) : (
+                  <div className={cn('w-12 h-12 rounded-lg flex items-center justify-center text-2xl', addForm.color)}>{addForm.icon || '❓'}</div>
+                )}
                 <span className="font-medium">{addForm.display_name || 'Category Name'}</span>
               </div>
             </div>
+            <p className="text-xs text-muted-foreground flex items-center gap-1">
+              <Sparkles size={12} />
+              AI image will be auto-generated on save if not manually generated.
+            </p>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}><X size={16} className="mr-1" />Cancel</Button>
