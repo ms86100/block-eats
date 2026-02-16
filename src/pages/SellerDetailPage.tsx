@@ -61,7 +61,8 @@ export default function SellerDetailPage() {
           .from('seller_profiles')
           .select(`
             *,
-            profile:profiles!seller_profiles_user_id_fkey(name, block, flat_number, phone)
+            profile:profiles!seller_profiles_user_id_fkey(name, block, flat_number, phone),
+            society:societies!seller_profiles_society_id_fkey(name, address, city, state, pincode)
           `)
           .eq('id', id)
           .single(),
@@ -290,6 +291,8 @@ export default function SellerDetailPage() {
               <span className="flex items-center gap-1">
                 <MapPin size={14} />
                 Block {profile.block}, {profile.flat_number}
+                {(seller as any).society?.name && `, ${(seller as any).society.name}`}
+                {(seller as any).society?.city && `, ${(seller as any).society.city}`}
               </span>
             )}
             {seller.availability_start && seller.availability_end && (
