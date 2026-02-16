@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Plus, Minus, Clock } from 'lucide-react';
+import { useHaptics } from '@/hooks/useHaptics';
 import { Badge } from '@/components/ui/badge';
 import { VegBadge } from '@/components/ui/veg-badge';
 import { useCart } from '@/hooks/useCart';
@@ -78,6 +79,7 @@ export function ProductListingCard({
 }: ProductListingCardProps) {
   const navigate = useNavigate();
   const { items, addItem, updateQuantity } = useCart();
+  const { impact, selectionChanged } = useHaptics();
   const { configs: categoryConfigs } = useCategoryConfigs();
   const mc = useMarketplaceConfig();
   const { badges: badgeConfigs } = useBadgeConfig();
@@ -111,6 +113,7 @@ export function ProductListingCard({
   const handleAdd = (e: React.MouseEvent) => {
     e.stopPropagation();
     e.preventDefault();
+    impact('medium');
     trackAdd();
     addItem(product as any);
   };
@@ -118,16 +121,19 @@ export function ProductListingCard({
   const handleIncrement = (e: React.MouseEvent) => {
     e.stopPropagation();
     e.preventDefault();
+    selectionChanged();
     updateQuantity(product.id, quantity + 1);
   };
 
   const handleDecrement = (e: React.MouseEvent) => {
     e.stopPropagation();
     e.preventDefault();
+    selectionChanged();
     updateQuantity(product.id, quantity - 1);
   };
 
   const handleCardClick = () => {
+    selectionChanged();
     trackClick();
     if (onTap) onTap(product);
     else navigate(`/seller/${product.seller_id}`);

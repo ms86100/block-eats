@@ -3,6 +3,7 @@ import { useCategoryConfigs } from '@/hooks/useCategoryBehavior';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useHaptics } from '@/hooks/useHaptics';
 
 const GROUP_TINTS: Record<string, string> = {
   food: 'bg-[hsl(var(--tint-food))]',
@@ -27,6 +28,7 @@ interface CategoryImageGridProps {
 
 export function CategoryImageGrid({ parentGroup, title }: CategoryImageGridProps) {
   const { groupedConfigs, isLoading } = useCategoryConfigs();
+  const { selectionChanged } = useHaptics();
   const categories = groupedConfigs[parentGroup] || [];
   const tint = GROUP_TINTS[parentGroup] || 'bg-[hsl(var(--tint-default))]';
   const sectionTint = SECTION_TINTS[parentGroup] || 'bg-[hsl(var(--tint-default)/0.5)]';
@@ -63,6 +65,7 @@ export function CategoryImageGrid({ parentGroup, title }: CategoryImageGridProps
           <Link
             key={cat.category}
             to={`/category/${cat.parentGroup}?sub=${cat.category}`}
+            onClick={() => selectionChanged()}
             className="group shrink-0 w-[88px] flex flex-col items-center gap-1.5"
           >
             <div

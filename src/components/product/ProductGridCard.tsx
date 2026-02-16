@@ -1,5 +1,6 @@
 import { useNavigate } from 'react-router-dom';
 import { Plus, Minus, Store } from 'lucide-react';
+import { useHaptics } from '@/hooks/useHaptics';
 import { Badge } from '@/components/ui/badge';
 import { VegBadge } from '@/components/ui/veg-badge';
 import { useCart } from '@/hooks/useCart';
@@ -25,32 +26,36 @@ interface ProductGridCardProps {
 export function ProductGridCard({ product, behavior, onTap, className, viewOnly = false }: ProductGridCardProps) {
   const navigate = useNavigate();
   const { items, addItem, updateQuantity } = useCart();
+  const { impact, selectionChanged } = useHaptics();
   const cartItem = items.find((item) => item.product_id === product.id);
   const quantity = cartItem?.quantity || 0;
 
   const handleAdd = (e: React.MouseEvent) => {
     e.stopPropagation();
     e.preventDefault();
+    impact('medium');
     addItem(product);
   };
 
   const handleIncrement = (e: React.MouseEvent) => {
     e.stopPropagation();
     e.preventDefault();
+    selectionChanged();
     updateQuantity(product.id, quantity + 1);
   };
 
   const handleDecrement = (e: React.MouseEvent) => {
     e.stopPropagation();
     e.preventDefault();
+    selectionChanged();
     updateQuantity(product.id, quantity - 1);
   };
 
   const handleCardClick = () => {
+    selectionChanged();
     if (onTap) {
       onTap(product);
     } else {
-      // Default: navigate to seller store page (no popup)
       navigate(`/seller/${product.seller_id}`);
     }
   };

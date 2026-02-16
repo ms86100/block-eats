@@ -1,6 +1,7 @@
 import { useParentGroups, ParentGroupInfo } from '@/hooks/useParentGroups';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
+import { useHaptics } from '@/hooks/useHaptics';
 
 interface ParentGroupTabsProps {
   activeGroup: string | null;
@@ -9,6 +10,7 @@ interface ParentGroupTabsProps {
 
 export function ParentGroupTabs({ activeGroup, onGroupChange }: ParentGroupTabsProps) {
   const { parentGroupInfos, isLoading } = useParentGroups();
+  const { selectionChanged } = useHaptics();
 
   if (isLoading) {
     return (
@@ -38,7 +40,10 @@ export function ParentGroupTabs({ activeGroup, onGroupChange }: ParentGroupTabsP
         return (
           <button
             key={tab.value}
-            onClick={() => onGroupChange(tab.value === '__all__' ? null : tab.value)}
+            onClick={() => {
+              selectionChanged();
+              onGroupChange(tab.value === '__all__' ? null : tab.value);
+            }}
             className={cn(
               'shrink-0 flex items-center gap-1.5 px-4 py-2 rounded-full transition-all duration-200 text-xs font-bold whitespace-nowrap',
               isActive

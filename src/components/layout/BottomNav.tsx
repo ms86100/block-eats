@@ -1,6 +1,7 @@
 import { Home, Store, Users, Building2, User, Shield, ClipboardList, Briefcase, ListChecks } from 'lucide-react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
+import { useHaptics } from '@/hooks/useHaptics';
 import { useEffectiveFeatures } from '@/hooks/useEffectiveFeatures';
 import { useSecurityOfficer } from '@/hooks/useSecurityOfficer';
 import { useWorkerRole } from '@/hooks/useWorkerRole';
@@ -33,6 +34,7 @@ export function BottomNav() {
   const { isSecurityOfficer } = useSecurityOfficer();
   const { isWorker } = useWorkerRole();
   const { itemCount } = useCart();
+  const { selectionChanged } = useHaptics();
 
   // Role-based navigation: security officers and workers get restricted nav
   const navItems = isSecurityOfficer ? securityNavItems : isWorker ? workerNavItems : residentNavItems;
@@ -53,6 +55,7 @@ export function BottomNav() {
             <NavLink
               key={to}
               to={to}
+              onClick={() => selectionChanged()}
               className={cn(
                 'flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-lg transition-colors min-w-[60px] relative',
                 isActive
