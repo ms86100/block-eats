@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { ShoppingCart, ChevronRight } from 'lucide-react';
 import { useCart } from '@/hooks/useCart';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -10,8 +10,10 @@ interface FloatingCartBarProps {
 
 export function FloatingCartBar({ className }: FloatingCartBarProps) {
   const { itemCount, totalAmount, items } = useCart();
+  const location = useLocation();
 
-  if (itemCount === 0) return null;
+  // Hide on cart page — user is already there
+  if (itemCount === 0 || location.pathname === '/cart') return null;
 
   // Get first 3 unique product thumbnails
   const thumbnails = items
