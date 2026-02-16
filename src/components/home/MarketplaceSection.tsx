@@ -7,7 +7,7 @@ import { useParentGroups } from '@/hooks/useParentGroups';
 import { ParentGroupTabs } from '@/components/home/ParentGroupTabs';
 import { CategoryImageGrid } from '@/components/home/CategoryImageGrid';
 import { FeaturedBanners } from '@/components/home/FeaturedBanners';
-import { ShopByStore } from '@/components/home/ShopByStore';
+import { ShopByStoreDiscovery } from '@/components/home/ShopByStoreDiscovery';
 import { ProductListingCard, ProductWithSeller } from '@/components/product/ProductListingCard';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Search, Store, ChevronRight } from 'lucide-react';
@@ -59,8 +59,8 @@ export function MarketplaceSection() {
         isLoading={loadingLocal}
       />
 
-      {/* ━━━ Shop by Store ━━━ */}
-      <ShopByStore />
+      {/* ━━━ Shop by Store Discovery ━━━ */}
+      <ShopByStoreDiscovery />
     </div>
   );
 }
