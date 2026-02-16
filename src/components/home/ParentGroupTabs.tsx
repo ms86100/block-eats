@@ -16,6 +16,11 @@ export function ParentGroupTabs({ activeGroup, onGroupChange, activeParentGroups
     ? parentGroupInfos.filter(g => activeParentGroups.has(g.value))
     : parentGroupInfos;
 
+  // Hide tabs entirely when no active parent groups have products
+  if (!isLoading && filteredGroups.length === 0) {
+    return null;
+  }
+
   if (isLoading) {
     return (
       <div className="flex gap-2 overflow-x-auto scrollbar-hide px-4 py-1">
@@ -26,16 +31,10 @@ export function ParentGroupTabs({ activeGroup, onGroupChange, activeParentGroups
     );
   }
 
-  const allTab: ParentGroupInfo = {
-    value: '__all__',
-    label: 'All',
-    icon: '🏠',
-    color: '',
-    description: '',
-    layoutType: 'ecommerce',
-  };
-
-  const tabs = [allTab, ...filteredGroups];
+  // Only show "All" tab when there are 2+ groups to switch between
+  const tabs: ParentGroupInfo[] = filteredGroups.length > 1
+    ? [{ value: '__all__', label: 'All', icon: '🏠', color: '', description: '', layoutType: 'ecommerce' }, ...filteredGroups]
+    : filteredGroups;
 
   return (
     <div className="flex gap-2 overflow-x-auto scrollbar-hide px-4 py-1">
