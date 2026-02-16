@@ -163,9 +163,13 @@ export default function AuthPage() {
       if (profile) { toast.success('Welcome back!'); navigate('/'); }
       else { setAuthMode('signup'); setSignupStep('society'); }
     } catch (error: any) {
-      if (error.message.includes('Invalid login')) toast.error('Invalid email or password');
-      else if (error.message.includes('Email not confirmed')) toast.error('Please verify your email address first. Check your inbox.');
-      else toast.error(error.message || 'Failed to login');
+      if (error.message.includes('Email not confirmed')) {
+        toast.error('Your email is not verified yet. Please check your inbox and click the verification link before logging in.', { duration: 6000 });
+      } else if (error.message.includes('Invalid login')) {
+        toast.error('Invalid email or password. If you just signed up, please verify your email first by clicking the link we sent to your inbox.', { duration: 6000 });
+      } else {
+        toast.error(error.message || 'Failed to login');
+      }
     } finally { setIsLoading(false); }
   };
 
@@ -807,26 +811,28 @@ export default function AuthPage() {
                       <Mail className="text-primary" size={32} />
                     </div>
                     <div className="space-y-2">
-                      <p className="font-semibold">Check your email</p>
+                      <p className="text-lg font-bold">📧 Check Your Inbox!</p>
                       <p className="text-sm text-muted-foreground">We've sent a verification link to:</p>
                       <p className="text-sm font-semibold text-primary">{email}</p>
                     </div>
-                    <div className="bg-muted/50 rounded-xl p-4 text-left text-sm space-y-2">
-                      <p className="font-semibold">What happens next?</p>
-                      <ol className="list-decimal list-inside space-y-1 text-muted-foreground">
-                        <li>Click the link in your email</li>
-                        <li>You'll be redirected back here</li>
-                        <li>Login with your credentials</li>
-                        <li>Admin will verify your residency</li>
+                    <div className="bg-primary/5 border border-primary/20 rounded-xl p-4 text-left text-sm space-y-2">
+                      <p className="font-bold text-primary">⚠️ Important: You must verify before logging in</p>
+                      <ol className="list-decimal list-inside space-y-1.5 text-muted-foreground">
+                        <li>Open your email inbox (check spam/junk too)</li>
+                        <li>Click the <span className="font-semibold text-foreground">"Confirm your email"</span> link</li>
+                        <li>Come back here and <span className="font-semibold text-foreground">log in</span> with your credentials</li>
                       </ol>
+                    </div>
+                    <div className="bg-destructive/10 border border-destructive/20 rounded-xl p-3 text-xs text-destructive font-medium">
+                      🚫 You won't be able to log in until you verify your email
                     </div>
                   </div>
                   <Button onClick={() => { setAuthMode('login'); resetSignup(); }} className="w-full h-12 rounded-xl text-base font-semibold">
-                    Go to Login
+                    I've Verified — Go to Login
                   </Button>
                   <p className="text-xs text-center text-muted-foreground">
                     Didn't receive the email?{' '}
-                    <button type="button" onClick={() => toast.info('Please check your spam folder or try signing up again.')} className="text-primary hover:underline">Get help</button>
+                    <button type="button" onClick={() => toast.info('Check your spam/junk folder. If still missing, try signing up again with the same email.')} className="text-primary hover:underline">Get help</button>
                   </p>
                 </motion.div>
               )}
