@@ -10,7 +10,8 @@ import { FeaturedBanners } from '@/components/home/FeaturedBanners';
 import { ShopByStoreDiscovery } from '@/components/home/ShopByStoreDiscovery';
 import { ProductListingCard, ProductWithSeller } from '@/components/product/ProductListingCard';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Search, Store, ChevronRight } from 'lucide-react';
+import { Search, Store, ChevronRight, ShoppingBag, Sparkles, Clock } from 'lucide-react';
+import { motion } from 'framer-motion';
 import { escapeIlike } from '@/lib/query-utils';
 
 export function MarketplaceSection() {
@@ -89,10 +90,48 @@ function ProductListings({
 
   if (categories.length === 0) {
     return (
-      <div className="text-center py-12 px-4">
-        <Store className="mx-auto text-muted-foreground/40 mb-3" size={32} />
-        <p className="text-sm text-muted-foreground">No products available yet</p>
-        <p className="text-xs text-muted-foreground mt-1">Check back soon or become a seller!</p>
+      <div className="flex flex-col items-center justify-center py-16 px-6 text-center">
+        <motion.div
+          initial={{ scale: 0.8, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          transition={{ duration: 0.5, ease: 'easeOut' }}
+          className="relative mb-6"
+        >
+          <div className="w-24 h-24 rounded-full bg-primary/10 flex items-center justify-center">
+            <ShoppingBag size={40} className="text-primary" />
+          </div>
+          <motion.div
+            animate={{ y: [0, -6, 0] }}
+            transition={{ repeat: Infinity, duration: 2, ease: 'easeInOut' }}
+            className="absolute -top-2 -right-2"
+          >
+            <div className="w-8 h-8 rounded-full bg-warning/20 flex items-center justify-center">
+              <Sparkles size={16} className="text-warning" />
+            </div>
+          </motion.div>
+        </motion.div>
+
+        <motion.div
+          initial={{ y: 10, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ delay: 0.2, duration: 0.4 }}
+          className="space-y-3"
+        >
+          <h2 className="text-lg font-bold text-foreground">Your marketplace is getting ready!</h2>
+          <p className="text-sm text-muted-foreground max-w-xs leading-relaxed">
+            Sellers from your community are setting up shop. Fresh products, homemade food & services — all coming your way.
+          </p>
+        </motion.div>
+
+        <motion.div
+          initial={{ y: 10, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ delay: 0.4, duration: 0.4 }}
+          className="mt-6 flex items-center gap-2 text-xs text-muted-foreground bg-muted rounded-full px-4 py-2"
+        >
+          <Clock size={14} />
+          <span>New listings appear here automatically</span>
+        </motion.div>
       </div>
     );
   }
