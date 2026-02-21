@@ -319,7 +319,9 @@ export default function AuthPage() {
           if (!profileError) {
             await supabase.from('user_roles').insert({ user_id: data.user.id, role: 'buyer' });
           }
-        } catch (e) { console.log('Profile will be created after email verification'); }
+        } catch (e) {
+          console.warn('Profile creation during signup failed, will be auto-created on login:', e);
+        }
         setSignupStep('verification');
         toast.success('Please check your email to verify your account');
       }

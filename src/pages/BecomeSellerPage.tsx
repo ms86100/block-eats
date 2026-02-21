@@ -242,6 +242,20 @@ export default function BecomeSellerPage() {
     const timer = setTimeout(async () => {
       if (!user || draftSellerId) return;
       try {
+        // Query-before-insert: check if a draft already exists for this user+group
+        const { data: existing } = await supabase
+          .from('seller_profiles')
+          .select('id')
+          .eq('user_id', user.id)
+          .eq('primary_group', selectedGroup)
+          .eq('verification_status', 'draft' as any)
+          .maybeSingle();
+
+        if (existing) {
+          setDraftSellerId(existing.id);
+          return;
+        }
+
         const { data, error } = await supabase
           .from('seller_profiles')
           .insert({
