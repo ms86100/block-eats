@@ -15,6 +15,7 @@ import { logAudit } from '@/lib/audit';
 
 // Import refactored components
 import { StoreStatusCard } from '@/components/seller/StoreStatusCard';
+import { SellerVisibilityChecklist } from '@/components/seller/SellerVisibilityChecklist';
 import { EarningsSummary } from '@/components/seller/EarningsSummary';
 import { DashboardStats } from '@/components/seller/DashboardStats';
 import { QuickActions } from '@/components/seller/QuickActions';
@@ -142,6 +143,8 @@ export default function SellerDashboardPage() {
           sellerProfiles={sellerProfiles}
           onToggleAvailability={toggleAvailability}
         />
+
+        <SellerVisibilityChecklist sellerId={sellerProfile.id} />
 
         {/* Store Performance Card - "How buyers see your store" */}
         <Card>
