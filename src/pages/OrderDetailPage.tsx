@@ -170,9 +170,9 @@ export default function OrderDetailPage() {
     <AppLayout showHeader={false} showNav={!isSellerView || order.status === 'completed' || order.status === 'cancelled'}>
       <div className="pb-28">
         {/* Sticky Header */}
-        <div className="sticky top-0 z-30 bg-background border-b border-border px-4 py-3 safe-top flex items-center gap-3">
-          <Link to="/orders" className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-muted shrink-0">
-            <ArrowLeft size={16} />
+        <div className="sticky top-0 z-30 bg-background border-b border-border px-4 py-3.5 safe-top flex items-center gap-3">
+          <Link to="/orders" className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-muted shrink-0">
+            <ArrowLeft size={18} />
           </Link>
           <div className="flex-1 min-w-0">
             <h1 className="text-base font-bold">Order Summary</h1>

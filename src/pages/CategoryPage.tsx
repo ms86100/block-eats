@@ -121,8 +121,8 @@ export default function CategoryPage() {
       <div className="sticky top-0 z-30 bg-background border-b border-border safe-top">
         <div className="px-3 pt-2.5 pb-2">
           <div className="flex items-center gap-2 mb-2">
-            <Link to="/" className="w-7 h-7 rounded-full bg-muted flex items-center justify-center shrink-0">
-              <ArrowLeft size={16} />
+            <Link to="/" className="w-10 h-10 rounded-full bg-muted flex items-center justify-center shrink-0">
+              <ArrowLeft size={18} />
             </Link>
             <h1 className="text-sm font-bold flex items-center gap-1.5 flex-1 truncate">
               <span className="text-base">{categoryInfo?.icon}</span>

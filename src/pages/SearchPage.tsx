@@ -591,7 +591,7 @@ export default function SearchPage() {
         <div className="sticky top-0 z-40 bg-background safe-top">
           <div className="px-4 pt-3 pb-2">
             <div className="flex items-center gap-2">
-              <Link to="/" className="shrink-0 h-9 w-9 rounded-full bg-muted flex items-center justify-center">
+              <Link to="/" className="shrink-0 h-10 w-10 rounded-full bg-muted flex items-center justify-center">
                 <ArrowLeft size={18} className="text-foreground" />
               </Link>
               <div className="flex-1 relative">

@@ -382,7 +382,7 @@ export default function SellerProductsPage() {
       <div className="p-4 safe-top">
         <div className="flex items-center justify-between mb-6">
           <Link to="/seller" className="flex items-center gap-2 text-muted-foreground">
-            <span className="inline-flex items-center justify-center w-9 h-9 rounded-full bg-muted shrink-0">
+            <span className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-muted shrink-0">
               <ArrowLeft size={18} />
             </span>
             <span>Back</span>

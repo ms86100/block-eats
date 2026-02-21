@@ -209,7 +209,7 @@ export default function CartPage() {
     return (
       <AppLayout showHeader={false}>
         <div className="p-4 safe-top">
-          <Link to="/" className="inline-flex items-center justify-center w-9 h-9 rounded-full bg-muted mb-6">
+          <Link to="/" className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-muted mb-6">
             <ArrowLeft size={18} />
           </Link>
           <div className="text-center py-16">
@@ -229,9 +229,9 @@ export default function CartPage() {
     <AppLayout showHeader={false} showNav={false}>
       <div className="pb-36">
         {/* Sticky Header */}
-        <div className="sticky top-0 z-30 bg-background border-b border-border px-4 py-3 safe-top flex items-center gap-3">
-          <Link to="/" className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-muted shrink-0">
-            <ArrowLeft size={16} />
+        <div className="sticky top-0 z-30 bg-background border-b border-border px-4 py-3.5 safe-top flex items-center gap-3">
+          <Link to="/" className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-muted shrink-0">
+            <ArrowLeft size={18} />
           </Link>
           <div className="flex-1 min-w-0">
             <h1 className="text-base font-bold">Checkout</h1>
