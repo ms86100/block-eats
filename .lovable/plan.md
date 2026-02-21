@@ -1,55 +1,69 @@
 
 
-# Fix: Empty Categories (like "Groceries") Should Not Be Displayed
+# Redesign Categories Page -- Blinkit-Style End-to-End
 
-## Problem
+## What Changes
 
-The "Groceries" category appears as a clickable pill on the Food category page (`/category/food`), but has zero products. Clicking it shows "No items found." Per the agreed-upon rule, categories with no products should be hidden from the buyer.
+The Categories page (`/categories` tab in bottom nav) will be redesigned from its current simple grid layout into a Blinkit-style two-panel browsing experience.
 
-## Root Cause
+### Current State
+- Simple grid of category tiles grouped under parent group headings
+- Each tile links to `/category/{parentGroup}?sub={category}`
+- No sidebar navigation
 
-The CategoryGroupPage renders sub-category pills (line 174) directly from `useCategoryConfigs()`, which returns ALL active categories from the `category_config` table -- regardless of whether they have any products. There is no filtering against actual product data.
+### New Blinkit-Style Layout
 
-The CategoriesPage already has this filtering logic (using `activeCategorySet`), but the CategoryGroupPage does not.
+**Left Sidebar (fixed, ~72px wide):**
+- Vertical scrollable list of parent groups (e.g., Food, Services, Lifestyle)
+- Each entry shows the group icon/emoji in a circular container + group name below
+- Active group is highlighted with a green left border accent and tinted background
+- Tapping a group scrolls/switches the right panel to show its sub-categories
 
-## Solution
+**Right Panel (remaining width):**
+- Shows sub-categories for the selected parent group in a 3-column grid
+- Each sub-category tile shows icon/image + name
+- Only categories with active products are shown (respects the existing `activeCategorySet` logic)
+- Tapping a sub-category navigates to `/category/{parentGroup}?sub={category}`
 
-Filter the sub-category pills on the CategoryGroupPage to only show categories that have at least one product visible to the buyer. Since `useCategoryProducts` already fetches all products for this parent group (including cross-society nearby products), we can derive the active categories from the product data.
-
-### Changes
-
-**File: `src/pages/CategoryGroupPage.tsx`**
-
-1. Compute an `activeCategorySet` from `allProducts` (which already includes nearby cross-society products)
-2. Filter `subCategories` to only include categories present in that set
-3. Hide the "All" tab if only one category has products (matching the existing rule)
-4. Remove the pills bar entirely if no categories have products
-
-This is a small, focused change -- about 5-10 lines added to derive the set and filter the array. No new hooks or database queries needed since the product data is already loaded.
+**Sticky Header:**
+- "All Categories" title with the existing AppLayout header
+- No search bar needed here (search is on the home page and individual category pages)
 
 ## Technical Details
 
-```text
-Before (line ~35):
-  subCategories = groupedConfigs[category] (all active configs)
+### File: `src/pages/CategoriesPage.tsx` (rewrite)
 
-After:
-  activeCats = new Set(allProducts.map(p => p.category))
-  subCategories = groupedConfigs[category].filter(c => activeCats.has(c.category))
+1. Add `useState` for `activeGroup` -- defaults to the first parent group with products
+2. Keep existing data-fetching logic (parent groups, category configs, product-based filtering)
+3. Replace the render with a two-panel flex layout:
+   - Left: `w-[72px] shrink-0 border-r` sidebar with parent group icons, scrollable
+   - Right: `flex-1 overflow-y-auto` grid of sub-categories for the active group
+4. Active group indicator: left green border bar + `bg-primary/10` background
+5. Sub-category tiles: circular icon container + name, 3 columns on mobile
+6. Keep the animated empty state for when no products exist at all
+7. Filter both sidebar groups and right-panel categories by `activeCategorySet`
+
+### Visual Spec
+
+```text
++--------+----------------------------------+
+| [icon] |  Sub-categories for "Food"       |
+| Food * |  +------+ +------+ +------+      |
+|        |  |Bakery| |Snacks| |Home  |      |
+| [icon] |  |  🍞  | |  🍿  | |Food  |      |
+| Srvc   |  +------+ +------+ +------+      |
+|        |                                   |
+| [icon] |  +------+ +------+               |
+| Life   |  |Grocer| | ...  |               |
+|        |  +------+ +------+               |
++--------+----------------------------------+
+|        Bottom Navigation Bar              |
++-------------------------------------------+
 ```
 
-The "All" pill visibility also needs to respect the rule: hide it when only 1 category has products.
-
-## Files to Modify
-
-| File | Change |
-|------|--------|
-| `src/pages/CategoryGroupPage.tsx` | Filter sub-category pills by products that actually exist |
-
-## Impact
-
-- "Groceries" pill will no longer appear since it has 0 products
-- Only Bakery, Home Food, and Snacks will show (the categories with actual products)
-- No database changes needed
-- No new files needed
+### No Other Files Changed
+- All data hooks remain the same
+- Routing stays the same (`/categories`)
+- Bottom nav stays the same
+- The category click still navigates to `/category/{parentGroup}?sub={category}`
 
