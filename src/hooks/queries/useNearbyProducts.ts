@@ -17,7 +17,7 @@ export function useNearbyProducts() {
   const { effectiveSocietyId, profile } = useAuth();
 
   const browseBeyond = profile?.browse_beyond_community === true;
-  const searchRadius = profile?.search_radius_km ?? 5;
+  const searchRadius = profile?.search_radius_km ?? 10;
 
   return useQuery({
     queryKey: ['nearby-products', effectiveSocietyId, searchRadius],

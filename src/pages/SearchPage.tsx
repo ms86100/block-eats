@@ -103,7 +103,7 @@ export default function SearchPage() {
 
   // Cross-society browsing - load persisted preferences from DB
   const [browseBeyond, setBrowseBeyondLocal] = useState(false);
-  const [searchRadius, setSearchRadiusLocal] = useState(5);
+  const [searchRadius, setSearchRadiusLocal] = useState(10);
   const [prefsLoaded, setPrefsLoaded] = useState(false);
 
   useEffect(() => {
@@ -116,7 +116,7 @@ export default function SearchPage() {
       .then(({ data }) => {
         if (data) {
           setBrowseBeyondLocal((data as any).browse_beyond_community ?? false);
-          setSearchRadiusLocal((data as any).search_radius_km ?? 5);
+          setSearchRadiusLocal((data as any).search_radius_km ?? 10);
         }
         setPrefsLoaded(true);
       });
