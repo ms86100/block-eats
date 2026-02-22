@@ -46,7 +46,7 @@ export function useEffectiveFeatures() {
   const { effectiveSocietyId } = useAuth();
   const queryClient = useQueryClient();
 
-  const { data: features = [], isLoading } = useQuery({
+  const { data: features = [], isLoading, isError } = useQuery({
     queryKey: ['effective-features', effectiveSocietyId],
     queryFn: async () => {
       if (!effectiveSocietyId) return [];
@@ -55,22 +55,25 @@ export function useEffectiveFeatures() {
       });
       if (error) {
         console.error('Error fetching effective features:', error);
-        return [];
+        throw error;
       }
       return (data || []) as EffectiveFeature[];
     },
     enabled: !!effectiveSocietyId,
     staleTime: 5 * 60 * 1000,
+    retry: 2,
   });
 
   const featureMap = new Map(features.map(f => [f.feature_key, f]));
 
   const isFeatureEnabled = (key: FeatureKey): boolean => {
+    // No society context → fail closed (features disabled)
+    if (!effectiveSocietyId) return false;
+    
     const feature = featureMap.get(key);
     if (!feature) {
-      // No features returned at all = RPC error or no society context → default enabled
-      if (features.length === 0) return true;
-      // Features returned but this key missing = not in package → disabled
+      // RPC returned features but this key is missing → not in package → disabled
+      // RPC returned empty (no builder/package assigned) → also disabled (strict package enforcement)
       return false;
     }
     return feature.is_enabled;
@@ -78,7 +81,7 @@ export function useEffectiveFeatures() {
 
   const getFeatureState = (key: FeatureKey): FeatureState => {
     const feature = featureMap.get(key);
-    if (!feature) return features.length === 0 ? 'enabled' : 'unavailable';
+    if (!feature) return 'unavailable';
     if (feature.source === 'core') return 'locked';
     if (!feature.society_configurable) return feature.is_enabled ? 'locked' : 'disabled';
     return feature.is_enabled ? 'enabled' : 'disabled';
@@ -139,6 +142,7 @@ export function useEffectiveFeatures() {
   return {
     features,
     isLoading,
+    isError,
     isFeatureEnabled,
     getFeatureState,
     getFeatureSource,

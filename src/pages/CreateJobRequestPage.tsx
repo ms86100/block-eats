@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useState, useMemo } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { AppLayout } from '@/components/layout/AppLayout';
@@ -9,26 +9,38 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Checkbox } from '@/components/ui/checkbox';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
 import { jobRequestSchema, validateForm } from '@/lib/validation-schemas';
 import { friendlyError } from '@/lib/utils';
+import { FeatureGate } from '@/components/ui/FeatureGate';
+import { Building, Globe, MapPin, Loader2 } from 'lucide-react';
+import { useSystemSettingsRaw } from '@/hooks/useSystemSettingsRaw';
 
-const JOB_TYPES = [
-  { value: 'maid', label: '🧹 Maid / Cleaning' },
-  { value: 'cook', label: '🍳 Cook' },
-  { value: 'nanny', label: '👶 Nanny / Babysitter' },
-  { value: 'driver', label: '🚗 Driver' },
-  { value: 'electrician', label: '⚡ Electrician' },
-  { value: 'plumber', label: '🔧 Plumber' },
-  { value: 'gardener', label: '🌱 Gardener' },
-  { value: 'general', label: '🛠️ General Help' },
-];
+
+// Job types loaded dynamically from DB worker categories
 
 export default function CreateJobRequestPage() {
   const { profile, effectiveSocietyId } = useAuth();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { getSetting } = useSystemSettingsRaw(['worker_broadcast_radius_options', 'worker_broadcast_default_radius', 'worker_urgency_options']);
+
+  // Dynamic job types from DB
+  const { data: jobTypes = [] } = useQuery({
+    queryKey: ['worker-job-types', effectiveSocietyId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('society_worker_categories')
+        .select('name')
+        .eq('is_active', true)
+        .order('display_order');
+      if (error || !data) return [];
+      return data.map((c: any) => ({ value: c.name.toLowerCase(), label: c.name }));
+    },
+    staleTime: 10 * 60 * 1000,
+  });
 
   const [jobType, setJobType] = useState('');
   const [description, setDescription] = useState('');
@@ -36,7 +48,56 @@ export default function CreateJobRequestPage() {
   const [durationHours, setDurationHours] = useState('1');
   const [startTime, setStartTime] = useState('');
   const [locationDetails, setLocationDetails] = useState('');
-  const [urgency, setUrgency] = useState('normal');
+  const [urgency, setUrgency] = useState('');
+  const [visibilityScope, setVisibilityScope] = useState<'society' | 'nearby'>('society');
+  const [targetSocietyIds, setTargetSocietyIds] = useState<string[]>([]);
+  const [selectedRadius, setSelectedRadius] = useState<number | null>(null);
+
+  // Load radius options from system_settings
+  const radiusOptions: number[] = useMemo(() => {
+    try {
+      const raw = getSetting('worker_broadcast_radius_options');
+      return raw ? JSON.parse(raw) : [];
+    } catch { return []; }
+  }, [getSetting]);
+
+  // Load urgency options from system_settings
+  const urgencyOptions: { value: string; label: string }[] = useMemo(() => {
+    try {
+      const raw = getSetting('worker_urgency_options');
+      return raw ? JSON.parse(raw) : [];
+    } catch { return []; }
+  }, [getSetting]);
+
+  const defaultRadius = parseInt(getSetting('worker_broadcast_default_radius') || '0', 10);
+
+  // Initialize selectedRadius from default
+  const effectiveRadius = selectedRadius ?? (defaultRadius > 0 ? defaultRadius : (radiusOptions[0] || 0));
+
+  // Fetch nearby societies when "nearby" is selected, using dynamic radius
+  const { data: nearbySocieties = [], isLoading: loadingNearby } = useQuery({
+    queryKey: ['nearby-societies', effectiveSocietyId, effectiveRadius],
+    queryFn: async () => {
+      if (!effectiveSocietyId || effectiveRadius <= 0) return [];
+      const { data, error } = await supabase.rpc('get_nearby_societies', {
+        _society_id: effectiveSocietyId,
+        _radius_km: effectiveRadius,
+      });
+      if (error) {
+        console.error('Error fetching nearby societies:', error);
+        return [];
+      }
+      return (data || []) as { id: string; name: string; distance_km: number }[];
+    },
+    enabled: !!effectiveSocietyId && visibilityScope === 'nearby' && effectiveRadius > 0,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const toggleSociety = (id: string) => {
+    setTargetSocietyIds(prev =>
+      prev.includes(id) ? prev.filter(s => s !== id) : [...prev, id]
+    );
+  };
 
   const createJob = useMutation({
     mutationFn: async () => {
@@ -48,6 +109,8 @@ export default function CreateJobRequestPage() {
         price: price ? parseFloat(price) : null,
         duration_hours: parseInt(durationHours) || 1,
         urgency,
+        visibility_scope: visibilityScope,
+        target_society_ids: visibilityScope === 'nearby' ? targetSocietyIds : [],
       });
 
       if (!validation.success) {
@@ -65,6 +128,8 @@ export default function CreateJobRequestPage() {
         start_time: startTime ? new Date(startTime).toISOString() : null,
         location_details: locationDetails || null,
         urgency: validation.data.urgency,
+        visibility_scope: validation.data.visibility_scope,
+        target_society_ids: validation.data.target_society_ids,
       });
       if (error) throw error;
     },
@@ -78,6 +143,7 @@ export default function CreateJobRequestPage() {
 
   return (
     <AppLayout headerTitle="Post a Job">
+      <FeatureGate feature="worker_marketplace">
       <div className="p-4 pb-24">
         <Card>
           <CardHeader>
@@ -89,11 +155,18 @@ export default function CreateJobRequestPage() {
               <Select value={jobType} onValueChange={setJobType}>
                 <SelectTrigger><SelectValue placeholder="Select type..." /></SelectTrigger>
                 <SelectContent>
-                  {JOB_TYPES.map(t => (
-                    <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
-                  ))}
+                  {jobTypes.length > 0 ? (
+                    jobTypes.map((t: any) => (
+                      <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+                    ))
+                  ) : (
+                    <SelectItem value="" disabled>No job types configured</SelectItem>
+                  )}
                 </SelectContent>
               </Select>
+              {jobTypes.length === 0 && (
+                <p className="text-xs text-destructive mt-1">⚠️ No job categories configured. Contact admin.</p>
+              )}
             </div>
 
             <div>
@@ -148,26 +221,133 @@ export default function CreateJobRequestPage() {
             <div>
               <Label>Urgency</Label>
               <Select value={urgency} onValueChange={setUrgency}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger><SelectValue placeholder="Select urgency" /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="flexible">🟢 Flexible</SelectItem>
-                  <SelectItem value="normal">🟡 Normal</SelectItem>
-                  <SelectItem value="urgent">🔴 Urgent</SelectItem>
+                  {urgencyOptions.length > 0 ? (
+                    urgencyOptions.map((opt) => (
+                      <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                    ))
+                  ) : (
+                    <SelectItem value="" disabled>No options configured</SelectItem>
+                  )}
                 </SelectContent>
               </Select>
+              {urgencyOptions.length === 0 && (
+                <p className="text-xs text-destructive mt-1">⚠️ Urgency options not configured. Contact admin.</p>
+              )}
             </div>
+
+            {/* Visibility Scope Selection */}
+            <div>
+              <Label className="mb-2 block">Job Visibility</Label>
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => { setVisibilityScope('society'); setTargetSocietyIds([]); }}
+                  className={`flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-colors ${
+                    visibilityScope === 'society'
+                      ? 'border-primary bg-primary/5'
+                      : 'border-border bg-card'
+                  }`}
+                >
+                  <Building size={24} className={visibilityScope === 'society' ? 'text-primary' : 'text-muted-foreground'} />
+                  <span className="text-xs font-medium text-center">Within My Society</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setVisibilityScope('nearby')}
+                  className={`flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-colors ${
+                    visibilityScope === 'nearby'
+                      ? 'border-primary bg-primary/5'
+                      : 'border-border bg-card'
+                  }`}
+                >
+                  <Globe size={24} className={visibilityScope === 'nearby' ? 'text-primary' : 'text-muted-foreground'} />
+                  <span className="text-xs font-medium text-center">Expand to Nearby</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Radius Selector + Nearby Society Multi-Select */}
+            {visibilityScope === 'nearby' && (
+              <div className="border rounded-xl p-3 bg-muted/30 space-y-3">
+                {/* Radius selector */}
+                {radiusOptions.length > 0 ? (
+                  <div>
+                    <Label className="mb-1.5 block text-sm">Broadcast Range</Label>
+                    <div className="flex gap-2">
+                      {radiusOptions.map((r: number) => (
+                        <button
+                          key={r}
+                          type="button"
+                          onClick={() => { setSelectedRadius(r); setTargetSocietyIds([]); }}
+                          className={`px-4 py-2 rounded-lg text-sm font-medium border transition-colors ${
+                            effectiveRadius === r
+                              ? 'border-primary bg-primary text-primary-foreground'
+                              : 'border-border bg-card text-foreground hover:bg-accent'
+                          }`}
+                        >
+                          {r} km
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-sm text-destructive">Broadcast radius not configured. Contact admin.</p>
+                )}
+
+                {/* Society list */}
+                <div>
+                  <Label className="mb-2 block text-sm">Select societies to broadcast to:</Label>
+                  {loadingNearby ? (
+                    <div className="flex items-center justify-center py-4">
+                      <Loader2 size={20} className="animate-spin text-muted-foreground" />
+                      <span className="text-sm text-muted-foreground ml-2">Finding societies within {effectiveRadius} km...</span>
+                    </div>
+                  ) : nearbySocieties.length === 0 ? (
+                    <p className="text-sm text-muted-foreground py-3 text-center">
+                      No societies found within {effectiveRadius} km
+                    </p>
+                  ) : (
+                    <div className="space-y-2">
+                      {nearbySocieties.map((society: any) => (
+                        <label
+                          key={society.id}
+                          className="flex items-center gap-3 p-2.5 rounded-lg border bg-card cursor-pointer hover:bg-accent/50 transition-colors"
+                        >
+                          <Checkbox
+                            checked={targetSocietyIds.includes(society.id)}
+                            onCheckedChange={() => toggleSociety(society.id)}
+                          />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium truncate">{society.name}</p>
+                            <p className="text-[10px] text-muted-foreground flex items-center gap-1">
+                              <MapPin size={10} /> {society.distance_km} km away
+                            </p>
+                          </div>
+                        </label>
+                      ))}
+                      {targetSocietyIds.length === 0 && (
+                        <p className="text-xs text-destructive mt-1">Select at least one society</p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
 
             <Button
               className="w-full"
               size="lg"
               onClick={() => createJob.mutate()}
-              disabled={createJob.isPending || !jobType}
+              disabled={createJob.isPending || !jobType || !urgency || (visibilityScope === 'nearby' && targetSocietyIds.length === 0)}
             >
               {createJob.isPending ? 'Posting...' : 'Post Job Request'}
             </Button>
           </CardContent>
         </Card>
       </div>
+      </FeatureGate>
     </AppLayout>
   );
 }

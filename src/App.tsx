@@ -20,6 +20,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 // Lazy-loaded pages for code splitting
 const AuthPage = lazy(() => import("./pages/AuthPage"));
+const ResetPasswordPage = lazy(() => import("./pages/ResetPasswordPage"));
 const HomePage = lazy(() => import("./pages/HomePage"));
 const LandingPage = lazy(() => import("./pages/LandingPage"));
 const SearchPage = lazy(() => import("./pages/SearchPage"));
@@ -229,6 +230,7 @@ function AppRoutes() {
         {/* Landing page for unauthenticated users */}
         <Route path="/welcome" element={user && profile ? <Navigate to="/" replace /> : <LandingPage />} />
         <Route path="/auth" element={user && profile ? <Navigate to="/" replace /> : <RouteErrorBoundary sectionName="Authentication"><AuthPage /></RouteErrorBoundary>} />
+        <Route path="/reset-password" element={<RouteErrorBoundary sectionName="Reset Password"><ResetPasswordPage /></RouteErrorBoundary>} />
         <Route path="/" element={user ? <ProtectedRoute><HomePage /></ProtectedRoute> : <Navigate to="/welcome" replace />} />
         <Route path="/search" element={<ProtectedRoute><SearchPage /></ProtectedRoute>} />
         <Route path="/community" element={<ProtectedRoute><BulletinPage /></ProtectedRoute>} />

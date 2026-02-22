@@ -12,8 +12,8 @@ export function useWorkerRole() {
     queryKey: ['worker-profile', profile?.id, effectiveSocietyId],
     queryFn: async () => {
       if (!profile?.id || !effectiveSocietyId) return null;
-      const { data, error } = await supabase
-        .from('society_workers')
+      const { data, error } = await (supabase
+        .from('society_workers') as any)
         .select('*')
         .eq('user_id', profile.id)
         .eq('society_id', effectiveSocietyId)
