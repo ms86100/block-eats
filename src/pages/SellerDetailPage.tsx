@@ -229,16 +229,16 @@ export default function SellerDetailPage() {
         <div className="absolute top-4 left-4 right-4 flex justify-between safe-top">
           <Link
             to="/"
-            className="w-10 h-10 rounded-full bg-white/90 flex items-center justify-center shadow-md"
+            className="w-10 h-10 rounded-full bg-black/50 backdrop-blur-sm flex items-center justify-center shadow-md border border-white/20"
           >
-            <ArrowLeft size={20} />
+            <ArrowLeft size={18} className="text-white" />
           </Link>
           <div className="flex gap-2">
             {user && (
               <Dialog open={isReportOpen} onOpenChange={setIsReportOpen}>
                 <DialogTrigger asChild>
-                  <button className="w-10 h-10 rounded-full bg-white/90 flex items-center justify-center shadow-md">
-                    <Flag size={18} className="text-muted-foreground" />
+                   <button className="w-10 h-10 rounded-full bg-black/50 backdrop-blur-sm flex items-center justify-center shadow-md border border-white/20">
+                     <Flag size={18} className="text-white" />
                   </button>
                 </DialogTrigger>
                 <DialogContent>
@@ -290,36 +290,39 @@ export default function SellerDetailPage() {
           </div>
         </div>
 
-        {/* Seller Avatar */}
-        {seller.profile_image_url && (
-          <div className="absolute bottom-4 left-4 w-16 h-16 rounded-full border-3 border-white overflow-hidden shadow-lg">
-            <img
-              src={seller.profile_image_url}
-              alt={seller.business_name}
-              className="w-full h-full object-cover"
-            />
-          </div>
-        )}
       </div>
 
       {/* Seller Info */}
       <div className="px-4 -mt-8 relative z-10">
         <div className="bg-card rounded-xl shadow-elevated p-4 space-y-3">
-          {/* Row 1: Name + Rating */}
-          <div className="flex items-start justify-between">
-            <div className={seller.profile_image_url ? 'ml-16' : ''}>
-              <h1 className="text-xl font-bold">{seller.business_name}</h1>
-              {seller.description && (
-                <p className="text-sm text-muted-foreground mt-0.5 line-clamp-2">
-                  {seller.description}
-                </p>
-              )}
+          {/* Row 1: Avatar + Name + Rating */}
+          <div className="flex items-start gap-3">
+            {seller.profile_image_url && (
+              <div className="w-14 h-14 rounded-full border-2 border-primary/30 overflow-hidden shadow-md shrink-0">
+                <img
+                  src={seller.profile_image_url}
+                  alt={seller.business_name}
+                  className="w-full h-full object-cover"
+                />
+              </div>
+            )}
+            <div className="flex-1 min-w-0">
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <h1 className="text-xl font-bold">{seller.business_name}</h1>
+                  {seller.description && (
+                    <p className="text-sm text-muted-foreground mt-0.5 line-clamp-2">
+                      {seller.description}
+                    </p>
+                  )}
+                </div>
+                <RatingStars
+                  rating={seller.rating}
+                  totalReviews={seller.total_reviews}
+                  size="md"
+                />
+              </div>
             </div>
-            <RatingStars
-              rating={seller.rating}
-              totalReviews={seller.total_reviews}
-              size="md"
-            />
           </div>
 
           {/* Row 2: Location · Distance · Hours — compact info line */}
