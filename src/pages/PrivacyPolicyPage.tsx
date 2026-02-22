@@ -1,10 +1,12 @@
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useSystemSettings } from '@/hooks/useSystemSettings';
+import ReactMarkdown from 'react-markdown';
 
 export default function PrivacyPolicyPage() {
   const settings = useSystemSettings();
   const hasDbContent = !!settings.privacyContentMd;
+  const platformName = settings.platformName;
 
   return (
     <AppLayout headerTitle="Privacy Policy" showLocation={false}>
@@ -16,15 +18,15 @@ export default function PrivacyPolicyPage() {
           </CardHeader>
           <CardContent className="space-y-4 text-sm">
             {hasDbContent ? (
-              <div className="prose prose-sm max-w-none text-muted-foreground whitespace-pre-line">
-                {settings.privacyContentMd}
+              <div className="prose prose-sm max-w-none text-muted-foreground">
+                <ReactMarkdown>{settings.privacyContentMd}</ReactMarkdown>
               </div>
             ) : (
               <>
                 <section>
                   <h3 className="font-semibold mb-2">1. Introduction</h3>
                   <p className="text-muted-foreground">
-                    Welcome to Sociva ("we", "our", or "us"). This Privacy Policy explains how we collect, use, disclose, and safeguard your information when you use our platform, in compliance with the Digital Personal Data Protection Act, 2023 (DPDPA) and applicable Indian laws.
+                    Welcome to {platformName} ("we", "our", or "us"). This Privacy Policy explains how we collect, use, disclose, and safeguard your information when you use our platform, in compliance with the Digital Personal Data Protection Act, 2023 (DPDPA) and applicable Indian laws.
                   </p>
                 </section>
 
@@ -56,7 +58,7 @@ export default function PrivacyPolicyPage() {
                 <section>
                   <h3 className="font-semibold mb-2">4. Consent</h3>
                   <p className="text-muted-foreground">
-                    By creating an account on Sociva, you provide explicit consent for the collection and processing of your personal data as described in this policy. You may withdraw consent at any time by deleting your account, though this will terminate your access to the Platform.
+                    By creating an account on {platformName}, you provide explicit consent for the collection and processing of your personal data as described in this policy. You may withdraw consent at any time by deleting your account, though this will terminate your access to the Platform.
                   </p>
                 </section>
 

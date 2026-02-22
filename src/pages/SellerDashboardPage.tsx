@@ -12,6 +12,7 @@ import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { friendlyError } from '@/lib/utils';
 import { logAudit } from '@/lib/audit';
+import { useSystemSettings } from '@/hooks/useSystemSettings';
 
 // Import refactored components
 import { StoreStatusCard } from '@/components/seller/StoreStatusCard';
@@ -27,6 +28,7 @@ import { useSellerOrderStats, useSellerOrdersInfinite, useSellerOrderFilterCount
 
 export default function SellerDashboardPage() {
   const { user, sellerProfiles, currentSellerId } = useAuth();
+  const settings = useSystemSettings();
   const [sellerProfile, setSellerProfile] = useState<SellerProfile | null>(null);
   const [isLoadingProfile, setIsLoadingProfile] = useState(true);
   const [orderFilter, setOrderFilter] = useState<OrderFilter>('all');
@@ -125,7 +127,7 @@ export default function SellerDashboardPage() {
             You haven't set up your seller profile yet
           </p>
           <p className="text-xs text-muted-foreground mb-4">
-            Sell products, groceries, or services to your community
+            {settings.sellerEmptyStateCopy}
           </p>
           <Link to="/become-seller">
             <Button>Become a Seller</Button>

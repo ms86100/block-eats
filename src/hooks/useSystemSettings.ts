@@ -19,6 +19,12 @@ export interface SystemSettings {
   helpSectionsJson: string;
   termsContentMd: string;
   privacyContentMd: string;
+  currencySymbol: string;
+  budgetFilterThreshold: number;
+  platformName: string;
+  violationPolicyJson: string;
+  sellerEmptyStateCopy: string;
+  landingSlidesJson: string;
 }
 
 const DEFAULTS: SystemSettings = {
@@ -38,6 +44,12 @@ const DEFAULTS: SystemSettings = {
   helpSectionsJson: '',
   termsContentMd: '',
   privacyContentMd: '',
+  currencySymbol: '₹',
+  budgetFilterThreshold: 150,
+  platformName: 'Sociva',
+  violationPolicyJson: '',
+  sellerEmptyStateCopy: 'Sell products, groceries, or services to your community',
+  landingSlidesJson: '',
 };
 
 export function useSystemSettings(): SystemSettings {
@@ -54,6 +66,8 @@ export function useSystemSettings(): SystemSettings {
           'address_block_label', 'address_flat_label',
           'terms_last_updated', 'privacy_last_updated',
           'help_sections_json', 'terms_content_md', 'privacy_content_md',
+          'currency_symbol', 'budget_filter_threshold', 'platform_name',
+          'violation_policy_json', 'seller_empty_state_copy', 'landing_slides_json',
         ]);
 
       const map: Record<string, string> = {};
@@ -78,6 +92,12 @@ export function useSystemSettings(): SystemSettings {
         helpSectionsJson: map.help_sections_json || DEFAULTS.helpSectionsJson,
         termsContentMd: map.terms_content_md || DEFAULTS.termsContentMd,
         privacyContentMd: map.privacy_content_md || DEFAULTS.privacyContentMd,
+        currencySymbol: map.currency_symbol || DEFAULTS.currencySymbol,
+        budgetFilterThreshold: parseInt(map.budget_filter_threshold || '150', 10) || 150,
+        platformName: map.platform_name || DEFAULTS.platformName,
+        violationPolicyJson: map.violation_policy_json || DEFAULTS.violationPolicyJson,
+        sellerEmptyStateCopy: map.seller_empty_state_copy || DEFAULTS.sellerEmptyStateCopy,
+        landingSlidesJson: map.landing_slides_json || DEFAULTS.landingSlidesJson,
       };
     },
     staleTime: jitteredStaleTime(15 * 60 * 1000),

@@ -56,13 +56,13 @@ const PRICE_TIER_MAP: Record<string, { price: string; period: string; badge: str
   enterprise: { price: '₹999', period: '/month', badge: 'Enterprise' },
 };
 
-function usePricingPlans() {
+function usePricingPlans(currencySymbol: string) {
   return useQuery({
     queryKey: ['pricing-plans'],
     queryFn: async (): Promise<PricingPlan[]> => {
       const { data: packages } = await supabase
         .from('feature_packages')
-        .select('id, package_name, description, price_tier')
+        .select('id, package_name, description, price_tier, price_amount, price_period')
         .order('created_at', { ascending: true });
 
       if (!packages || packages.length === 0) return FALLBACK_PLANS;
@@ -91,25 +91,31 @@ function usePricingPlans() {
 
       const dbPlans: PricingPlan[] = packages.map(pkg => {
         const tierInfo = PRICE_TIER_MAP[pkg.price_tier] || PRICE_TIER_MAP.free;
+        // H1: Use DB columns if available, fallback to tier map
+        const price = (pkg as any).price_amount != null
+          ? ((pkg as any).price_amount === 0 ? 'Free' : `${currencySymbol}${(pkg as any).price_amount}`)
+          : tierInfo.price;
+        const period = (pkg as any).price_period || tierInfo.period;
         return {
           name: pkg.package_name,
-          price: tierInfo.price,
-          period: tierInfo.period,
+          price,
+          period,
           description: pkg.description || '',
           badge: tierInfo.badge,
           features: packageFeatures.get(pkg.id) || [],
         };
       });
 
-      return [...FALLBACK_PLANS, ...dbPlans];
+      // M5: Only show fallback plans when DB has no plans
+      return dbPlans.length > 0 ? dbPlans : FALLBACK_PLANS;
     },
     staleTime: jitteredStaleTime(10 * 60 * 1000),
   });
 }
 
 export default function PricingPage() {
-  const { data: plans, isLoading } = usePricingPlans();
   const settings = useSystemSettings();
+  const { data: plans, isLoading } = usePricingPlans(settings.currencySymbol);
 
   return (
     <AppLayout showHeader={false}>

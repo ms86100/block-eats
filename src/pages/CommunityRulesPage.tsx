@@ -3,6 +3,7 @@ import { AppLayout } from '@/components/layout/AppLayout';
 import { Card, CardContent } from '@/components/ui/card';
 import { ArrowLeft, Shield, Check, X, AlertTriangle } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { useSystemSettings } from '@/hooks/useSystemSettings';
 
 const DEFAULT_RULES = [
   {
@@ -39,7 +40,7 @@ const DEFAULT_RULES = [
   },
 ];
 
-const VIOLATIONS = [
+const DEFAULT_VIOLATIONS = [
   { level: 'Warning', description: 'First-time minor violations', action: 'Written warning' },
   { level: 'Temporary Suspension', description: 'Repeated violations or serious misconduct', action: '7-day account suspension' },
   { level: 'Permanent Ban', description: 'Severe violations or repeated serious misconduct', action: 'Account permanently disabled' },
@@ -47,9 +48,18 @@ const VIOLATIONS = [
 
 export default function CommunityRulesPage() {
   const { society } = useAuth();
-  // Use society-specific rules_text if available, otherwise fall back to defaults
+  const settings = useSystemSettings();
   const customRulesText = (society as any)?.rules_text as string | null;
   const RULES = customRulesText ? null : DEFAULT_RULES;
+
+  // M3: Read violations from system_settings, fallback to defaults
+  let violations = DEFAULT_VIOLATIONS;
+  try {
+    if (settings.violationPolicyJson) {
+      const parsed = JSON.parse(settings.violationPolicyJson);
+      if (Array.isArray(parsed) && parsed.length > 0) violations = parsed;
+    }
+  } catch { /* use defaults */ }
 
   return (
     <AppLayout showHeader={false} showNav={false}>
@@ -69,7 +79,6 @@ export default function CommunityRulesPage() {
           </p>
         </div>
 
-        {/* Custom society rules */}
         {customRulesText && (
           <Card className="mb-4">
             <CardContent className="p-4">
@@ -79,38 +88,31 @@ export default function CommunityRulesPage() {
           </Card>
         )}
 
-        {/* Default Rules */}
         {RULES && RULES.map(({ title, do: doList, dont: dontList }) => (
           <Card key={title} className="mb-4">
             <CardContent className="p-4">
               <h3 className="font-semibold mb-4">{title}</h3>
-              
               <div className="space-y-4">
                 <div>
                   <p className="text-sm font-medium text-success flex items-center gap-2 mb-2">
-                    <Check size={16} />
-                    Do
+                    <Check size={16} /> Do
                   </p>
                   <ul className="space-y-1.5">
                     {doList.map((item, index) => (
                       <li key={index} className="flex items-start gap-2 text-sm text-muted-foreground">
-                        <span className="text-success mt-0.5">✓</span>
-                        {item}
+                        <span className="text-success mt-0.5">✓</span>{item}
                       </li>
                     ))}
                   </ul>
                 </div>
-
                 <div>
                   <p className="text-sm font-medium text-destructive flex items-center gap-2 mb-2">
-                    <X size={16} />
-                    Don't
+                    <X size={16} /> Don't
                   </p>
                   <ul className="space-y-1.5">
                     {dontList.map((item, index) => (
                       <li key={index} className="flex items-start gap-2 text-sm text-muted-foreground">
-                        <span className="text-destructive mt-0.5">✗</span>
-                        {item}
+                        <span className="text-destructive mt-0.5">✗</span>{item}
                       </li>
                     ))}
                   </ul>
@@ -120,16 +122,14 @@ export default function CommunityRulesPage() {
           </Card>
         ))}
 
-        {/* Violations */}
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center gap-2 mb-4">
               <AlertTriangle className="text-warning" size={18} />
               <h3 className="font-semibold">Violation Consequences</h3>
             </div>
-            
             <div className="space-y-3">
-              {VIOLATIONS.map(({ level, description, action }) => (
+              {violations.map(({ level, description, action }) => (
                 <div key={level} className="p-3 bg-muted rounded-lg">
                   <p className="font-medium text-sm">{level}</p>
                   <p className="text-xs text-muted-foreground">{description}</p>
@@ -141,7 +141,7 @@ export default function CommunityRulesPage() {
         </Card>
 
         <p className="text-center text-xs text-muted-foreground mt-6">
-          By using Sociva, you agree to follow these guidelines.
+          By using {settings.platformName}, you agree to follow these guidelines.
           Report violations through the app or contact the admin.
         </p>
       </div>

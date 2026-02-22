@@ -1661,6 +1661,8 @@ export type Database = {
           description: string | null
           id: string
           package_name: string
+          price_amount: number | null
+          price_period: string | null
           price_tier: string
           updated_at: string
         }
@@ -1669,6 +1671,8 @@ export type Database = {
           description?: string | null
           id?: string
           package_name: string
+          price_amount?: number | null
+          price_period?: string | null
           price_tier?: string
           updated_at?: string
         }
@@ -1677,6 +1681,8 @@ export type Database = {
           description?: string | null
           id?: string
           package_name?: string
+          price_amount?: number | null
+          price_period?: string | null
           price_tier?: string
           updated_at?: string
         }

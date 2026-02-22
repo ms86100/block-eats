@@ -37,7 +37,7 @@ export default function ProfilePage() {
   const { isFeatureEnabled } = useEffectiveFeatures();
   const settings = useSystemSettings();
   const [largeFont, setLargeFont] = useState(() => {
-    return localStorage.getItem('sociva_large_font') === 'true';
+    return localStorage.getItem('app_large_font') === 'true';
   });
   const [isEditingAvatar, setIsEditingAvatar] = useState(false);
   const [skillBadges, setSkillBadges] = useState<{ skill_name: string; trust_score: number; endorsement_count: number }[]>([]);
@@ -68,7 +68,7 @@ export default function ProfilePage() {
   useEffect(() => {
     if (largeFont) document.documentElement.classList.add('large-font');
     else document.documentElement.classList.remove('large-font');
-    localStorage.setItem('sociva_large_font', String(largeFont));
+    localStorage.setItem('app_large_font', String(largeFont));
   }, [largeFont]);
 
   const handleSignOut = async () => {
@@ -275,7 +275,7 @@ export default function ProfilePage() {
           <DeleteAccountDialog />
         </div>
 
-        <p className="text-center text-[11px] text-muted-foreground mt-4">Sociva v{settings.appVersion}</p>
+        <p className="text-center text-[11px] text-muted-foreground mt-4">{settings.platformName} v{settings.appVersion}</p>
       </div>
     </AppLayout>
   );

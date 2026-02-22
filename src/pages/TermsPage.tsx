@@ -1,10 +1,12 @@
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useSystemSettings } from '@/hooks/useSystemSettings';
+import ReactMarkdown from 'react-markdown';
 
 export default function TermsPage() {
   const settings = useSystemSettings();
   const hasDbContent = !!settings.termsContentMd;
+  const platformName = settings.platformName;
 
   return (
     <AppLayout headerTitle="Terms & Conditions" showLocation={false}>
@@ -16,15 +18,15 @@ export default function TermsPage() {
           </CardHeader>
           <CardContent className="space-y-4 text-sm">
             {hasDbContent ? (
-              <div className="prose prose-sm max-w-none text-muted-foreground whitespace-pre-line">
-                {settings.termsContentMd}
+              <div className="prose prose-sm max-w-none text-muted-foreground">
+                <ReactMarkdown>{settings.termsContentMd}</ReactMarkdown>
               </div>
             ) : (
               <>
                 <section>
                   <h3 className="font-semibold mb-2">1. Acceptance of Terms</h3>
                   <p className="text-muted-foreground">
-                    By downloading, installing, or using Sociva ("the Platform"), you agree to be bound by these Terms and Conditions. If you do not agree, please do not use the Platform.
+                    By downloading, installing, or using {platformName} ("the Platform"), you agree to be bound by these Terms and Conditions. If you do not agree, please do not use the Platform.
                   </p>
                 </section>
 
@@ -51,7 +53,7 @@ export default function TermsPage() {
                 <section>
                   <h3 className="font-semibold mb-2">4. Platform Description</h3>
                   <p className="text-muted-foreground">
-                    Sociva is a multi-society community marketplace platform that connects home-based sellers with buyers within verified residential communities. We facilitate transactions but are not a party to the sale of products or services. Sellers are independent individuals responsible for their offerings. The Platform operates as an intermediary under Section 79 of the Information Technology Act, 2000.
+                    {platformName} is a multi-society community marketplace platform that connects home-based sellers with buyers within verified residential communities. We facilitate transactions but are not a party to the sale of products or services. Sellers are independent individuals responsible for their offerings. The Platform operates as an intermediary under Section 79 of the Information Technology Act, 2000.
                   </p>
                 </section>
 
@@ -74,21 +76,21 @@ export default function TermsPage() {
                     <li>Honor accepted orders and deliver on time</li>
                     <li>Handle customer complaints professionally</li>
                     <li>Comply with all applicable regulations</li>
-                    <li>Sellers in regulated categories must hold valid licenses as configured by the platform (e.g., FSSAI for food, Clinical Establishment License for medical services)</li>
+                    <li>Sellers in regulated categories must hold valid licenses as configured by the platform</li>
                   </ul>
                 </section>
 
                 <section>
                   <h3 className="font-semibold mb-2">7. Regulatory Compliance</h3>
                   <p className="text-muted-foreground">
-                    Sellers in regulated categories must provide valid license or registration documents as required by applicable laws (e.g., FSSAI for food, Clinical Establishment License for medical services). Sociva displays this information for consumer transparency but does not independently verify compliance. Sellers are solely responsible for maintaining valid certifications.
+                    Sellers in regulated categories must provide valid license or registration documents as required by applicable laws. {platformName} displays this information for consumer transparency but does not independently verify compliance. Sellers are solely responsible for maintaining valid certifications.
                   </p>
                 </section>
 
                 <section>
                   <h3 className="font-semibold mb-2">8. Payments & Coupons</h3>
                   <p className="text-muted-foreground">
-                    The Platform supports Cash on Delivery (COD) and UPI payments. All transactions are between buyers and sellers directly. Sociva does not process or store sensitive payment credentials. Sellers may create promotional coupons with specific terms; buyers may apply valid coupons at checkout. Disputes regarding payments should be resolved between the parties involved.
+                    The Platform supports Cash on Delivery (COD) and UPI payments. All transactions are between buyers and sellers directly. {platformName} does not process or store sensitive payment credentials. Sellers may create promotional coupons with specific terms; buyers may apply valid coupons at checkout. Disputes regarding payments should be resolved between the parties involved.
                   </p>
                 </section>
 
@@ -98,14 +100,14 @@ export default function TermsPage() {
                     Orders may be cancelled before the seller starts preparing. Once preparation begins, cancellation may not be possible. Sellers have the right to cancel orders if unable to fulfill them. Time-sensitive orders may be auto-cancelled if not accepted within the specified timeframe.
                   </p>
                   <p className="text-muted-foreground mt-2">
-                    <strong>Refund Policy:</strong> All products sold on Sociva are physical goods or in-person services fulfilled directly by independent sellers within your residential community. Sociva does not sell digital goods or digital content.
+                    <strong>Refund Policy:</strong> All products sold on {platformName} are physical goods or in-person services fulfilled directly by independent sellers within your residential community. {platformName} does not sell digital goods or digital content.
                   </p>
                   <ul className="list-disc list-inside text-muted-foreground space-y-1 mt-2">
                     <li>If an order is cancelled before preparation, no charge will apply</li>
                     <li>If a seller cancels after acceptance, any payment collected will be refunded to the buyer</li>
                     <li>Refunds for COD orders require no action; UPI refunds are processed within 5–7 business days</li>
                     <li>Disputes regarding product quality or non-delivery can be raised through the app's Help & Support section or the in-app dispute resolution feature</li>
-                    <li>Sociva acts solely as an intermediary and does not guarantee refunds on behalf of sellers</li>
+                    <li>{platformName} acts solely as an intermediary and does not guarantee refunds on behalf of sellers</li>
                   </ul>
                 </section>
 
@@ -119,7 +121,7 @@ export default function TermsPage() {
                 <section>
                   <h3 className="font-semibold mb-2">11. Society Isolation</h3>
                   <p className="text-muted-foreground">
-                    Content on Sociva is strictly scoped to your registered society. You will only see listings, sellers, promotions, and residents from your own society. Cross-society visibility is not permitted.
+                    Content on {platformName} is strictly scoped to your registered society. You will only see listings, sellers, promotions, and residents from your own society. Cross-society visibility is not permitted.
                   </p>
                 </section>
 
@@ -138,7 +140,7 @@ export default function TermsPage() {
                 <section>
                   <h3 className="font-semibold mb-2">13. Limitation of Liability</h3>
                   <p className="text-muted-foreground">
-                    Sociva is a platform connecting community members. We are not liable for the quality, safety, or legality of items sold, the accuracy of listings, the ability of sellers to deliver, or any disputes between users. Use of the Platform is at your own risk.
+                    {platformName} is a platform connecting community members. We are not liable for the quality, safety, or legality of items sold, the accuracy of listings, the ability of sellers to deliver, or any disputes between users. Use of the Platform is at your own risk.
                   </p>
                 </section>
 
