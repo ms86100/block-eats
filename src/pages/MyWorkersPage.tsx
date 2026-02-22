@@ -21,7 +21,7 @@ export default function MyWorkersPage() {
           *,
           worker:society_workers!worker_flat_assignments_worker_id_fkey(
             id, worker_type, emergency_contact_phone, photo_url, rating, total_ratings, total_jobs,
-            status, allowed_shift_start, allowed_shift_end, active_days
+            status, allowed_shift_start, allowed_shift_end, active_days, skills
           )
         `) as any)
         .eq('society_id', effectiveSocietyId)
@@ -32,14 +32,26 @@ export default function MyWorkersPage() {
     enabled: !!effectiveSocietyId && !!profile?.flat_number,
   });
 
+  const workerCount = assignments.length;
+
   return (
     <AppLayout headerTitle="My Workers" showLocation={false}>
       <FeatureGate feature="workforce_management">
       <div className="p-4 space-y-4">
-        <div className="flex items-center gap-2 mb-2">
-          <Users size={18} className="text-primary" />
-          <h2 className="font-semibold text-sm">Workers assigned to your flat</h2>
-        </div>
+        {/* Summary Card */}
+        <Card className="bg-primary/5 border-primary/20">
+          <CardContent className="p-4 flex items-center gap-3">
+            <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
+              <Users size={20} className="text-primary" />
+            </div>
+            <div>
+              <p className="text-2xl font-bold">{isLoading ? '—' : workerCount}</p>
+              <p className="text-xs text-muted-foreground">
+                {workerCount === 1 ? 'worker' : 'workers'} assigned to your flat
+              </p>
+            </div>
+          </CardContent>
+        </Card>
 
         {isLoading ? (
           Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-24 w-full rounded-xl" />)
@@ -54,6 +66,7 @@ export default function MyWorkersPage() {
             {assignments.map((assignment: any) => {
               const worker = assignment.worker;
               if (!worker) return null;
+              const workerName = worker.skills?.name || worker.worker_type;
               return (
                 <Card key={assignment.id}>
                   <CardContent className="p-4 flex items-start gap-3">
@@ -66,7 +79,7 @@ export default function MyWorkersPage() {
                     )}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
-                        <p className="font-semibold capitalize">{worker.worker_type}</p>
+                        <p className="font-semibold capitalize">{workerName}</p>
                         <Badge
                           variant={worker.status === 'active' ? 'default' : 'destructive'}
                           className="text-[10px]"
@@ -74,6 +87,7 @@ export default function MyWorkersPage() {
                           {worker.status}
                         </Badge>
                       </div>
+                      <p className="text-xs text-muted-foreground capitalize">{worker.worker_type}</p>
                       {worker.emergency_contact_phone && (
                         <div className="flex items-center gap-1 mt-1">
                           <Phone size={12} className="text-muted-foreground" />

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { AppLayout } from '@/components/layout/AppLayout';
@@ -9,11 +9,13 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Checkbox } from '@/components/ui/checkbox';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
 import { jobRequestSchema, validateForm } from '@/lib/validation-schemas';
 import { friendlyError } from '@/lib/utils';
 import { FeatureGate } from '@/components/ui/FeatureGate';
+import { Building, Globe, MapPin, Loader2 } from 'lucide-react';
 
 const JOB_TYPES = [
   { value: 'maid', label: '🧹 Maid / Cleaning' },
@@ -38,6 +40,33 @@ export default function CreateJobRequestPage() {
   const [startTime, setStartTime] = useState('');
   const [locationDetails, setLocationDetails] = useState('');
   const [urgency, setUrgency] = useState('normal');
+  const [visibilityScope, setVisibilityScope] = useState<'society' | 'nearby'>('society');
+  const [targetSocietyIds, setTargetSocietyIds] = useState<string[]>([]);
+
+  // Fetch nearby societies when "nearby" is selected
+  const { data: nearbySocieties = [], isLoading: loadingNearby } = useQuery({
+    queryKey: ['nearby-societies', effectiveSocietyId],
+    queryFn: async () => {
+      if (!effectiveSocietyId) return [];
+      const { data, error } = await supabase.rpc('get_nearby_societies', {
+        _society_id: effectiveSocietyId,
+        _radius_km: 5,
+      });
+      if (error) {
+        console.error('Error fetching nearby societies:', error);
+        return [];
+      }
+      return (data || []) as { id: string; name: string; distance_km: number }[];
+    },
+    enabled: !!effectiveSocietyId && visibilityScope === 'nearby',
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const toggleSociety = (id: string) => {
+    setTargetSocietyIds(prev =>
+      prev.includes(id) ? prev.filter(s => s !== id) : [...prev, id]
+    );
+  };
 
   const createJob = useMutation({
     mutationFn: async () => {
@@ -49,6 +78,8 @@ export default function CreateJobRequestPage() {
         price: price ? parseFloat(price) : null,
         duration_hours: parseInt(durationHours) || 1,
         urgency,
+        visibility_scope: visibilityScope,
+        target_society_ids: visibilityScope === 'nearby' ? targetSocietyIds : [],
       });
 
       if (!validation.success) {
@@ -66,6 +97,8 @@ export default function CreateJobRequestPage() {
         start_time: startTime ? new Date(startTime).toISOString() : null,
         location_details: locationDetails || null,
         urgency: validation.data.urgency,
+        visibility_scope: validation.data.visibility_scope,
+        target_society_ids: validation.data.target_society_ids,
       });
       if (error) throw error;
     },
@@ -159,11 +192,82 @@ export default function CreateJobRequestPage() {
               </Select>
             </div>
 
+            {/* Visibility Scope Selection */}
+            <div>
+              <Label className="mb-2 block">Job Visibility</Label>
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => { setVisibilityScope('society'); setTargetSocietyIds([]); }}
+                  className={`flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-colors ${
+                    visibilityScope === 'society'
+                      ? 'border-primary bg-primary/5'
+                      : 'border-border bg-card'
+                  }`}
+                >
+                  <Building size={24} className={visibilityScope === 'society' ? 'text-primary' : 'text-muted-foreground'} />
+                  <span className="text-xs font-medium text-center">Within My Society</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setVisibilityScope('nearby')}
+                  className={`flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-colors ${
+                    visibilityScope === 'nearby'
+                      ? 'border-primary bg-primary/5'
+                      : 'border-border bg-card'
+                  }`}
+                >
+                  <Globe size={24} className={visibilityScope === 'nearby' ? 'text-primary' : 'text-muted-foreground'} />
+                  <span className="text-xs font-medium text-center">Expand to Nearby</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Nearby Society Multi-Select */}
+            {visibilityScope === 'nearby' && (
+              <div className="border rounded-xl p-3 bg-muted/30">
+                <Label className="mb-2 block text-sm">Select nearby societies to broadcast to:</Label>
+                {loadingNearby ? (
+                  <div className="flex items-center justify-center py-4">
+                    <Loader2 size={20} className="animate-spin text-muted-foreground" />
+                    <span className="text-sm text-muted-foreground ml-2">Finding nearby societies...</span>
+                  </div>
+                ) : nearbySocieties.length === 0 ? (
+                  <p className="text-sm text-muted-foreground py-3 text-center">
+                    No nearby societies within range
+                  </p>
+                ) : (
+                  <div className="space-y-2">
+                    {nearbySocieties.map((society: any) => (
+                      <label
+                        key={society.id}
+                        className="flex items-center gap-3 p-2.5 rounded-lg border bg-card cursor-pointer hover:bg-accent/50 transition-colors"
+                      >
+                        <Checkbox
+                          checked={targetSocietyIds.includes(society.id)}
+                          onCheckedChange={() => toggleSociety(society.id)}
+                        />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium truncate">{society.name}</p>
+                          <p className="text-[10px] text-muted-foreground flex items-center gap-1">
+                            <MapPin size={10} /> {society.distance_km} km away
+                          </p>
+                        </div>
+                      </label>
+                    ))}
+                    {targetSocietyIds.length === 0 && (
+                      <p className="text-xs text-destructive mt-1">Select at least one society</p>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
             <Button
               className="w-full"
               size="lg"
               onClick={() => createJob.mutate()}
-              disabled={createJob.isPending || !jobType}
+              disabled={createJob.isPending || !jobType || (visibilityScope === 'nearby' && targetSocietyIds.length === 0)}
             >
               {createJob.isPending ? 'Posting...' : 'Post Job Request'}
             </Button>

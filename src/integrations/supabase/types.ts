@@ -2184,6 +2184,38 @@ export type Database = {
           },
         ]
       }
+      job_tts_cache: {
+        Row: {
+          created_at: string | null
+          id: string
+          job_id: string
+          language_code: string
+          summary_text: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          job_id: string
+          language_code: string
+          summary_text: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          job_id?: string
+          language_code?: string
+          summary_text?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "job_tts_cache_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "worker_job_requests"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       maintenance_dues: {
         Row: {
           amount: number
@@ -4991,6 +5023,7 @@ export type Database = {
           is_verified: boolean | null
           languages: string[] | null
           photo_url: string | null
+          preferred_language: string | null
           rating: number | null
           registered_by: string | null
           skills: Json | null
@@ -5017,6 +5050,7 @@ export type Database = {
           is_verified?: boolean | null
           languages?: string[] | null
           photo_url?: string | null
+          preferred_language?: string | null
           rating?: number | null
           registered_by?: string | null
           skills?: Json | null
@@ -5043,6 +5077,7 @@ export type Database = {
           is_verified?: boolean | null
           languages?: string[] | null
           photo_url?: string | null
+          preferred_language?: string | null
           rating?: number | null
           registered_by?: string | null
           skills?: Json | null
@@ -5231,6 +5266,36 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      supported_languages: {
+        Row: {
+          code: string
+          created_at: string | null
+          display_order: number | null
+          id: string
+          is_active: boolean | null
+          name: string
+          native_name: string
+        }
+        Insert: {
+          code: string
+          created_at?: string | null
+          display_order?: number | null
+          id?: string
+          is_active?: boolean | null
+          name: string
+          native_name: string
+        }
+        Update: {
+          code?: string
+          created_at?: string | null
+          display_order?: number | null
+          id?: string
+          is_active?: boolean | null
+          name?: string
+          native_name?: string
+        }
+        Relationships: []
       }
       system_settings: {
         Row: {
@@ -5777,8 +5842,10 @@ export type Database = {
           society_id: string
           start_time: string | null
           status: string
+          target_society_ids: string[] | null
           updated_at: string
           urgency: string | null
+          visibility_scope: string
           voice_summary_url: string | null
           worker_rating: number | null
           worker_review: string | null
@@ -5804,8 +5871,10 @@ export type Database = {
           society_id: string
           start_time?: string | null
           status?: string
+          target_society_ids?: string[] | null
           updated_at?: string
           urgency?: string | null
+          visibility_scope?: string
           voice_summary_url?: string | null
           worker_rating?: number | null
           worker_review?: string | null
@@ -5831,8 +5900,10 @@ export type Database = {
           society_id?: string
           start_time?: string | null
           status?: string
+          target_society_ids?: string[] | null
           updated_at?: string
           urgency?: string | null
+          visibility_scope?: string
           voice_summary_url?: string | null
           worker_rating?: number | null
           worker_review?: string | null
@@ -6110,6 +6181,14 @@ export type Database = {
           is_enabled: boolean
           society_configurable: boolean
           source: string
+        }[]
+      }
+      get_nearby_societies: {
+        Args: { _radius_km?: number; _society_id: string }
+        Returns: {
+          distance_km: number
+          id: string
+          name: string
         }[]
       }
       get_product_trust_metrics: {

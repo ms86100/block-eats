@@ -11,6 +11,7 @@ import { toast } from 'sonner';
 import { logAudit } from '@/lib/audit';
 import { friendlyError } from '@/lib/utils';
 import { workerRegistrationSchema, validateForm } from '@/lib/validation-schemas';
+import { useQuery } from '@tanstack/react-query';
 
 const DEFAULT_TYPES = ['maid', 'cook', 'driver', 'nanny', 'gardener', 'electrician', 'plumber', 'caretaker', 'other'];
 const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
@@ -34,17 +35,35 @@ export function WorkerRegistrationSheet({ open, onOpenChange, onSuccess, categor
   const [entryFrequency, setEntryFrequency] = useState('daily');
   const [emergencyPhone, setEmergencyPhone] = useState('');
   const [flatNumbers, setFlatNumbers] = useState('');
+  const [preferredLanguage, setPreferredLanguage] = useState('hi');
   const [photoBlob, setPhotoBlob] = useState<Blob | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+
+  // Fetch supported languages from DB
+  const { data: languages = [] } = useQuery({
+    queryKey: ['supported-languages'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('supported_languages')
+        .select('code, name, native_name')
+        .eq('is_active', true)
+        .order('display_order');
+      if (error) {
+        console.error('Error fetching languages:', error);
+        return [];
+      }
+      return data || [];
+    },
+    staleTime: 10 * 60 * 1000,
+  });
 
   const toggleDay = (day: string) => {
     setActiveDays(prev => prev.includes(day) ? prev.filter(d => d !== day) : [...prev, day]);
   };
 
   const handlePhotoCapture = (blob: Blob) => {
-    // Revoke previous preview URL to prevent memory leak
     if (photoPreview) URL.revokeObjectURL(photoPreview);
     setPhotoBlob(blob);
     setPhotoPreview(URL.createObjectURL(blob));
@@ -56,14 +75,12 @@ export function WorkerRegistrationSheet({ open, onOpenChange, onSuccess, categor
     setPhotoPreview(null);
   };
 
-  // Reset form when sheet closes
   useEffect(() => {
     if (!open) {
       resetForm();
     }
   }, [open]);
 
-  // Cleanup preview URL on unmount
   useEffect(() => {
     return () => {
       if (photoPreview) URL.revokeObjectURL(photoPreview);
@@ -76,7 +93,6 @@ export function WorkerRegistrationSheet({ open, onOpenChange, onSuccess, categor
       return;
     }
 
-    // Validate with zod
     const validation = validateForm(workerRegistrationSchema, {
       name,
       phone,
@@ -86,6 +102,7 @@ export function WorkerRegistrationSheet({ open, onOpenChange, onSuccess, categor
       entryFrequency,
       emergencyPhone,
       flatNumbers,
+      preferredLanguage,
     });
 
     if (!validation.success) {
@@ -110,7 +127,6 @@ export function WorkerRegistrationSheet({ open, onOpenChange, onSuccess, categor
     setIsSubmitting(true);
 
     try {
-      // Upload photo to storage
       const sanitizedName = name.trim().replace(/[^a-zA-Z0-9_-]/g, '_');
       const fileName = `workers/${effectiveSocietyId}/${Date.now()}_${sanitizedName}.jpg`;
       const { error: uploadError } = await supabase.storage
@@ -121,7 +137,6 @@ export function WorkerRegistrationSheet({ open, onOpenChange, onSuccess, categor
 
       const { data: { publicUrl } } = supabase.storage.from('app-images').getPublicUrl(fileName);
 
-      // Create worker record
       const { data: worker, error } = await supabase.from('society_workers').insert({
         user_id: user.id,
         society_id: effectiveSocietyId,
@@ -136,11 +151,11 @@ export function WorkerRegistrationSheet({ open, onOpenChange, onSuccess, categor
         registered_by: user.id,
         skills: { name: name.trim(), phone: phone || null },
         languages: [],
+        preferred_language: preferredLanguage,
       }).select('id').single();
 
       if (error) throw error;
 
-      // Create flat assignments
       if (flatNumbers.trim() && worker) {
         const flats = flatNumbers.split(',').map(f => f.trim()).filter(Boolean);
         if (flats.length > 0) {
@@ -179,6 +194,7 @@ export function WorkerRegistrationSheet({ open, onOpenChange, onSuccess, categor
     setCategoryId(null); setShiftStart('06:00'); setShiftEnd('18:00');
     setActiveDays([...DAYS]); setEntryFrequency('daily');
     setEmergencyPhone(''); setFlatNumbers('');
+    setPreferredLanguage('hi');
     setPhotoBlob(null); setPhotoPreview(null);
     setFieldErrors({});
   };
@@ -225,6 +241,31 @@ export function WorkerRegistrationSheet({ open, onOpenChange, onSuccess, categor
               />
               {fieldErrors.phone && <p className="text-xs text-destructive mt-1">{fieldErrors.phone}</p>}
             </div>
+          </div>
+
+          {/* Preferred Language */}
+          <div>
+            <Label>Preferred Language *</Label>
+            <Select value={preferredLanguage} onValueChange={setPreferredLanguage}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select language" />
+              </SelectTrigger>
+              <SelectContent>
+                {languages.length > 0 ? (
+                  languages.map((lang: any) => (
+                    <SelectItem key={lang.code} value={lang.code}>
+                      {lang.native_name} ({lang.name})
+                    </SelectItem>
+                  ))
+                ) : (
+                  <>
+                    <SelectItem value="hi">हिन्दी (Hindi)</SelectItem>
+                    <SelectItem value="en">English</SelectItem>
+                  </>
+                )}
+              </SelectContent>
+            </Select>
+            <p className="text-[10px] text-muted-foreground mt-1">Job summaries will be read in this language</p>
           </div>
 
           {/* Category / Type */}

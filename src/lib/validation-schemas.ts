@@ -52,6 +52,7 @@ export const workerRegistrationSchema = z.object({
   entryFrequency: z.enum(['daily', 'occasional', 'per_visit']),
   emergencyPhone: z.string().regex(/^(\+?\d{10,13})?$/, 'Invalid phone number').optional().or(z.literal('')),
   flatNumbers: z.string().max(500, 'Too many flats').optional().or(z.literal('')),
+  preferredLanguage: z.string().min(2).max(10).default('hi'),
 }).refine(data => data.shiftStart < data.shiftEnd, {
   message: 'Shift end must be after shift start',
   path: ['shiftEnd'],
@@ -64,6 +65,16 @@ export const jobRequestSchema = z.object({
   price: z.number().positive('Budget must be positive').optional().nullable(),
   duration_hours: z.number().int().min(1, 'Minimum 1 hour').max(24, 'Maximum 24 hours'),
   urgency: z.enum(['flexible', 'normal', 'urgent']),
+  visibility_scope: z.enum(['society', 'nearby']).default('society'),
+  target_society_ids: z.array(z.string().uuid()).default([]),
+}).refine(data => {
+  if (data.visibility_scope === 'nearby' && data.target_society_ids.length === 0) {
+    return false;
+  }
+  return true;
+}, {
+  message: 'Select at least one nearby society',
+  path: ['target_society_ids'],
 });
 
 /**

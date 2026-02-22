@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Briefcase, Clock, MapPin, IndianRupee, Zap, Check, AlertCircle } from 'lucide-react';
+import { Briefcase, Clock, MapPin, IndianRupee, Zap, Check, AlertCircle, Volume2, VolumeX, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { friendlyError } from '@/lib/utils';
@@ -25,20 +25,29 @@ const JOB_TYPE_LABELS: Record<string, string> = {
   general: '🛠️ General Help',
 };
 
+// Language code to BCP-47 voice tag mapping
+const LANG_VOICE_MAP: Record<string, string> = {
+  hi: 'hi-IN', en: 'en-IN', ta: 'ta-IN', te: 'te-IN',
+  bn: 'bn-IN', mr: 'mr-IN', kn: 'kn-IN', gu: 'gu-IN',
+  ml: 'ml-IN', pa: 'pa-IN',
+};
+
 export default function WorkerJobsPage() {
   const { profile, effectiveSocietyId } = useAuth();
   const { isWorker, workerProfile } = useWorkerRole();
   const queryClient = useQueryClient();
   const [acceptingId, setAcceptingId] = useState<string | null>(null);
+  const [speakingJobId, setSpeakingJobId] = useState<string | null>(null);
+  const [loadingTtsId, setLoadingTtsId] = useState<string | null>(null);
 
+  // Fetch open jobs — RLS handles cross-society visibility
   const { data: openJobs = [], isLoading } = useQuery({
     queryKey: ['worker-open-jobs', effectiveSocietyId],
     queryFn: async () => {
       if (!effectiveSocietyId) return [];
       const { data, error } = await supabase
         .from('worker_job_requests')
-        .select('*, resident:profiles!worker_job_requests_resident_id_fkey(name, flat_number, block)')
-        .eq('society_id', effectiveSocietyId)
+        .select('*, resident:profiles!worker_job_requests_resident_id_fkey(name, flat_number, block), society:societies!worker_job_requests_society_id_fkey(name)')
         .eq('status', 'open')
         .order('created_at', { ascending: false })
         .limit(50);
@@ -48,7 +57,7 @@ export default function WorkerJobsPage() {
     enabled: !!effectiveSocietyId && isWorker,
   });
 
-  // Realtime subscription for new jobs
+  // Realtime subscription — no society filter, RLS handles it
   useQuery({
     queryKey: ['worker-jobs-realtime', effectiveSocietyId],
     queryFn: () => {
@@ -59,7 +68,6 @@ export default function WorkerJobsPage() {
           event: '*',
           schema: 'public',
           table: 'worker_job_requests',
-          filter: `society_id=eq.${effectiveSocietyId}`,
         }, () => {
           queryClient.invalidateQueries({ queryKey: ['worker-open-jobs'] });
           queryClient.invalidateQueries({ queryKey: ['worker-my-jobs'] });
@@ -94,6 +102,67 @@ export default function WorkerJobsPage() {
       setAcceptingId(null);
     },
   });
+
+  const handleListen = useCallback(async (job: any) => {
+    // If already speaking this job, stop it
+    if (speakingJobId === job.id) {
+      window.speechSynthesis.cancel();
+      setSpeakingJobId(null);
+      return;
+    }
+
+    // Stop any other speech
+    window.speechSynthesis.cancel();
+    setSpeakingJobId(null);
+    setLoadingTtsId(job.id);
+
+    try {
+      const langCode = (workerProfile as any)?.preferred_language || 'hi';
+      const societyName = (job.society as any)?.name || '';
+
+      const { data, error } = await supabase.functions.invoke('generate-job-voice-summary', {
+        body: {
+          job: {
+            id: job.id,
+            job_type: job.job_type,
+            location_details: job.location_details,
+            duration_hours: job.duration_hours,
+            price: job.price,
+            start_time: job.start_time,
+            urgency: job.urgency,
+          },
+          language: langCode,
+          society_name: societyName,
+        },
+      });
+
+      if (error) throw error;
+      const summary = data?.summary;
+      if (!summary) throw new Error('No summary generated');
+
+      // Use browser SpeechSynthesis
+      const utterance = new SpeechSynthesisUtterance(summary);
+      const voiceTag = LANG_VOICE_MAP[langCode] || 'hi-IN';
+      utterance.lang = voiceTag;
+      utterance.rate = 0.9;
+
+      // Try to find a matching voice
+      const voices = window.speechSynthesis.getVoices();
+      const matchedVoice = voices.find(v => v.lang.startsWith(voiceTag.split('-')[0]));
+      if (matchedVoice) utterance.voice = matchedVoice;
+
+      utterance.onend = () => setSpeakingJobId(null);
+      utterance.onerror = () => setSpeakingJobId(null);
+
+      setSpeakingJobId(job.id);
+      setLoadingTtsId(null);
+      window.speechSynthesis.speak(utterance);
+    } catch (err) {
+      console.error('TTS error:', err);
+      toast.error('Could not generate voice summary');
+      setLoadingTtsId(null);
+    }
+  }, [speakingJobId, workerProfile]);
 
   if (!isWorker) {
     return (
@@ -131,64 +200,93 @@ export default function WorkerJobsPage() {
             <p className="text-xs mt-1">New jobs will appear here in real-time</p>
           </div>
         ) : (
-          openJobs.map((job: any) => (
-            <Card key={job.id} className="border-border">
-              <CardHeader className="pb-2">
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-base">
-                    {JOB_TYPE_LABELS[job.job_type] || job.job_type}
-                  </CardTitle>
-                  {job.urgency === 'urgent' && (
-                    <Badge variant="destructive" className="text-xs">
-                      <Zap size={12} className="mr-1" /> Urgent
-                    </Badge>
+          openJobs.map((job: any) => {
+            const isOwnSociety = job.society_id === effectiveSocietyId;
+            const societyName = (job.society as any)?.name || 'Unknown';
+            return (
+              <Card key={job.id} className="border-border">
+                <CardHeader className="pb-2">
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-base">
+                      {JOB_TYPE_LABELS[job.job_type] || job.job_type}
+                    </CardTitle>
+                    <div className="flex items-center gap-1.5">
+                      {job.urgency === 'urgent' && (
+                        <Badge variant="destructive" className="text-xs">
+                          <Zap size={12} className="mr-1" /> Urgent
+                        </Badge>
+                      )}
+                      <Badge
+                        variant={isOwnSociety ? 'default' : 'secondary'}
+                        className={`text-[10px] ${isOwnSociety ? 'bg-green-600 hover:bg-green-700' : 'bg-blue-600 hover:bg-blue-700 text-white'}`}
+                      >
+                        {isOwnSociety ? 'Your Society' : societyName}
+                      </Badge>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                  {job.description && (
+                    <p className="text-sm text-muted-foreground">{job.description}</p>
                   )}
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                {job.description && (
-                  <p className="text-sm text-muted-foreground">{job.description}</p>
-                )}
-                <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
-                  {job.price && (
-                    <span className="flex items-center gap-1">
-                      <IndianRupee size={12} /> ₹{job.price}
-                    </span>
-                  )}
-                  {job.duration_hours && (
-                    <span className="flex items-center gap-1">
-                      <Clock size={12} /> {job.duration_hours}h
-                    </span>
-                  )}
-                  {job.start_time && (
-                    <span className="flex items-center gap-1">
-                      <Clock size={12} /> {format(new Date(job.start_time), 'dd MMM, h:mm a')}
-                    </span>
-                  )}
-                  {job.location_details && (
-                    <span className="flex items-center gap-1">
-                      <MapPin size={12} /> {job.location_details}
-                    </span>
-                  )}
-                </div>
-                <div className="text-xs text-muted-foreground">
-                  📍 {(job.resident as any)?.block}-{(job.resident as any)?.flat_number}
-                </div>
-                <Button
-                  className="w-full mt-2"
-                  size="sm"
-                  disabled={acceptingId === job.id || acceptJob.isPending}
-                  onClick={() => {
-                    setAcceptingId(job.id);
-                    acceptJob.mutate(job.id);
-                  }}
-                >
-                  <Check size={16} className="mr-1" />
-                  {acceptingId === job.id ? 'Accepting...' : 'Accept Job'}
-                </Button>
-              </CardContent>
-            </Card>
-          ))
+                  <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
+                    {job.price && (
+                      <span className="flex items-center gap-1">
+                        <IndianRupee size={12} /> ₹{job.price}
+                      </span>
+                    )}
+                    {job.duration_hours && (
+                      <span className="flex items-center gap-1">
+                        <Clock size={12} /> {job.duration_hours}h
+                      </span>
+                    )}
+                    {job.start_time && (
+                      <span className="flex items-center gap-1">
+                        <Clock size={12} /> {format(new Date(job.start_time), 'dd MMM, h:mm a')}
+                      </span>
+                    )}
+                    {job.location_details && (
+                      <span className="flex items-center gap-1">
+                        <MapPin size={12} /> {job.location_details}
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    📍 {(job.resident as any)?.block}-{(job.resident as any)?.flat_number}
+                  </div>
+                  <div className="flex gap-2 mt-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="flex-shrink-0"
+                      disabled={loadingTtsId === job.id}
+                      onClick={() => handleListen(job)}
+                    >
+                      {loadingTtsId === job.id ? (
+                        <Loader2 size={16} className="animate-spin" />
+                      ) : speakingJobId === job.id ? (
+                        <><VolumeX size={16} className="mr-1" /> Stop</>
+                      ) : (
+                        <><Volume2 size={16} className="mr-1" /> Listen</>
+                      )}
+                    </Button>
+                    <Button
+                      className="flex-1"
+                      size="sm"
+                      disabled={acceptingId === job.id || acceptJob.isPending}
+                      onClick={() => {
+                        setAcceptingId(job.id);
+                        acceptJob.mutate(job.id);
+                      }}
+                    >
+                      <Check size={16} className="mr-1" />
+                      {acceptingId === job.id ? 'Accepting...' : 'Accept Job'}
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })
         )}
       </div>
       </FeatureGate>
