@@ -4,12 +4,14 @@ import { AppLayout } from '@/components/layout/AppLayout';
 import { Shield } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { QrCode, KeyRound, Truck, Users, ClipboardList } from 'lucide-react';
+import { QrCode, KeyRound, Truck, Users, ClipboardList, UserX, ScrollText } from 'lucide-react';
 import { GuardResidentQRTab } from '@/components/guard/GuardResidentQRTab';
 import { GuardVisitorOTPTab } from '@/components/guard/GuardVisitorOTPTab';
 import { GuardDeliveryTab } from '@/components/guard/GuardDeliveryTab';
 import { WorkerGateValidation } from '@/components/workforce/WorkerGateValidation';
 import { ExpectedVisitorsList } from '@/components/guard/ExpectedVisitorsList';
+import { GuardManualEntryTab } from '@/components/guard/GuardManualEntryTab';
+import { GuardGateLogTab } from '@/components/guard/GuardGateLogTab';
 
 export default function GuardKioskPage() {
   const { effectiveSocietyId, isSocietyAdmin, isAdmin } = useAuth();
@@ -45,26 +47,34 @@ export default function GuardKioskPage() {
     <AppLayout headerTitle="Guard Console" showLocation={false}>
       <div className="p-4 space-y-4">
         <Tabs defaultValue="resident">
-          <TabsList className="w-full grid grid-cols-5">
-            <TabsTrigger value="resident" className="text-[10px] gap-0.5 flex-col h-auto py-1.5">
+          <TabsList className="w-full grid grid-cols-7">
+            <TabsTrigger value="resident" className="text-[9px] gap-0.5 flex-col h-auto py-1.5">
               <QrCode size={14} />
               QR
             </TabsTrigger>
-            <TabsTrigger value="visitor" className="text-[10px] gap-0.5 flex-col h-auto py-1.5">
+            <TabsTrigger value="visitor" className="text-[9px] gap-0.5 flex-col h-auto py-1.5">
               <KeyRound size={14} />
               OTP
             </TabsTrigger>
-            <TabsTrigger value="delivery" className="text-[10px] gap-0.5 flex-col h-auto py-1.5">
+            <TabsTrigger value="manual" className="text-[9px] gap-0.5 flex-col h-auto py-1.5">
+              <UserX size={14} />
+              Manual
+            </TabsTrigger>
+            <TabsTrigger value="delivery" className="text-[9px] gap-0.5 flex-col h-auto py-1.5">
               <Truck size={14} />
               Delivery
             </TabsTrigger>
-            <TabsTrigger value="worker" className="text-[10px] gap-0.5 flex-col h-auto py-1.5">
+            <TabsTrigger value="worker" className="text-[9px] gap-0.5 flex-col h-auto py-1.5">
               <Users size={14} />
               Worker
             </TabsTrigger>
-            <TabsTrigger value="expected" className="text-[10px] gap-0.5 flex-col h-auto py-1.5">
+            <TabsTrigger value="expected" className="text-[9px] gap-0.5 flex-col h-auto py-1.5">
               <ClipboardList size={14} />
               Expected
+            </TabsTrigger>
+            <TabsTrigger value="log" className="text-[9px] gap-0.5 flex-col h-auto py-1.5">
+              <ScrollText size={14} />
+              Log
             </TabsTrigger>
           </TabsList>
 
@@ -74,6 +84,10 @@ export default function GuardKioskPage() {
 
           <TabsContent value="visitor" className="mt-4">
             {effectiveSocietyId && <GuardVisitorOTPTab societyId={effectiveSocietyId} />}
+          </TabsContent>
+
+          <TabsContent value="manual" className="mt-4">
+            {effectiveSocietyId && <GuardManualEntryTab societyId={effectiveSocietyId} />}
           </TabsContent>
 
           <TabsContent value="delivery" className="mt-4">
@@ -86,6 +100,10 @@ export default function GuardKioskPage() {
 
           <TabsContent value="expected" className="mt-4">
             {effectiveSocietyId && <ExpectedVisitorsList societyId={effectiveSocietyId} />}
+          </TabsContent>
+
+          <TabsContent value="log" className="mt-4">
+            {effectiveSocietyId && <GuardGateLogTab societyId={effectiveSocietyId} />}
           </TabsContent>
         </Tabs>
       </div>
