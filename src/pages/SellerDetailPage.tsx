@@ -325,12 +325,7 @@ export default function SellerDetailPage() {
             {(seller as any).society && (
               <span className="flex items-center gap-1">
                 <MapPin size={14} className="shrink-0" />
-                <span>
-                  {(seller as any).society.name}
-                  {(seller as any).society.address && `, ${(seller as any).society.address}`}
-                  {(seller as any).society.city && `, ${(seller as any).society.city}`}
-                  {(seller as any).society.pincode && ` - ${(seller as any).society.pincode}`}
-                </span>
+                <span>{(seller as any).society.name}</span>
               </span>
             )}
             {distanceKm !== null && distanceKm > 0 && (
