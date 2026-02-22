@@ -1,372 +1,288 @@
 
-# Hardcoded Logic and Fragile Implementation Audit
+
+# Hardcoded Logic and Fragile Implementation Audit v2
 
 ## Executive Summary
 
-This audit identifies **23 hardcoded or fragile implementations** across the codebase that would break investor confidence during a live demo. The issues range from financial logic that should be database-driven to static content that contradicts the platform's config-driven architecture philosophy.
+Following the Sprint 1-4 remediation, 18 of the original 23 gaps have been fully resolved. This fresh audit identifies **14 remaining or new issues** across the codebase. The overall posture is significantly improved -- financial logic, contact emails, pricing, and key copy are now config-driven. The remaining gaps are mostly medium/low severity, with two high-priority items that could still surface during an investor demo.
 
 ---
 
-## CRITICAL (Demo-Breaking, Financial Risk)
+## Status of Original 23 Gaps
 
-### 1. Delivery Fee Calculated Client-Side with Magic Numbers
+**Fully Resolved (18):** Gaps 1, 2, 3, 4, 5, 7, 8, 9, 10, 11, 12, 13, 14, 15, 17, 18, 19, 21
 
-**Files:** `CartPage.tsx` (lines 34, 36, 399), `manage-delivery/index.ts` (lines 417-418)
+**Partially Resolved (3):** Gaps 6 (categories dynamic but landing page slide copy still static), 20 (main copy fixed but empty state still generic), 23 (pickup vs. delivery labels fixed but seller address is just the seller name, not actual location)
 
-The delivery fee is hardcoded as `₹20` with a free threshold of `₹500` in two separate places (frontend and edge function). Neither reads from the database.
+**Not Resolved (2):** Gap 16 (i18n day labels -- flagged only), Gap 22 (CMS for legal -- markdown fields exist in settings but TermsPage/PrivacyPolicyPage still render hardcoded HTML as fallback with no admin preview)
+
+---
+
+## NEW FINDINGS
+
+### HIGH (Visible During Demo)
+
+#### H1. Pricing Page PRICE_TIER_MAP Hardcodes Actual Prices
+
+**File:** `PricingPage.tsx` lines 53-57
 
 ```
-const freeDeliveryThreshold = 500;
-const effectiveDeliveryFee = totalAmount >= freeDeliveryThreshold ? 0 : 20;
+const PRICE_TIER_MAP = {
+  free: { price: 'Free', period: 'forever', badge: null },
+  pro: { price: '199', period: '/month', badge: 'Popular' },
+  enterprise: { price: '999', period: '/month', badge: 'Enterprise' },
+};
 ```
 
-**Risk:** An investor asks "Can different societies have different delivery fees?" -- the answer is technically "no" despite the architecture claiming config-driven behavior. The edge function's `calculate_fee` endpoint duplicates the same magic numbers, creating a single-point-of-failure if values diverge.
+The pricing page fetches package **names and features** from the database, but the **actual price display** (199/999) is hardcoded in a frontend mapping. If an admin changes the price_tier label in the DB, the display won't match. The `feature_packages` table has a `price_tier` column (free/pro/enterprise) but no `price_amount` column.
 
-**Fix:** Store `base_delivery_fee`, `free_delivery_threshold`, and `distance_surcharge` in a `delivery_config` table scoped to society_id. CartPage should call the `calculate_fee` edge function endpoint instead of computing locally.
+**Risk:** An investor asks "Can we change the Pro plan to 299?" -- the admin panel has no UI for this, and changing it requires a code deployment.
 
----
-
-### 2. Pricing Page is 100% Static
-
-**File:** `PricingPage.tsx` (lines 8-67)
-
-All four pricing tiers (Free Buyers, Free Sellers, Seller Pro ₹199, Society Plan ₹999) are hardcoded arrays in the component. The platform has a full `feature_packages` and `platform_features` infrastructure in the database, but the pricing page ignores all of it.
-
-**Risk:** If an admin changes a package price or feature list in the backend, the pricing page still shows stale data. During a demo, someone changes a price in the admin panel -- the pricing page contradicts it.
-
-**Fix:** Fetch from `feature_packages` table joined with `feature_package_items` and `platform_features`. Render dynamically. The "Contact Us" CTA (which opens a mailto link) should also be configurable.
+**Fix:** Add a `price_amount` numeric column and `price_period` text column to `feature_packages`. Render from DB. Fall back to the current map only if columns are null.
 
 ---
 
-### 3. Platform Fee is Always Zero
+#### H2. Currency Symbol is Hardcoded as "₹" Across 52 Files
+
+All 52 component files use the literal `₹` symbol. The `system_settings` table has a `currency_symbol` key defined in the marketplace config pattern, but it's never actually read or used for rendering.
+
+**Risk:** Low for India-only launch, but blocks any future international expansion. More importantly, it contradicts the config-driven architecture claim.
+
+**Fix:** Add `currency_symbol` to `useSystemSettings` and create a `formatPrice(amount, symbol)` utility. Replace bare `₹` references incrementally. Low urgency but architecturally correct.
+
+---
+
+#### H3. Platform Fee Still Zero in RPC with No Config Read
 
 **File:** `create_multi_vendor_orders` RPC function
 
-The RPC inserts payment records with `platform_fee = 0` and `net_amount = _final_amount`. There is no database setting or config for platform commission rate.
+```sql
+platform_fee, net_amount
+) VALUES (
+  ...
+  0, _final_amount
+);
+```
 
-**Risk:** The platform has no revenue model in the database. Seller earnings page shows `net_amount` which equals `amount` (no fee deducted). If an investor asks "What's your take rate?" there's no mechanism to enforce it.
+While `platform_fee_percent` is now in `system_settings` and visible in the admin UI, the RPC that actually creates payment records still hardcodes `platform_fee = 0` and `net_amount = _final_amount`. The setting exists but is never consumed by the backend.
 
-**Fix:** Add `platform_fee_percent` to `system_settings` or a `commission_config` table. Compute `platform_fee = ROUND(amount * fee_percent / 100, 2)` and `net_amount = amount - platform_fee` inside the RPC.
+**Risk:** If an admin sets `platform_fee_percent = 5` in the settings UI, nothing changes in actual financial calculations. This is a "config exists but does nothing" gap.
+
+**Fix:** Modify the RPC to read `platform_fee_percent` from `system_settings` and compute:
+```sql
+_fee_percent := COALESCE((SELECT value::numeric FROM system_settings WHERE key = 'platform_fee_percent'), 0);
+_platform_fee := ROUND(_final_amount * _fee_percent / 100, 2);
+_net := _final_amount - _platform_fee;
+```
 
 ---
 
-## HIGH (Functional Gaps, Inconsistency During Demo)
+### MEDIUM (Polish, Edge Cases)
 
-### 4. App Version Hardcoded
+#### M1. FilterPresets Hardcodes "Under 150" Budget Filter
 
-**File:** `ProfilePage.tsx` (line 33)
+**File:** `FilterPresets.tsx` line 21
 
 ```
-const APP_VERSION = '2.0.0';
+label: 'Under 150',
+filters: { priceRange: [0, 150] as [number, number] },
 ```
 
-This is never updated automatically. It will remain "2.0.0" forever unless manually changed.
+This budget filter threshold should be configurable. For a premium society, 150 may be irrelevant.
 
-**Fix:** Read from `package.json` version via Vite's `define` config, or store in `system_settings`.
+**Fix:** Add `budget_filter_threshold` to `system_settings`. Read in FilterPresets.
 
 ---
 
-### 5. Onboarding Walkthrough Content is Static
+#### M2. Landing Page Slide Copy is Still Hardcoded
 
-**File:** `OnboardingWalkthrough.tsx` (lines 10-35)
+**File:** `LandingPage.tsx` lines 80-213
 
-All four walkthrough slides are hardcoded:
-- "Buy homemade food and local goods..."
-- "Browse sellers, add items to cart..."
-- "Pick up from the seller's home..."
-- "All sellers are verified society residents..."
+While the "What You Can Do" categories section (Slide 3) is now dynamically fetched from `parent_groups`, the other 4 slides contain hardcoded marketing copy:
+- Slide 1: "Your Society. Your Marketplace."
+- Slide 2: "Only Verified Residents" (GPS verification, invite code, etc.)
+- Slide 4: "Turn Your Passion Into Income" (Zero listing fee, etc.)
+- Slide 5: "A marketplace built exclusively for our community"
 
-These are generic and cannot be customized per society or builder.
+These are reasonable defaults but cannot be customized per deployment.
 
-**Fix:** Store onboarding slides in a `system_settings` key (e.g., `onboarding_slides`) as JSON, or in a dedicated `onboarding_content` table. Allow society admins to customize.
-
----
-
-### 6. Landing Page Categories are Hardcoded
-
-**File:** `LandingPage.tsx` (lines 109-116)
-
-The "What You Can Do" section lists: Home Food, Classes, Services, Rentals, Buy & Sell, Coupons. These are frontend constants, not fetched from `parent_groups` or `category_config`.
-
-**Risk:** If an admin adds or removes a parent group, the landing page shows stale categories.
-
-**Fix:** Fetch `parent_groups` dynamically. The LandingPage already fetches stats from the database -- extend it to fetch groups too.
+**Fix:** Store landing page slides as JSON in `system_settings` (key: `landing_slides_json`). Fall back to current hardcoded slides if empty. Low urgency -- current copy is generic enough.
 
 ---
 
-### 7. Community Rules and Violation Consequences are Static
+#### M3. CommunityRulesPage Violations Are Hardcoded
 
-**File:** `CommunityRulesPage.tsx` (lines 6-45)
+**File:** `CommunityRulesPage.tsx` lines 42-46
 
-The rules (buyer do's/don'ts, seller do's/don'ts) and violation consequences (Warning, Temporary Suspension, Permanent Ban) are hardcoded arrays. The `societies` table has a `rules_text` field that is never used here.
+```
+const VIOLATIONS = [
+  { level: 'Warning', description: 'First-time minor violations', action: 'Written warning' },
+  { level: 'Temporary Suspension', ... action: '7-day account suspension' },
+  { level: 'Permanent Ban', ... action: 'Account permanently disabled' },
+];
+```
 
-**Fix:** Fetch `societies.rules_text` for the current society. If null, fall back to the hardcoded defaults. Allow society admins to customize rules.
+The rules section reads `society.rules_text` but the violation consequences table is always hardcoded. The "7-day" suspension duration is not configurable.
+
+**Fix:** Add `violation_policy_json` to `system_settings` or render from `societies.rules_text` as a complete document.
 
 ---
 
-### 8. Help Page Content is Static
+#### M4. Seller Dashboard Empty State Copy is Generic but Not Configurable
 
-**File:** `HelpPage.tsx` (lines 19-62)
+**File:** `SellerDashboardPage.tsx` line 128
 
-Four help sections (How to Order, Becoming a Seller, Payments, Chat & Communication) are hardcoded. The Grievance Officer details (name, email, response time) are also static.
+```
+"Sell products, groceries, or services to your community"
+```
 
-**Fix:** Store help content in a `system_settings` key or a `help_sections` table. Grievance officer details should come from a config table.
+This was previously food-biased and was fixed to be generic. But it's still a hardcoded string that can't be customized per society or deployment.
+
+**Fix:** Low priority. Could be stored in `system_settings` as `seller_empty_state_copy` but this is over-engineering for a fallback empty state.
 
 ---
 
-### 9. Contact Emails Hardcoded Across Multiple Files
+#### M5. Pricing Page Always Shows FALLBACK_PLANS + DB Plans
 
-**Files:** `HelpPage.tsx` (grievance@sociva.in), `TermsPage.tsx` (support@sociva.com), `PrivacyPolicyPage.tsx` (dpo@sociva.com), `PricingPage.tsx` (support@sociva.com)
+**File:** `PricingPage.tsx` line 104
 
-Four different email addresses are scattered across files with no single source of truth. These should all come from one config entry.
+```
+return [...FALLBACK_PLANS, ...dbPlans];
+```
 
-**Fix:** Add `support_email`, `grievance_email`, `dpo_email` to `system_settings`. Read dynamically in all pages.
+The pricing page **always** renders the two hardcoded "Free (Buyers)" and "Free (Sellers)" plans alongside whatever the database returns. Even if an admin removes or renames these tiers, the hardcoded ones persist.
+
+**Fix:** Only show FALLBACK_PLANS when `dbPlans` is empty. Currently line 68 handles the empty case, but line 104 concatenates them regardless.
 
 ---
 
-### 10. Profile Page "Start Selling" CTA Copy is Food-Biased
-
-**File:** `ProfilePage.tsx` (line 219)
-
-```
-"Share your homemade food with neighbors"
-```
-
-This copy assumes sellers are food vendors. For a platform that supports electronics, services, rentals, etc., this is misleading.
-
-**Fix:** Use a generic or config-driven tagline. Could be "Start selling to your community" or fetched from `system_settings`.
-
----
-
-### 11. Order Status Labels and Colors are Hardcoded
-
-**File:** `types/database.ts` (lines 321-343)
-
-`ORDER_STATUS_LABELS`, `PAYMENT_STATUS_LABELS`, and `ITEM_STATUS_LABELS` are all hardcoded objects with labels and Tailwind color classes. If a new status is added to the database enum, the UI will crash with undefined lookups.
-
-**Fix:** Low risk since these rarely change, but should defensively handle unknown statuses with a fallback. Consider storing label overrides in `system_settings` for white-labeling.
-
----
-
-### 12. Status Reassurance Messages are Hardcoded
-
-**File:** `OrderDetailPage.tsx` (lines 252-258)
-
-Buyer-facing status messages like "Waiting for seller to accept. Most sellers respond within 5 minutes." are static strings. The "5 minutes" claim has no data backing.
-
-**Fix:** Make these configurable via `system_settings` or derive wait times from actual `avg_response_minutes` data.
-
----
-
-## MEDIUM (Polish Issues, Edge Cases)
-
-### 13. `FulfillmentSelector` Default Props Duplicate Magic Numbers
-
-**File:** `FulfillmentSelector.tsx` (line 11)
-
-```
-freeDeliveryThreshold = 500
-```
-
-This default duplicates the same `500` from CartPage. If one changes, the other doesn't.
-
-**Fix:** Remove the default. Always pass from parent, sourced from config.
-
----
-
-### 14. Delivery Address Format is Hardcoded Template
-
-**File:** `CartPage.tsx` (line 61)
-
-```
-`Block ${profile.block}, Flat ${profile.flat_number}`
-```
-
-This template assumes all societies use "Block" and "Flat" terminology. Some societies use "Tower", "Wing", "Villa", etc.
-
-**Fix:** Use a configurable address template from `societies` table or `system_settings`.
-
----
-
-### 15. Seller Dashboard Empty State is Food-Biased
-
-**File:** `SellerDashboardPage.tsx` (line 128)
-
-```
-"Sell homemade food, groceries, or services to your community"
-```
-
-Same issue as the ProfilePage CTA -- assumes food-first.
-
-**Fix:** Generic or config-driven copy.
-
----
-
-### 16. `DAYS_OF_WEEK` is Hardcoded
-
-**File:** `types/database.ts` (line 345)
-
-```
-export const DAYS_OF_WEEK = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-```
-
-This is English-only and uses abbreviated names. For localization, this should be configurable.
-
-**Fix:** Low priority since the app is India-focused, but flag for future i18n.
-
----
-
-### 17. Booking TimeSlotPicker Has 30-Day Hardcoded Limit
-
-**File:** `TimeSlotPicker.tsx` (line 41)
-
-```
-const maxDate = addDays(today, 30); // Allow booking up to 30 days ahead
-```
-
-This limit should be configurable per category or seller.
-
-**Fix:** Accept `maxBookingDays` as a prop or read from `category_config`.
-
----
-
-### 18. Header Tagline is Hardcoded
-
-**File:** `Header.tsx` (line 114)
-
-```
-"Your Society, Your Store"
-```
-
-For white-labeling (which the Society Plan promises), this needs to be customizable.
-
-**Fix:** Store in `societies` table as `tagline` field or in `system_settings`.
-
----
-
-### 19. Security Mode "AI Match" Shows "Coming Soon" Badge
-
-**File:** `SecurityModeSettings.tsx` (line 99)
-
-```
-<Badge>Coming Soon</Badge>
-```
-
-A feature advertised with "Coming Soon" during a demo raises questions about product maturity.
-
-**Fix:** Either hide the option entirely or remove the badge if the feature is planned for a later phase. Use a feature flag from `platform_features` to control visibility.
-
----
-
-### 20. `MarketplaceSection` Empty State Copy is Static
-
-**File:** `MarketplaceSection.tsx` (line 122)
-
-```
-"Sellers from your community are setting up shop. Fresh products, homemade food & services..."
-```
-
-Food-biased again, and not customizable per society.
-
-**Fix:** Generic copy or config-driven.
-
----
-
-## LOW (Cosmetic, Future-Proofing)
-
-### 21. Landing Page Testimonial is Fake
-
-**File:** `LandingPage.tsx` (lines 162-166)
-
-```
-"Finally a marketplace just for our community!..."
--- Priya S., Verified Resident
-```
-
-This is a fabricated testimonial. If challenged during a demo, it undermines trust.
-
-**Fix:** Either remove or fetch real reviews from the database.
-
----
-
-### 22. Legal Page Content Should Be Editable
+#### M6. Legal Pages Have Dual Rendering Path But No Markdown Renderer
 
 **Files:** `TermsPage.tsx`, `PrivacyPolicyPage.tsx`
 
-Legal text is hardcoded in React components. Any legal update requires a code deployment.
+These pages check `settings.termsContentMd` and render it in a `<pre>` tag with `whitespace-pre-wrap`. This is not actually markdown rendering -- it's raw text display. Bold, headings, links won't render.
 
-**Fix:** Store in a `legal_documents` table or CMS. Render markdown from the database.
+**Fix:** Install a lightweight markdown renderer (e.g., `react-markdown`) or render as `dangerouslySetInnerHTML` with sanitization. Alternatively, keep the HTML fallback as the primary path and treat the markdown field as a "future CMS" feature.
 
 ---
 
-### 23. Delivery Address Card Shows "Deliver to" Even for Self-Pickup
+### LOW (Future-Proofing)
 
-**File:** `CartPage.tsx` (lines 453-463)
+#### L1. Brand Name "Sociva" Hardcoded in 11 Files
 
-The address card always says "Deliver to" regardless of fulfillment type. For self-pickup, it should say "Pickup from" with the seller's location.
+The brand name appears in:
+- `TermsPage.tsx` (multiple legal references)
+- `PrivacyPolicyPage.tsx` (multiple legal references)
+- `CommunityRulesPage.tsx` ("By using Sociva...")
+- `ProfilePage.tsx` ("Sociva v2.0.0")
+- `types/database.ts` (comment)
+- `tooltip-guide.tsx` (localStorage key)
 
-**Fix:** Conditionally render based on `fulfillmentType`.
+For white-labeling, the brand name needs to be configurable.
+
+**Fix:** Add `platform_name` to `system_settings`. Replace hardcoded "Sociva" references. Low urgency unless white-labeling is imminent.
+
+---
+
+#### L2. AUTOPLAY_INTERVAL Hardcoded at 8000ms
+
+**File:** `LandingPage.tsx` line 14
+
+The landing page carousel auto-advances every 8 seconds. This is a UX decision that could be configurable, but is low priority.
+
+---
+
+#### L3. Seller Onboarding Placeholder Text is Group-Specific But Hardcoded
+
+**File:** `BecomeSellerPage.tsx` lines 757-759
+
+```
+placeholder={
+  selectedGroup === 'food' ? "e.g., Amma's Kitchen, Fresh Bakes"
+  : selectedGroup === 'services' ? "e.g., QuickFix Repairs, Yoga with Priya"
+  ...
+}
+```
+
+These placeholder examples are hardcoded per group. They should ideally come from `parent_groups.placeholder_hint` or similar.
+
+**Fix:** Add a `placeholder_examples` text column to `parent_groups`. Low priority.
+
+---
+
+#### L4. LocalStorage Keys Use "sociva_" Prefix
+
+**Files:** `ProfilePage.tsx` ("sociva_large_font"), `tooltip-guide.tsx` ("sociva_tooltips_viewed")
+
+For white-labeling, localStorage keys with brand names will leak the underlying platform identity.
+
+**Fix:** Use a generic prefix like `app_` or make it configurable. Very low priority.
 
 ---
 
 ## Prioritized Implementation Plan
 
-### Sprint 1 (Critical -- Do Before Any Demo)
+### Immediate (Before Next Demo)
 
 | # | Gap | Effort | Impact |
 |---|-----|--------|--------|
-| 1 | Delivery fee from DB config | Medium | Eliminates financial inconsistency |
-| 2 | Dynamic pricing page from DB | Medium | Aligns UI with backend reality |
-| 3 | Platform fee configuration | Low | Enables revenue model discussion |
+| H3 | Platform fee RPC reads from config | Low | Financial logic actually works end-to-end |
+| M5 | Pricing page: don't duplicate free plans | Low | Prevents confusing duplicate tiers |
 
-### Sprint 2 (High -- For Investor Readiness)
-
-| # | Gap | Effort | Impact |
-|---|-----|--------|--------|
-| 4 | App version from build | Low | Professionalism |
-| 9 | Contact emails from config | Low | Single source of truth |
-| 10-15-20 | Remove food-biased copy | Low | Platform credibility |
-| 6 | Dynamic landing page categories | Low | Consistency with admin |
-| 23 | Fix address label for pickup | Low | UX accuracy |
-
-### Sprint 3 (Medium -- For Production Polish)
+### Short-Term (Investor Readiness)
 
 | # | Gap | Effort | Impact |
 |---|-----|--------|--------|
-| 5 | Configurable onboarding | Medium | White-label readiness |
-| 7 | Society-specific community rules | Low | Uses existing `rules_text` field |
-| 8 | Dynamic help content | Medium | Maintainability |
-| 11 | Defensive status label fallbacks | Low | Prevents crashes |
-| 12 | Data-driven status messages | Low | Credibility |
-| 14 | Configurable address template | Low | Multi-society support |
-| 18 | Configurable header tagline | Low | White-label readiness |
+| H1 | Price amounts from DB, not frontend map | Medium | Admin can change prices without code deploy |
+| M6 | Markdown rendering for legal CMS | Low | Makes the CMS feature actually usable |
+| M3 | Configurable violation policy | Low | Completes community rules config story |
 
-### Sprint 4 (Low -- Future-Proofing)
+### Medium-Term (Production Polish)
 
 | # | Gap | Effort | Impact |
 |---|-----|--------|--------|
-| 16 | i18n-ready day labels | Low | Localization prep |
-| 17 | Configurable booking window | Low | Flexibility |
-| 19 | Remove "Coming Soon" badges | Low | Product maturity |
-| 21 | Real testimonials or removal | Low | Trust |
-| 22 | CMS for legal pages | Medium | Operational efficiency |
+| H2 | Currency symbol utility | Medium | Config-driven architecture consistency |
+| M1 | Configurable budget filter | Low | Multi-market flexibility |
+| M2 | Landing page slide CMS | Medium | White-label readiness |
+| L1 | Platform name from config | Low | White-label readiness |
+
+### Deferred (Future-Proofing)
+
+| # | Gap | Effort | Impact |
+|---|-----|--------|--------|
+| L2 | Carousel interval config | Trivial | Minor UX control |
+| L3 | Seller onboarding placeholders from DB | Low | Polish |
+| L4 | Generic localStorage prefix | Trivial | White-label edge case |
+| M4 | Seller empty state copy from config | Trivial | Over-engineering concern |
 
 ---
 
-## Technical Notes
+## Technical Implementation Notes
 
-### Where to store new config values
+### H3 - Platform Fee RPC Fix (SQL migration)
 
-The project already has two config tables:
-- `system_settings` (key-value, global scope) -- Use for: delivery fees, contact emails, app version, tagline, platform fee
-- `admin_settings` (key-value with `is_active` flag) -- Use for: fulfillment labels (already used)
+```sql
+-- Inside create_multi_vendor_orders, replace hardcoded 0:
+_fee_percent := COALESCE(
+  (SELECT value::numeric FROM system_settings WHERE key = 'platform_fee_percent'),
+  0
+);
+_platform_fee := ROUND(_final_amount * _fee_percent / 100, 2);
+_net := _final_amount - _platform_fee;
 
-For society-scoped config, use the existing `societies` table columns (`rules_text` already exists) or create a `society_config` table for extensibility.
+-- Then use _platform_fee and _net in the INSERT
+```
 
-### Config read pattern
+### M5 - Pricing Page Fix (1-line change)
 
-The existing `useMarketplaceConfig` hook demonstrates the correct pattern: fetch from DB, fall back to constants, cache with `staleTime`. All new config reads should follow this pattern.
+```typescript
+// Line 104: Change from
+return [...FALLBACK_PLANS, ...dbPlans];
+// To
+return dbPlans.length > 0 ? dbPlans : FALLBACK_PLANS;
+```
 
-### Migration strategy
+### H1 - Price Amount from DB
 
-New `system_settings` rows can be seeded in a migration with default values matching current hardcoded values. This ensures zero behavior change on deployment while enabling future dynamic updates.
+Add `price_amount` (numeric, nullable) and `price_period` (text, nullable) columns to `feature_packages`. When non-null, use them for display instead of `PRICE_TIER_MAP`. Keep the map as fallback.
+
