@@ -11,6 +11,7 @@ interface AppLayoutProps {
   showNav?: boolean;
   showCart?: boolean;
   showLocation?: boolean;
+  showBack?: boolean;
   headerTitle?: string;
   className?: string;
 }
@@ -21,6 +22,7 @@ export function AppLayout({
   showNav = true,
   showCart = true,
   showLocation = true,
+  showBack,
   headerTitle,
   className,
 }: AppLayoutProps) {
@@ -29,7 +31,8 @@ export function AppLayout({
       {showHeader && (
         <Header 
           showCart={showCart} 
-          showLocation={showLocation} 
+          showLocation={showLocation}
+          showBack={showBack}
           title={headerTitle} 
         />
       )}
