@@ -14,10 +14,12 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue
 } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
+import { ConfirmAction } from '@/components/ui/confirm-action';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import { friendlyError } from '@/lib/utils';
-import { UserPlus, Phone, LogIn, LogOut, CheckCircle, Calendar, Users } from 'lucide-react';
+import { useActionLoading } from '@/hooks/useActionLoading';
+import { UserPlus, Phone, LogIn, LogOut, CheckCircle, Calendar, Users, Loader2 } from 'lucide-react';
 
 type HelpType = 'maid' | 'cook' | 'driver' | 'nanny' | 'gardener' | 'other';
 
@@ -55,6 +57,7 @@ export default function DomesticHelpPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('today');
+  const { loadingId, withLoading } = useActionLoading();
 
   // Form
   const [helpName, setHelpName] = useState('');
@@ -109,7 +112,7 @@ export default function DomesticHelpPage() {
     setIsSubmitting(false);
   };
 
-  const handleCheckIn = async (helpEntryId: string) => {
+  const handleCheckIn = withLoading(async (helpEntryId: string) => {
     if (!user || !effectiveSocietyId) return;
     const { error } = await supabase.from('domestic_help_attendance').insert({
       help_entry_id: helpEntryId,
@@ -119,7 +122,7 @@ export default function DomesticHelpPage() {
     });
     if (!error) { toast.success('Checked in'); fetchData(); }
     else toast.error(friendlyError(error));
-  };
+  });
 
   const handleCheckOut = async (attendanceId: string) => {
     if (!user) return;
@@ -180,7 +183,7 @@ export default function DomesticHelpPage() {
                     </Select>
                   </div>
                   <Button onClick={handleAdd} disabled={!helpName.trim() || isSubmitting} className="w-full">
-                    {isSubmitting ? 'Adding...' : 'Add Helper'}
+                    {isSubmitting ? <><Loader2 size={16} className="mr-1 animate-spin" /> Adding...</> : 'Add Helper'}
                   </Button>
                 </div>
               </SheetContent>
@@ -236,14 +239,22 @@ export default function DomesticHelpPage() {
 
                         <div>
                           {!attendance && activeTab === 'today' && (
-                            <Button size="sm" onClick={() => handleCheckIn(helper.id)}>
-                              <LogIn size={14} className="mr-1" /> In
+                            <Button size="sm" onClick={() => handleCheckIn(helper.id)} disabled={loadingId === helper.id}>
+                              {loadingId === helper.id ? <Loader2 size={14} className="mr-1 animate-spin" /> : <LogIn size={14} className="mr-1" />} In
                             </Button>
                           )}
                           {isCheckedIn && (
-                            <Button size="sm" variant="outline" onClick={() => handleCheckOut(attendance!.id)}>
-                              <LogOut size={14} className="mr-1" /> Out
-                            </Button>
+                            <ConfirmAction
+                              title="Check Out Helper?"
+                              description={`Mark ${helper.help_name} as checked out for today?`}
+                              actionLabel="Check Out"
+                              variant="default"
+                              onConfirm={() => handleCheckOut(attendance!.id)}
+                            >
+                              <Button size="sm" variant="outline">
+                                <LogOut size={14} className="mr-1" /> Out
+                              </Button>
+                            </ConfirmAction>
                           )}
                           {isCheckedOut && (
                             <Badge className="bg-success/10 text-success text-[10px]">

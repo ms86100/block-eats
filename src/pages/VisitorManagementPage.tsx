@@ -14,12 +14,14 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue
 } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
+import { ConfirmAction } from '@/components/ui/confirm-action';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import { friendlyError } from '@/lib/utils';
+import { useActionLoading } from '@/hooks/useActionLoading';
 import {
   UserPlus, Shield, Clock, Car, Phone, Truck, Users,
-  CheckCircle, XCircle, Copy, RefreshCw, LogIn, LogOut, Download
+  CheckCircle, XCircle, Copy, RefreshCw, LogIn, LogOut, Download, Loader2
 } from 'lucide-react';
 import { exportVisitorLog } from '@/lib/csv-export';
 
@@ -72,6 +74,7 @@ export default function VisitorManagementPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('today');
+  const { loadingId, withLoading } = useActionLoading();
 
   // Form state
   const [visitorName, setVisitorName] = useState('');
@@ -150,14 +153,14 @@ export default function VisitorManagementPage() {
     setIsSubmitting(false);
   };
 
-  const handleCheckIn = async (id: string) => {
+  const handleCheckIn = withLoading(async (id: string) => {
     if (!user) return;
     const { error } = await supabase.from('visitor_entries')
       .update({ status: 'checked_in', checked_in_at: new Date().toISOString() })
       .eq('id', id)
       .eq('resident_id', user.id);
     if (!error) { toast.success('Visitor checked in'); fetchVisitors(); }
-  };
+  });
 
   const handleCheckOut = async (id: string) => {
     if (!user) return;
@@ -266,7 +269,7 @@ export default function VisitorManagementPage() {
                     <Input value={vehicleNumber} onChange={e => setVehicleNumber(e.target.value)} placeholder="MH 01 AB 1234" />
                   </div>
                   <Button onClick={handleAddVisitor} disabled={!visitorName.trim() || isSubmitting} className="w-full">
-                    {isSubmitting ? 'Adding...' : 'Add Visitor & Generate OTP'}
+                    {isSubmitting ? <><Loader2 size={16} className="mr-1 animate-spin" /> Adding...</> : 'Add Visitor & Generate OTP'}
                   </Button>
                 </div>
               </SheetContent>
@@ -343,18 +346,33 @@ export default function VisitorManagementPage() {
                     {/* Actions */}
                     {visitor.status === 'expected' && (
                       <div className="flex gap-2 mt-3">
-                        <Button size="sm" variant="default" className="flex-1" onClick={() => handleCheckIn(visitor.id)}>
-                          <LogIn size={14} className="mr-1" /> Check In
+                        <Button size="sm" variant="default" className="flex-1" onClick={() => handleCheckIn(visitor.id)} disabled={loadingId === visitor.id}>
+                          {loadingId === visitor.id ? <Loader2 size={14} className="mr-1 animate-spin" /> : <LogIn size={14} className="mr-1" />} Check In
                         </Button>
-                        <Button size="sm" variant="outline" onClick={() => handleCancel(visitor.id)}>
-                          <XCircle size={14} />
-                        </Button>
+                        <ConfirmAction
+                          title="Cancel Visitor Entry?"
+                          description={`Are you sure you want to cancel the entry for ${visitor.visitor_name}? The OTP will no longer work.`}
+                          actionLabel="Cancel Entry"
+                          onConfirm={() => handleCancel(visitor.id)}
+                        >
+                          <Button size="sm" variant="outline">
+                            <XCircle size={14} />
+                          </Button>
+                        </ConfirmAction>
                       </div>
                     )}
                     {visitor.status === 'checked_in' && (
-                      <Button size="sm" variant="outline" className="w-full mt-3" onClick={() => handleCheckOut(visitor.id)}>
-                        <LogOut size={14} className="mr-1" /> Check Out
-                      </Button>
+                      <ConfirmAction
+                        title="Check Out Visitor?"
+                        description={`Mark ${visitor.visitor_name} as checked out?`}
+                        actionLabel="Check Out"
+                        variant="default"
+                        onConfirm={() => handleCheckOut(visitor.id)}
+                      >
+                        <Button size="sm" variant="outline" className="w-full mt-3">
+                          <LogOut size={14} className="mr-1" /> Check Out
+                        </Button>
+                      </ConfirmAction>
                     )}
                     {visitor.checked_in_at && (
                       <p className="text-[10px] text-muted-foreground mt-2">

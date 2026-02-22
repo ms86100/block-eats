@@ -7,7 +7,8 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
-import { Shield, Search, CheckCircle, XCircle, User, Phone, Car, Clock, Users } from 'lucide-react';
+import { ConfirmAction } from '@/components/ui/confirm-action';
+import { Shield, Search, CheckCircle, XCircle, User, Phone, Car, Clock, Users, Loader2 } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { WorkerGateValidation } from '@/components/workforce/WorkerGateValidation';
 import { ExpectedVisitorsList } from '@/components/guard/ExpectedVisitorsList';
@@ -28,7 +29,6 @@ export default function GuardKioskPage() {
   const { effectiveSocietyId, isSocietyAdmin, isAdmin } = useAuth();
   const [isSecurityOfficer, setIsSecurityOfficer] = useState(false);
 
-  // Check security_staff table (not just user_roles) for proper society-scoped check
   useEffect(() => {
     const checkSecurityAccess = async () => {
       if (!effectiveSocietyId) return;
@@ -42,8 +42,10 @@ export default function GuardKioskPage() {
     };
     checkSecurityAccess();
   }, [effectiveSocietyId]);
+
   const [otpInput, setOtpInput] = useState('');
   const [isVerifying, setIsVerifying] = useState(false);
+  const [isAllowing, setIsAllowing] = useState(false);
   const [verifiedVisitor, setVerifiedVisitor] = useState<VerifiedVisitor | null>(null);
   const [verificationStatus, setVerificationStatus] = useState<'idle' | 'success' | 'failed'>('idle');
 
@@ -83,6 +85,7 @@ export default function GuardKioskPage() {
 
   const handleAllowEntry = async () => {
     if (!verifiedVisitor) return;
+    setIsAllowing(true);
     const { error } = await supabase.from('visitor_entries')
       .update({ status: 'checked_in', checked_in_at: new Date().toISOString() })
       .eq('id', verifiedVisitor.id);
@@ -93,6 +96,7 @@ export default function GuardKioskPage() {
       setOtpInput('');
       setVerificationStatus('idle');
     }
+    setIsAllowing(false);
   };
 
   const handleDeny = () => {
@@ -125,7 +129,6 @@ export default function GuardKioskPage() {
           </TabsList>
 
           <TabsContent value="visitor" className="mt-4 space-y-6">
-            {/* OTP Entry - Large for guard usability */}
             <Card className="border-2 border-primary/30">
               <CardContent className="p-6 space-y-4">
                 <div className="text-center">
@@ -153,13 +156,12 @@ export default function GuardKioskPage() {
                   className="w-full h-14 text-lg"
                   size="lg"
                 >
-                  <Search size={20} className="mr-2" />
+                  {isVerifying ? <Loader2 size={20} className="mr-2 animate-spin" /> : <Search size={20} className="mr-2" />}
                   {isVerifying ? 'Verifying...' : 'Verify OTP'}
                 </Button>
               </CardContent>
             </Card>
 
-            {/* Verification Result */}
             {verificationStatus === 'failed' && (
               <Card className="border-destructive/50 bg-destructive/5">
                 <CardContent className="p-6 text-center">
@@ -234,11 +236,18 @@ export default function GuardKioskPage() {
                   </div>
 
                   <div className="grid grid-cols-2 gap-3">
-                    <Button variant="destructive" size="lg" className="h-14 text-lg" onClick={handleDeny}>
-                      <XCircle size={20} className="mr-2" /> Deny
-                    </Button>
-                    <Button variant="default" size="lg" className="h-14 text-lg" onClick={handleAllowEntry}>
-                      <CheckCircle size={20} className="mr-2" /> Allow
+                    <ConfirmAction
+                      title="Deny Entry?"
+                      description={`Are you sure you want to deny entry to ${verifiedVisitor.visitor_name}? This action cannot be undone.`}
+                      actionLabel="Deny Entry"
+                      onConfirm={handleDeny}
+                    >
+                      <Button variant="destructive" size="lg" className="h-14 text-lg w-full">
+                        <XCircle size={20} className="mr-2" /> Deny
+                      </Button>
+                    </ConfirmAction>
+                    <Button variant="default" size="lg" className="h-14 text-lg" onClick={handleAllowEntry} disabled={isAllowing}>
+                      {isAllowing ? <Loader2 size={20} className="mr-2 animate-spin" /> : <CheckCircle size={20} className="mr-2" />} Allow
                     </Button>
                   </div>
                 </CardContent>

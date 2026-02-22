@@ -11,10 +11,12 @@ import {
   Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetTrigger
 } from '@/components/ui/sheet';
 import { Skeleton } from '@/components/ui/skeleton';
+import { ConfirmAction } from '@/components/ui/confirm-action';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import { friendlyError } from '@/lib/utils';
-import { Package, Plus, CheckCircle, Clock, PackageOpen } from 'lucide-react';
+import { useActionLoading } from '@/hooks/useActionLoading';
+import { Package, Plus, CheckCircle, Clock, PackageOpen, Loader2 } from 'lucide-react';
 
 type ParcelStatus = 'received' | 'notified' | 'collected' | 'returned';
 
@@ -44,6 +46,7 @@ export default function ParcelManagementPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('pending');
+  const { loadingId, withLoading } = useActionLoading();
 
   // Form
   const [courierName, setCourierName] = useState('');
@@ -104,7 +107,7 @@ export default function ParcelManagementPage() {
     setIsSubmitting(false);
   };
 
-  const handleCollect = async (id: string) => {
+  const handleCollect = withLoading(async (id: string) => {
     if (!user) return;
     const { error } = await supabase.from('parcel_entries')
       .update({
@@ -115,7 +118,7 @@ export default function ParcelManagementPage() {
       .eq('id', id)
       .eq('resident_id', user.id);
     if (!error) { toast.success('Parcel marked as collected'); fetchParcels(); }
-  };
+  });
 
   const pendingCount = parcels.filter(p => p.status === 'received' || p.status === 'notified').length;
 
@@ -157,7 +160,7 @@ export default function ParcelManagementPage() {
                     <Input value={description} onChange={e => setDescription(e.target.value)} placeholder="e.g., Small brown box" />
                   </div>
                   <Button onClick={handleAddParcel} disabled={isSubmitting} className="w-full">
-                    {isSubmitting ? 'Logging...' : 'Log Parcel'}
+                    {isSubmitting ? <><Loader2 size={16} className="mr-1 animate-spin" /> Logging...</> : 'Log Parcel'}
                   </Button>
                 </div>
               </SheetContent>
@@ -211,8 +214,8 @@ export default function ParcelManagementPage() {
                       </div>
 
                       {(parcel.status === 'received' || parcel.status === 'notified') && (
-                        <Button size="sm" variant="default" onClick={() => handleCollect(parcel.id)}>
-                          <CheckCircle size={14} className="mr-1" /> Collect
+                        <Button size="sm" variant="default" onClick={() => handleCollect(parcel.id)} disabled={loadingId === parcel.id}>
+                          {loadingId === parcel.id ? <Loader2 size={14} className="mr-1 animate-spin" /> : <CheckCircle size={14} className="mr-1" />} Collect
                         </Button>
                       )}
                     </div>

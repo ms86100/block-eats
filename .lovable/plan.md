@@ -18,7 +18,8 @@
 - **Gap #10** - Committee dashboard (CommitteeDashboard component on SocietyAdminPage "Overview" tab)
 - **Gap #11** - Official notices system (society_notices table + SocietyNoticesPage + route + notifications)
 - **Gap #12** - Reports and exports (CSV export for finances, maintenance, visitor logs)
+- **Gap #14** - Loading states on data mutations (Loader2 spinners + disabled states on action buttons)
+- **Gap #15** - Confirmation before destructive actions (ConfirmAction AlertDialog on check-out, cancel, deny)
 
 ### 🔲 REMAINING
-- **Gap #14** - Loading states on data mutations (P3)
-- **Gap #15** - Confirmation before destructive actions (P3)
+All gaps have been implemented! 🎉
