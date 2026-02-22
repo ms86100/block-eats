@@ -5,6 +5,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { ConfirmAction } from '@/components/ui/confirm-action';
+import { ImageUpload } from '@/components/ui/image-upload';
+import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import { Shield, Search, CheckCircle, XCircle, User, Phone, Car, Clock, Loader2 } from 'lucide-react';
 
@@ -70,7 +72,11 @@ export function GuardVisitorOTPTab({ societyId }: Props) {
     if (!verifiedVisitor) return;
     setIsAllowing(true);
     const { error } = await supabase.from('visitor_entries')
-      .update({ status: 'checked_in', checked_in_at: new Date().toISOString() })
+      .update({ 
+        status: 'checked_in', 
+        checked_in_at: new Date().toISOString(),
+        photo_url: visitorPhotoUrl || null,
+      })
       .eq('id', verifiedVisitor.id);
 
     if (!error) {
@@ -85,10 +91,13 @@ export function GuardVisitorOTPTab({ societyId }: Props) {
     toast.info('Entry denied');
   };
 
+  const [visitorPhotoUrl, setVisitorPhotoUrl] = useState<string | null>(null);
+
   const reset = () => {
     setVerifiedVisitor(null);
     setOtpInput('');
     setVerificationStatus('idle');
+    setVisitorPhotoUrl(null);
   };
 
   return (
@@ -197,6 +206,18 @@ export function GuardVisitorOTPTab({ societyId }: Props) {
               )}
 
               <Badge variant="outline" className="capitalize">{verifiedVisitor.visitor_type.replace('_', ' ')}</Badge>
+            </div>
+
+            {/* Visitor Photo Capture */}
+            <div className="space-y-1">
+              <p className="text-xs font-medium text-muted-foreground">Capture Visitor Photo (optional)</p>
+              <ImageUpload
+                value={visitorPhotoUrl}
+                onChange={setVisitorPhotoUrl}
+                folder="visitors"
+                userId="guard"
+                placeholder="Take visitor photo"
+              />
             </div>
 
             <div className="grid grid-cols-2 gap-3">

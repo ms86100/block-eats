@@ -16,6 +16,7 @@ import { toast } from 'sonner';
 import { friendlyError } from '@/lib/utils';
 import { useActionLoading } from '@/hooks/useActionLoading';
 import { Package, Plus, CheckCircle, Clock, PackageOpen, Loader2, Search } from 'lucide-react';
+import { ImageUpload } from '@/components/ui/image-upload';
 
 type ParcelStatus = 'received' | 'notified' | 'collected' | 'returned';
 
@@ -113,6 +114,9 @@ export default function ParcelManagementPage() {
     setIsSearching(false);
   };
 
+  // Photo capture state
+  const [parcelPhotoUrl, setParcelPhotoUrl] = useState<string | null>(null);
+
   const handleAddParcel = async () => {
     if (!user || !effectiveSocietyId) return;
 
@@ -135,6 +139,7 @@ export default function ParcelManagementPage() {
       flat_number: targetFlat,
       status: 'received',
       logged_by: canLogParcels ? user.id : null,
+      photo_url: parcelPhotoUrl,
     });
 
     if (error) {
@@ -145,6 +150,7 @@ export default function ParcelManagementPage() {
       setIsAddOpen(false);
       setCourierName(''); setTrackingNumber(''); setDescription('');
       setGuardFlatNumber(''); setGuardResidentId(null); setGuardResidentName('');
+      setParcelPhotoUrl(null);
       fetchParcels();
     }
     setIsSubmitting(false);
@@ -224,6 +230,18 @@ export default function ParcelManagementPage() {
                     <Label>Description</Label>
                     <Input value={description} onChange={e => setDescription(e.target.value)} placeholder="e.g., Small brown box" />
                   </div>
+                  {canLogParcels && (
+                    <div>
+                      <Label>Parcel Photo (optional)</Label>
+                      <ImageUpload
+                        value={parcelPhotoUrl}
+                        onChange={setParcelPhotoUrl}
+                        folder="parcels"
+                        userId={user?.id || ''}
+                        placeholder="Capture parcel photo"
+                      />
+                    </div>
+                  )}
                   <Button
                     onClick={handleAddParcel}
                     disabled={isSubmitting || (canLogParcels && !guardResidentId)}

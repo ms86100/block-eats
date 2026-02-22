@@ -1035,6 +1035,7 @@ export type Database = {
           attempt_count: number
           created_at: string
           delivered_at: string | null
+          delivery_code: string | null
           delivery_fee: number
           external_tracking_id: string | null
           failed_reason: string | null
@@ -1059,6 +1060,7 @@ export type Database = {
           attempt_count?: number
           created_at?: string
           delivered_at?: string | null
+          delivery_code?: string | null
           delivery_fee?: number
           external_tracking_id?: string | null
           failed_reason?: string | null
@@ -1083,6 +1085,7 @@ export type Database = {
           attempt_count?: number
           created_at?: string
           delivered_at?: string | null
+          delivery_code?: string | null
           delivery_fee?: number
           external_tracking_id?: string | null
           failed_reason?: string | null
@@ -1120,6 +1123,65 @@ export type Database = {
           },
           {
             foreignKeyName: "delivery_assignments_society_id_fkey"
+            columns: ["society_id"]
+            isOneToOne: false
+            referencedRelation: "societies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      delivery_partner_pool: {
+        Row: {
+          added_by: string | null
+          created_at: string
+          id: string
+          is_active: boolean | null
+          is_available: boolean | null
+          name: string
+          phone: string
+          photo_url: string | null
+          rating: number | null
+          society_id: string
+          total_deliveries: number | null
+          updated_at: string
+          vehicle_number: string | null
+          vehicle_type: string | null
+        }
+        Insert: {
+          added_by?: string | null
+          created_at?: string
+          id?: string
+          is_active?: boolean | null
+          is_available?: boolean | null
+          name: string
+          phone: string
+          photo_url?: string | null
+          rating?: number | null
+          society_id: string
+          total_deliveries?: number | null
+          updated_at?: string
+          vehicle_number?: string | null
+          vehicle_type?: string | null
+        }
+        Update: {
+          added_by?: string | null
+          created_at?: string
+          id?: string
+          is_active?: boolean | null
+          is_available?: boolean | null
+          name?: string
+          phone?: string
+          photo_url?: string | null
+          rating?: number | null
+          society_id?: string
+          total_deliveries?: number | null
+          updated_at?: string
+          vehicle_number?: string | null
+          vehicle_type?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "delivery_partner_pool_society_id_fkey"
             columns: ["society_id"]
             isOneToOne: false
             referencedRelation: "societies"
@@ -5385,6 +5447,57 @@ export type Database = {
           },
         ]
       }
+      worker_attendance: {
+        Row: {
+          check_in_at: string
+          check_out_at: string | null
+          created_at: string
+          date: string
+          entry_method: string | null
+          id: string
+          society_id: string
+          verified_by: string | null
+          worker_id: string
+        }
+        Insert: {
+          check_in_at?: string
+          check_out_at?: string | null
+          created_at?: string
+          date?: string
+          entry_method?: string | null
+          id?: string
+          society_id: string
+          verified_by?: string | null
+          worker_id: string
+        }
+        Update: {
+          check_in_at?: string
+          check_out_at?: string | null
+          created_at?: string
+          date?: string
+          entry_method?: string | null
+          id?: string
+          society_id?: string
+          verified_by?: string | null
+          worker_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "worker_attendance_society_id_fkey"
+            columns: ["society_id"]
+            isOneToOne: false
+            referencedRelation: "societies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "worker_attendance_worker_id_fkey"
+            columns: ["worker_id"]
+            isOneToOne: false
+            referencedRelation: "society_workers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       worker_entry_logs: {
         Row: {
           created_at: string
@@ -5804,6 +5917,7 @@ export type Database = {
         Args: { _society_id: string; _user_id: string }
         Returns: boolean
       }
+      notify_upcoming_maintenance_dues: { Args: never; Returns: undefined }
       rate_worker_job: {
         Args: { _job_id: string; _rating: number; _review?: string }
         Returns: Json
