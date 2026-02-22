@@ -14,7 +14,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/co
 import { Input } from '@/components/ui/input';
 import { useAuth } from '@/contexts/AuthContext';
 import { Profile, SellerProfile, VerificationStatus, SocietyAdmin } from '@/types/database';
-import { Check, X, Users, Store, Settings, Shield, UserPlus, Trash2, ToggleLeft, Lock } from 'lucide-react';
+import { Check, X, Users, Store, Settings, Shield, UserPlus, Trash2, ToggleLeft, Lock, AlertTriangle, IndianRupee } from 'lucide-react';
 import { toast } from 'sonner';
 import { logAudit } from '@/lib/audit';
 import { SocietySwitcher } from '@/components/admin/SocietySwitcher';
@@ -22,6 +22,8 @@ import { SecurityStaffManager } from '@/components/admin/SecurityStaffManager';
 import { SecurityModeSettings } from '@/components/admin/SecurityModeSettings';
 import { useEffectiveFeatures } from '@/hooks/useEffectiveFeatures';
 import { CommitteeDashboard } from '@/components/admin/CommitteeDashboard';
+import { AdminDisputesTab } from '@/components/admin/AdminDisputesTab';
+import { AdminPaymentMilestones } from '@/components/admin/AdminPaymentMilestones';
 import type { FeatureKey } from '@/hooks/useEffectiveFeatures';
 
 const FEATURE_LABELS: Record<FeatureKey, { label: string; description: string }> = {
@@ -231,14 +233,12 @@ export default function SocietyAdminPage() {
         </div>
 
         <Tabs defaultValue="overview">
-          <TabsList className="w-full grid grid-cols-7">
+          <TabsList className="w-full grid grid-cols-5">
             <TabsTrigger value="overview" className="text-xs">Overview</TabsTrigger>
             <TabsTrigger value="users" className="text-xs">Users</TabsTrigger>
             <TabsTrigger value="sellers" className="text-xs">Sellers</TabsTrigger>
-            <TabsTrigger value="admins" className="text-xs">Admins</TabsTrigger>
-            <TabsTrigger value="security" className="text-xs">Security</TabsTrigger>
-            <TabsTrigger value="features" className="text-xs">Features</TabsTrigger>
-            <TabsTrigger value="settings" className="text-xs">Settings</TabsTrigger>
+            <TabsTrigger value="disputes" className="text-xs">Disputes</TabsTrigger>
+            <TabsTrigger value="more" className="text-xs">More</TabsTrigger>
           </TabsList>
 
           {/* Committee Dashboard */}
@@ -285,151 +285,154 @@ export default function SocietyAdminPage() {
             )) : <p className="text-center text-muted-foreground py-8 text-sm">No pending sellers</p>}
           </TabsContent>
 
-          {/* Society Admins */}
-          <TabsContent value="admins" className="space-y-2 mt-4">
-            <div className="flex items-center justify-between mb-2">
-              <h3 className="text-sm font-semibold text-muted-foreground">Society Admins</h3>
+
+          {/* Disputes */}
+          <TabsContent value="disputes" className="mt-4">
+            <AdminDisputesTab />
+          </TabsContent>
+
+          {/* More: sub-sections */}
+          <TabsContent value="more" className="mt-4 space-y-6">
+            {/* Admins */}
+            <div>
+              <h3 className="text-sm font-semibold text-muted-foreground flex items-center gap-2 mb-3"><Shield size={14} /> Admins ({societyAdmins.length})</h3>
+              {societyAdmins.map((admin) => (
+                <Card key={admin.id} className="mb-2"><CardContent className="p-3 flex items-center justify-between">
+                  <div>
+                    <p className="font-medium text-sm">{(admin as any).user?.name || 'Unknown'}</p>
+                    <p className="text-xs text-muted-foreground capitalize">{admin.role}</p>
+                  </div>
+                  {admin.user_id !== profile?.id && (
+                    <Button size="sm" variant="ghost" className="text-destructive h-8 w-8 p-0" onClick={() => removeAdmin(admin.id)}>
+                      <Trash2 size={14} />
+                    </Button>
+                  )}
+                </CardContent></Card>
+              ))}
               <Sheet open={appointOpen} onOpenChange={setAppointOpen}>
                 <SheetTrigger asChild>
-                  <Button size="sm" variant="outline" className="gap-1">
-                    <UserPlus size={14} /> Appoint
+                  <Button size="sm" variant="outline" className="gap-1 mt-2">
+                    <UserPlus size={14} /> Appoint Admin
                   </Button>
                 </SheetTrigger>
                 <SheetContent>
                   <SheetHeader><SheetTitle>Appoint Society Admin</SheetTitle></SheetHeader>
                   <div className="mt-4 space-y-4">
-                    <Input
-                      placeholder="Search residents by name..."
-                      value={searchQuery}
-                      onChange={(e) => searchResidents(e.target.value)}
-                    />
+                    <Input placeholder="Search residents by name..." value={searchQuery} onChange={(e) => searchResidents(e.target.value)} />
                     <div className="space-y-2 max-h-96 overflow-y-auto">
                       {searchResults.map((resident) => (
-                        <Card key={resident.id}>
-                          <CardContent className="p-3 flex items-center justify-between">
-                            <div>
-                              <p className="font-medium text-sm">{resident.name}</p>
-                              <p className="text-xs text-muted-foreground">Block {resident.block}, Flat {resident.flat_number}</p>
-                            </div>
-                            <div className="flex gap-1">
-                              <Button size="sm" variant="outline" className="text-xs" onClick={() => appointAdmin(resident.id, 'moderator')}>Moderator</Button>
-                              <Button size="sm" className="text-xs" onClick={() => appointAdmin(resident.id, 'admin')}>Admin</Button>
-                            </div>
-                          </CardContent>
-                        </Card>
+                        <Card key={resident.id}><CardContent className="p-3 flex items-center justify-between">
+                          <div>
+                            <p className="font-medium text-sm">{resident.name}</p>
+                            <p className="text-xs text-muted-foreground">Block {resident.block}, Flat {resident.flat_number}</p>
+                          </div>
+                          <div className="flex gap-1">
+                            <Button size="sm" variant="outline" className="text-xs" onClick={() => appointAdmin(resident.id, 'moderator')}>Mod</Button>
+                            <Button size="sm" className="text-xs" onClick={() => appointAdmin(resident.id, 'admin')}>Admin</Button>
+                          </div>
+                        </CardContent></Card>
                       ))}
-                      {searchQuery.length >= 2 && searchResults.length === 0 && (
-                        <p className="text-sm text-center text-muted-foreground py-4">No residents found</p>
-                      )}
                     </div>
                   </div>
                 </SheetContent>
               </Sheet>
             </div>
 
-            {societyAdmins.map((admin) => (
-              <Card key={admin.id}><CardContent className="p-3 flex items-center justify-between">
-                <div>
-                  <p className="font-medium text-sm">{(admin as any).user?.name || 'Unknown'}</p>
-                  <p className="text-xs text-muted-foreground capitalize">{admin.role}</p>
+            {/* Payment Milestones */}
+            <div>
+              <h3 className="text-sm font-semibold text-muted-foreground flex items-center gap-2 mb-3"><IndianRupee size={14} /> Payment Milestones</h3>
+              <AdminPaymentMilestones />
+            </div>
+
+            {/* Security Staff */}
+            <div>
+              <h3 className="text-sm font-semibold text-muted-foreground flex items-center gap-2 mb-3"><Shield size={14} /> Security</h3>
+              <SecurityModeSettings />
+              <SecurityStaffManager />
+            </div>
+
+            {/* Features */}
+            <div>
+              <div className="flex items-center gap-2 mb-3">
+                <ToggleLeft size={16} className="text-primary" />
+                <h3 className="text-sm font-semibold text-muted-foreground">Society Features</h3>
+              </div>
+              <Card><CardContent className="p-4 space-y-4">
+                {(Object.keys(FEATURE_LABELS) as FeatureKey[]).map((key) => {
+                  const state = getFeatureState(key);
+                  const configurable = isConfigurable(key);
+                  const enabled = isFeatureEnabled(key);
+
+                  return (
+                    <div key={key} className="flex items-center justify-between">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <Label className="text-sm font-medium">{FEATURE_LABELS[key].label}</Label>
+                          {state === 'locked' && (
+                            <Badge variant="secondary" className="text-[8px] h-4 gap-0.5">
+                              <Lock size={8} /> Locked
+                            </Badge>
+                          )}
+                          {state === 'unavailable' && (
+                            <Badge variant="outline" className="text-[8px] h-4 text-muted-foreground">
+                              Not in plan
+                            </Badge>
+                          )}
+                        </div>
+                        <p className="text-xs text-muted-foreground">{FEATURE_LABELS[key].description}</p>
+                      </div>
+                      <Switch
+                        checked={enabled}
+                        disabled={!configurable}
+                        onCheckedChange={(checked) => toggleFeature.mutate({ key, enabled: checked })}
+                      />
+                    </div>
+                  );
+                })}
+              </CardContent></Card>
+            </div>
+            {/* Settings */}
+            <div>
+              <Card><CardContent className="p-4 space-y-4">
+                <h3 className="font-semibold text-sm flex items-center gap-2"><Settings size={16} /> Society Settings</h3>
+                
+                <div className="flex items-center justify-between">
+                  <div>
+                    <Label className="text-sm font-medium">Auto-approve residents</Label>
+                    <p className="text-xs text-muted-foreground">Skip manual approval for new signups</p>
+                  </div>
+                  <Switch
+                    checked={autoApprove}
+                    onCheckedChange={(checked) => {
+                      setAutoApprove(checked);
+                      updateSocietySettings('auto_approve_residents', checked);
+                    }}
+                  />
                 </div>
-                {admin.user_id !== profile?.id && (
-                  <Button size="sm" variant="ghost" className="text-destructive h-8 w-8 p-0" onClick={() => removeAdmin(admin.id)}>
-                    <Trash2 size={14} />
-                  </Button>
+
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">Approval Method</Label>
+                  <Select value={approvalMethod} onValueChange={(value) => {
+                    setApprovalMethod(value);
+                    updateSocietySettings('approval_method', value);
+                  }}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="manual">Manual (Admin approves each user)</SelectItem>
+                      <SelectItem value="invite_code">Invite Code (Users need code to join)</SelectItem>
+                      <SelectItem value="auto">Auto (Anyone with GPS match joins)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {effectiveSociety?.invite_code && (
+                  <div className="p-3 bg-muted rounded-lg">
+                    <p className="text-xs text-muted-foreground">Society Invite Code</p>
+                    <p className="font-mono font-bold text-lg">{effectiveSociety.invite_code}</p>
+                  </div>
                 )}
               </CardContent></Card>
-            ))}
-            {societyAdmins.length === 0 && <p className="text-center text-muted-foreground py-8 text-sm">No admins appointed yet</p>}
-          </TabsContent>
-
-          {/* Security Staff */}
-          <TabsContent value="security" className="mt-4 space-y-4">
-            <SecurityModeSettings />
-            <SecurityStaffManager />
-          </TabsContent>
-
-          <TabsContent value="features" className="space-y-2 mt-4">
-            <div className="flex items-center gap-2 mb-3">
-              <ToggleLeft size={16} className="text-primary" />
-              <h3 className="text-sm font-semibold text-muted-foreground">Society Features</h3>
             </div>
-            <Card><CardContent className="p-4 space-y-4">
-              {(Object.keys(FEATURE_LABELS) as FeatureKey[]).map((key) => {
-                const state = getFeatureState(key);
-                const configurable = isConfigurable(key);
-                const enabled = isFeatureEnabled(key);
-
-                return (
-                  <div key={key} className="flex items-center justify-between">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-1.5">
-                        <Label className="text-sm font-medium">{FEATURE_LABELS[key].label}</Label>
-                        {state === 'locked' && (
-                          <Badge variant="secondary" className="text-[8px] h-4 gap-0.5">
-                            <Lock size={8} /> Locked
-                          </Badge>
-                        )}
-                        {state === 'unavailable' && (
-                          <Badge variant="outline" className="text-[8px] h-4 text-muted-foreground">
-                            Not in plan
-                          </Badge>
-                        )}
-                      </div>
-                      <p className="text-xs text-muted-foreground">{FEATURE_LABELS[key].description}</p>
-                    </div>
-                    <Switch
-                      checked={enabled}
-                      disabled={!configurable}
-                      onCheckedChange={(checked) => toggleFeature.mutate({ key, enabled: checked })}
-                    />
-                  </div>
-                );
-              })}
-            </CardContent></Card>
-          </TabsContent>
-
-          {/* Settings */}
-          <TabsContent value="settings" className="space-y-4 mt-4">
-            <Card><CardContent className="p-4 space-y-4">
-              <h3 className="font-semibold text-sm flex items-center gap-2"><Settings size={16} /> Society Settings</h3>
-              
-              <div className="flex items-center justify-between">
-                <div>
-                  <Label className="text-sm font-medium">Auto-approve residents</Label>
-                  <p className="text-xs text-muted-foreground">Skip manual approval for new signups</p>
-                </div>
-                <Switch
-                  checked={autoApprove}
-                  onCheckedChange={(checked) => {
-                    setAutoApprove(checked);
-                    updateSocietySettings('auto_approve_residents', checked);
-                  }}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label className="text-sm font-medium">Approval Method</Label>
-                <Select value={approvalMethod} onValueChange={(value) => {
-                  setApprovalMethod(value);
-                  updateSocietySettings('approval_method', value);
-                }}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="manual">Manual (Admin approves each user)</SelectItem>
-                    <SelectItem value="invite_code">Invite Code (Users need code to join)</SelectItem>
-                    <SelectItem value="auto">Auto (Anyone with GPS match joins)</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {effectiveSociety?.invite_code && (
-                <div className="p-3 bg-muted rounded-lg">
-                  <p className="text-xs text-muted-foreground">Society Invite Code</p>
-                  <p className="font-mono font-bold text-lg">{effectiveSociety.invite_code}</p>
-                </div>
-              )}
-            </CardContent></Card>
           </TabsContent>
         </Tabs>
       </div>
