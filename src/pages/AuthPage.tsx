@@ -290,59 +290,72 @@ export default function AuthPage() {
           toast.error('This email is already registered. Please login instead.');
           setAuthMode('login'); setSignupStep('credentials'); return;
         }
-        try {
-          // If pending new society, create it via edge function first
-          let finalSocietyId = selectedSociety.id;
-          if (pendingNewSociety && selectedSociety.id === 'pending') {
-            try {
-              const { data: validateData, error: validateError } = await supabase.functions.invoke('validate-society', {
-                body: { new_society: pendingNewSociety },
-              });
-              if (validateError) throw validateError;
-              if (validateData?.society?.id) {
-                finalSocietyId = validateData.society.id;
-              }
-            } catch (validateErr) {
-              console.warn('Society creation via edge function failed:', validateErr);
-              toast.error('Failed to register society. Please try again.');
-              setIsLoading(false);
-              return;
+        // Step 1: Insert profile FIRST while JWT is fresh (before any server-side user modifications)
+        let finalSocietyId = selectedSociety.id;
+        
+        // For pending new society, we need the ID before profile insert.
+        // Create society via edge function but WITHOUT the metadata update.
+        if (pendingNewSociety && selectedSociety.id === 'pending') {
+          try {
+            const { data: validateData, error: validateError } = await supabase.functions.invoke('validate-society', {
+              body: { new_society: pendingNewSociety },
+            });
+            if (validateError) throw validateError;
+            if (validateData?.society?.id) {
+              finalSocietyId = validateData.society.id;
             }
-          } else {
-            // Validate existing society server-side
-            try {
-              await supabase.functions.invoke('validate-society', {
-                body: { society_id: selectedSociety.id },
-              });
-            } catch (validateErr) {
-              console.warn('Society validation call failed, will be validated by admin:', validateErr);
-            }
-          }
-
-          const { error: profileError } = await supabase.from('profiles').insert({
-            id: data.user.id, email, phone: `+91${profileData.phone}`, name: profileData.name,
-            flat_number: profileData.flat_number, block: profileData.block,
-            phase: profileData.phase || null, society_id: finalSocietyId,
-          });
-          if (!profileError) {
-            await supabase.from('user_roles').insert({ user_id: data.user.id, role: 'buyer' });
-          }
-        } catch (e: any) {
-          const msg = e?.message || e?.details || '';
-          if (msg.includes('idx_profiles_email_unique') || msg.includes('profiles_email')) {
-            toast.error('This email is already registered. Please login instead.');
-            setAuthMode('login'); setSignupStep('credentials'); return;
-          } else if (msg.includes('idx_profiles_phone_unique') || msg.includes('profiles_phone')) {
-            toast.error('This phone number is already in use by another account.');
+          } catch (validateErr) {
+            console.warn('Society creation via edge function failed:', validateErr);
+            toast.error('Failed to register society. Please try again.');
+            await supabase.auth.signOut();
+            setIsLoading(false);
             return;
           }
-          // Profile creation failed for a non-duplicate reason — do NOT proceed silently.
-          // Sign out the orphaned auth user and ask user to retry.
-          console.error('Profile creation during signup failed:', e);
+        }
+
+        // Guard: ensure we have a valid society ID before profile insert
+        if (!finalSocietyId || finalSocietyId === 'pending') {
+          toast.error('Failed to set up your society. Please try again.');
+          await supabase.auth.signOut();
+          setIsLoading(false);
+          return;
+        }
+
+        const { error: profileError } = await supabase.from('profiles').insert({
+          id: data.user.id, email, phone: `+91${profileData.phone}`, name: profileData.name,
+          flat_number: profileData.flat_number, block: profileData.block,
+          phase: profileData.phase || null, society_id: finalSocietyId,
+        });
+
+        if (profileError) {
+          console.error('Profile insert error:', profileError);
+          const msg = profileError.message || '';
+          if (msg.includes('idx_profiles_email_unique') || msg.includes('profiles_email')) {
+            toast.error('This email is already registered. Please login instead.');
+            setAuthMode('login'); setSignupStep('credentials'); setIsLoading(false); return;
+          } else if (msg.includes('idx_profiles_phone_unique') || msg.includes('profiles_phone')) {
+            toast.error('This phone number is already in use by another account.');
+            setIsLoading(false); return;
+          }
           await supabase.auth.signOut();
           toast.error('Account setup failed. Please try signing up again. If the problem persists, contact support.', { duration: 8000 });
           setIsLoading(false);
           return;
+        }
+
+        // Step 2: Insert role
+        await supabase.from('user_roles').insert({ user_id: data.user.id, role: 'buyer' });
+
+        // Step 3: Validate existing society AFTER profile is safely created
+        // (JWT invalidation from edge function no longer matters)
+        if (!pendingNewSociety && selectedSociety.id !== 'pending') {
+          try {
+            await supabase.functions.invoke('validate-society', {
+              body: { society_id: selectedSociety.id },
+            });
+          } catch (validateErr) {
+            console.warn('Society validation call failed, will be validated by admin:', validateErr);
+          }
         }
         setSignupStep('verification');
         toast.success('Please check your email to verify your account');

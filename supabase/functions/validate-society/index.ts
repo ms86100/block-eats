@@ -82,11 +82,7 @@ Deno.serve(async (req) => {
         );
       }
 
-      // Update user profile and metadata with new society
-      await adminClient.from("profiles").update({ society_id: created.id }).eq("id", user.id);
-      await adminClient.auth.admin.updateUserById(user.id, {
-        user_metadata: { society_id: created.id },
-      });
+      // Profile and metadata updates are handled client-side to avoid JWT race conditions
 
       return new Response(
         JSON.stringify({
@@ -131,22 +127,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    const { error: updateError } = await adminClient
-      .from("profiles")
-      .update({ society_id })
-      .eq("id", user.id);
-
-    if (updateError) {
-      console.error("Profile update error:", updateError);
-    }
-
-    const { error: metaError } = await adminClient.auth.admin.updateUserById(user.id, {
-      user_metadata: { society_id },
-    });
-
-    if (metaError) {
-      console.error("Metadata update error:", metaError);
-    }
+    // Profile and metadata updates are handled client-side to avoid JWT race conditions
 
     return new Response(
       JSON.stringify({
