@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Bell, Building, Building2, ChevronDown } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { ArrowLeft, Bell, Building, Building2, ChevronDown } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { ThemeToggle } from '@/components/ui/theme-toggle';
 import { useAuth } from '@/contexts/AuthContext';
@@ -14,6 +14,7 @@ interface HeaderProps {
   showCart?: boolean;
   showLocation?: boolean;
   title?: string;
+  showBack?: boolean;
   className?: string;
 }
 
@@ -21,8 +22,10 @@ export function Header({
   showCart = true, 
   showLocation = true, 
   title,
+  showBack,
   className 
 }: HeaderProps) {
+  const navigate = useNavigate();
   const { profile, isApproved, society, user, viewAsSocietyId, effectiveSociety, setViewAsSociety, isAdmin, isBuilderMember } = useAuth();
   const { itemCount } = useCart();
   const { selectionChanged } = useHaptics();
@@ -76,7 +79,19 @@ export function Header({
           {/* Top row: delivery info + actions */}
           <div className="flex items-start justify-between">
             {title ? (
-              <h1 className="text-lg font-bold text-foreground">{title}</h1>
+              <div className="flex items-center gap-2">
+                {(showBack ?? true) && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 rounded-full shrink-0"
+                    onClick={() => navigate(-1)}
+                  >
+                    <ArrowLeft size={18} />
+                  </Button>
+                )}
+                <h1 className="text-lg font-bold text-foreground">{title}</h1>
+              </div>
             ) : (
               <div className="min-w-0 flex-1">
                 <h1 className="text-[22px] font-extrabold tracking-tight leading-tight">
