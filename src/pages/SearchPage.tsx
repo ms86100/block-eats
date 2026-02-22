@@ -106,6 +106,14 @@ export default function SearchPage() {
   const [searchRadius, setSearchRadiusLocal] = useState(profile?.search_radius_km ?? 10);
   const prefsLoaded = true;
 
+  // Sync local state when profile finishes loading (profile may be null on first render)
+  useEffect(() => {
+    if (profile) {
+      setBrowseBeyondLocal(profile.browse_beyond_community ?? true);
+      setSearchRadiusLocal(profile.search_radius_km ?? 10);
+    }
+  }, [profile]);
+
   const persistPreference = useCallback(
     async (field: string, value: any) => {
       if (!user) return;
