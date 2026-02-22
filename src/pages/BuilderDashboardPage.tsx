@@ -8,6 +8,8 @@ import { Builder } from '@/types/database';
 import { Building2, Users, Shield, AlertTriangle, ChevronRight, IndianRupee, Clock, BarChart3 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useBuilderStats } from '@/hooks/queries/useBuilderStats';
+import { BuilderFeaturePlan } from '@/components/builder/BuilderFeaturePlan';
+import { BuilderSocietyFeatures } from '@/components/builder/BuilderSocietyFeatures';
 
 interface BuilderSociety {
   id: string;
@@ -149,6 +151,11 @@ export default function BuilderDashboardPage() {
           </Card>
         )}
 
+        {/* Builder Feature Plan */}
+        {managedBuilderIds.length > 0 && (
+          <BuilderFeaturePlan builderId={managedBuilderIds[0]} />
+        )}
+
         {/* Analytics Link */}
         <Card 
           className="hover:shadow-md transition-shadow cursor-pointer border-primary/20 bg-primary/5"
@@ -198,6 +205,7 @@ export default function BuilderDashboardPage() {
                         {s.open_disputes} disputes
                       </button>
                     )}
+                    <BuilderSocietyFeatures societyId={s.id} />
                     {s.open_snags > 0 && (
                       <button
                         className="text-[10px] bg-destructive/10 text-destructive px-1.5 py-0.5 rounded hover:bg-destructive/20 transition-colors"
