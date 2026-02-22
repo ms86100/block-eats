@@ -45,7 +45,7 @@ export function GuardGateLogTab({ societyId }: Props) {
     setLoading(true);
     const { data, error } = await supabase.rpc('get_unified_gate_log', {
       _society_id: societyId,
-      _limit: 50,
+      _date: new Date().toISOString().split('T')[0],
     });
     if (!error && data) {
       setLogs(data as unknown as GateLogEntry[]);

@@ -51,6 +51,15 @@ export function ExpectedVisitorsList({ societyId }: Props) {
       .update({ status: 'checked_in', checked_in_at: new Date().toISOString() })
       .eq('id', visitor.id);
     if (!error) {
+      // G7 fix: Log gate entry for audit completeness
+      await supabase.from('gate_entries').insert({
+        society_id: societyId,
+        entry_type: 'visitor',
+        person_name: visitor.visitor_name,
+        flat_number: visitor.flat_number,
+        confirmation_status: visitor.is_preapproved ? 'pre_approved' : 'confirmed',
+        notes: `Quick check-in from expected visitors list`,
+      });
       toast.success(`${visitor.visitor_name} checked in`);
       fetchVisitors();
     }

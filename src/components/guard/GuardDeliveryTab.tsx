@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -248,8 +248,8 @@ function PendingDeliveries({ societyId }: { societyId: string }) {
   const [deliveries, setDeliveries] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  useState(() => {
-    const fetch = async () => {
+  useEffect(() => {
+    const fetchDeliveries = async () => {
       const { data } = await (supabase
         .from('delivery_assignments')
         .select(`
@@ -265,8 +265,8 @@ function PendingDeliveries({ societyId }: { societyId: string }) {
       setDeliveries(data || []);
       setIsLoading(false);
     };
-    fetch();
-  });
+    fetchDeliveries();
+  }, [societyId]);
 
   if (isLoading || deliveries.length === 0) return null;
 
