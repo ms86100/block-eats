@@ -9,7 +9,7 @@ import { Heart, ArrowLeft, Store } from 'lucide-react';
 import { FavoriteButton } from '@/components/favorite/FavoriteButton';
 
 export default function FavoritesPage() {
-  const { user, effectiveSocietyId } = useAuth();
+  const { user, profile } = useAuth();
   const [favorites, setFavorites] = useState<SellerProfile[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -38,7 +38,7 @@ export default function FavoritesPage() {
       
       const sellers = data
         ?.map((f: any) => f.seller)
-        .filter((s: any) => s && s.verification_status === 'approved' && s.is_available !== false && (!effectiveSocietyId || s.society_id === effectiveSocietyId)) || [];
+        .filter((s: any) => s && s.verification_status === 'approved' && s.is_available !== false && (!profile?.society_id || s.society_id === profile.society_id)) || [];
       
       setFavorites(sellers);
     } catch (error) {

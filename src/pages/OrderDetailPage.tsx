@@ -157,7 +157,7 @@ export default function OrderDetailPage() {
   };
 
   const nextStatus = getNextStatus();
-  const canReview = isBuyerView && order.status === 'completed' && !hasReview;
+  const canReview = isBuyerView && (order.status === 'completed' || order.status === 'delivered') && !hasReview;
   const canChat = !['completed', 'cancelled'].includes(order.status);
   const canReorder = isBuyerView && (order.status === 'completed' || order.status === 'delivered');
   const chatRecipientId = isSellerView ? order.buyer_id : seller?.user_id;

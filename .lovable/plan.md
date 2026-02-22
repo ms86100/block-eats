@@ -1,161 +1,193 @@
 
-# Workforce Module -- Final Enforcement Audit Report
+# Orders & Payments Module — Deep Audit Plan
 
-## Audit Methodology
-Every finding below is based on reading actual source code and querying live database triggers, RLS policies, RPC functions, and system settings. No assumptions from prior conversations.
+## Scope
 
----
+5 pages, 8 components, 1 RPC function, 7 tables, 2 DB triggers, 1 edge function.
 
-## Phase 1 -- Hardcoding Check
+**Pages**: Cart, Orders, Order Detail, Favorites, Subscriptions
 
-### 1.1 Language Lists in Frontend
-- **WorkerRegistrationSheet.tsx**: Languages fetched from `supported_languages` table. No hardcoded fallback list. If table is empty, dropdown shows "No languages configured" and submit button is disabled (`languages.length === 0`).
-- **VERDICT: PASS -- Fully dynamic, fail-closed.**
-
-### 1.2 Voice Mappings in Frontend
-- **WorkerJobsPage.tsx** (lines 37-53): `useLangVoiceMap()` fetches `bcp47_tag` from `supported_languages` table dynamically. No hardcoded voice map.
-- If `bcp47_tag` is missing for a language, TTS shows error "Voice not available for this language" and stops (line 173-177).
-- **VERDICT: PASS -- Fully dynamic, fail-closed.**
-
-### 1.3 Language Assumptions in Edge Function
-- **generate-job-voice-summary/index.ts** (line 48): `let langName = "Hindi-English mix"` is a **hardcoded fallback** that activates when the DB lookup fails or returns no `ai_name`.
-- If language code is not in DB, the AI prompt silently falls back to "Hindi-English mix" instead of rejecting the request.
-- **VERDICT: FAIL -- Severity: MEDIUM**
-- **Finding F1**: Hardcoded `"Hindi-English mix"` fallback on line 48 of edge function. Should return error if `ai_name` not found instead of defaulting.
-
-### 1.4 Broadcast Radius
-- **CreateJobRequestPage.tsx** (lines 57-63): Radius options loaded from `system_settings` key `worker_broadcast_radius_options`. Default from `worker_broadcast_default_radius`. No hardcoded numeric radius.
-- If settings are missing, `radiusOptions` is empty and UI shows "Broadcast radius not configured. Contact admin." (line 280).
-- `get_nearby_societies` RPC accepts `_radius_km` parameter -- no internal hardcoding.
-- **VERDICT: PASS -- Fully dynamic, fail-closed.**
-
-### 1.5 Job Type List
-- **CreateJobRequestPage.tsx** (lines 31-43): Job types fetched from `society_worker_categories` table. If empty, shows "No job types configured" error.
-- **WorkerJobsPage.tsx** (lines 18-34): `useJobTypeLabels()` fetches labels from same table.
-- **VERDICT: PASS -- Fully dynamic.**
-
-### 1.6 Default Business Values in useState/Schema
-- `workerType`: `useState('')` -- no default. **PASS.**
-- `preferredLanguage`: `useState('')` -- no default. **PASS.**
-- `visibilityScope`: `useState('society')` -- this is a structural UI default (form starts with "Within My Society" selected). **Acceptable** -- it's a form UX default, not a business logic assumption. DB trigger validates on insert.
-- `entryFrequency`: `useState('daily')` -- **hardcoded UI default**. However, this is one of three validated enum values (`daily`, `occasional`, `per_visit`) enforced by the `validate_worker_status` trigger. Low risk since the default is a valid option.
-- **Finding F2**: `entryFrequency` defaults to `'daily'` (line 35, WorkerRegistrationSheet). **Severity: LOW** -- Valid enum value, but ideally should come from DB config or be unset.
-- `shiftStart: '06:00'` / `shiftEnd: '18:00'` (lines 32-33): Hardcoded shift defaults.
-- **Finding F3**: Shift time defaults are hardcoded. **Severity: LOW** -- Structural convenience defaults, not business logic. These could be made DB-configurable for flexibility.
-
-### 1.7 Static Configuration in Components
-- `DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']` (line 17, WorkerRegistrationSheet): Calendar constant. **Acceptable structural constant** -- days of the week do not change.
-- Urgency options (`flexible`, `normal`, `urgent`) in CreateJobRequestPage (lines 217-220): Hardcoded in UI but validated by DB trigger `validate_worker_job_status`. **Acceptable** -- these are structural enum values.
-- Entry frequency options (`daily`, `occasional`, `per_visit`) in WorkerRegistrationSheet (lines 295-299): Same pattern -- hardcoded display, DB-validated.
-- **Finding F4**: Urgency and entry frequency enum options are displayed statically in UI. **Severity: LOW** -- They are DB-validated but if new values are added to the DB trigger, the UI would not reflect them without code changes.
+**Components**: ReorderButton, OrderCancellation, UrgentOrderTimer, OrderRejectionDialog, OrderItemCard, CouponInput, PaymentMethodSelector, RazorpayCheckout, ReviewForm, FulfillmentSelector, DeliveryStatusCard, OrderHelpSheet, OrderChat, FeedbackSheet
 
 ---
 
-## Phase 2 -- Server Enforcement Validation
+## Phase 1: Discovered Issues
 
-### 2.1 Job Scope Validation (DB Trigger)
-- Trigger `trg_validate_job_visibility_scope` is **ACTIVE** on `worker_job_requests`.
-- Validates: `visibility_scope` must be `'society'` or `'nearby'`. If `'nearby'`, `target_society_ids` must have at least one entry. If `'society'`, target array is forcibly cleared.
-- **VERDICT: PASS -- Fail-closed. Cannot bypass via API.**
+### O1 -- CRITICAL: Review RLS blocks reviews on "delivered" orders
 
-### 2.2 Preferred Language Validation (DB Trigger)
-- Trigger `trg_validate_worker_preferred_language` is **ACTIVE** on `society_workers`.
-- Validates: If `preferred_language` is not null/empty, it must exist in `supported_languages` with `is_active = true`.
-- **VERDICT: PASS -- Fail-closed.**
+The `reviews` INSERT RLS policy enforces `orders.status = 'completed'`. However, the UI (`OrderDetailPage` line 160) shows the "Write Review" CTA when `order.status === 'completed'` -- this part works. But the `canReorder` check on line 162 includes `delivered`, and crucially, the `canReview` check on line 160 only checks `completed`. So reviews on `delivered` orders are NOT attempted from the UI. **However**, the separate `ReorderButton` appears for both `completed` and `delivered` -- this is correct behavior.
 
-### 2.3 Worker Cross-Society Job Acceptance
-- `accept_worker_job` RPC: Uses `SELECT FOR UPDATE` (race-safe). For `'nearby'` scope, validates worker's `society_id` is either the job's society OR in `target_society_ids`. For `'society'` scope, worker must be in same society.
-- **VERDICT: PASS -- Server-enforced, no client bypass.**
+**Re-analysis**: After re-reading the code, `canReview` (line 160) is `isBuyerView && order.status === 'completed' && !hasReview`. This ONLY checks `completed`. So the CTA does NOT appear for `delivered`. But the order lifecycle has `delivered` as a non-terminal state (`delivered -> completed` is allowed). If a seller marks an order as `delivered` but never marks it `completed`, the buyer can NEVER leave a review. This is a business logic gap.
 
-### 2.4 Worker Job Visibility (RLS)
-- Two relevant SELECT policies on `worker_job_requests`:
-  - `Worker can view open jobs in society`: Worker sees open jobs where `society_id` matches their worker registration's `society_id`.
-  - `Workers can see cross-society jobs`: Includes condition `visibility_scope = 'nearby' AND get_user_society_id(auth.uid()) = ANY(target_society_ids)`.
-- **Finding F5**: These two SELECT policies **overlap**. Both allow society-scoped reads. The first is specifically for open jobs in own society; the second is broader (includes cross-society + own society + resident + admin). PostgreSQL RLS is OR-based across policies, so this doesn't create a security issue, but the `Worker can view open jobs in society` policy is technically redundant given the broader one. **Severity: INFO** -- No security impact, minor cleanup opportunity.
-- **VERDICT: PASS -- No data leakage. Policies are correct even if redundant.**
+**Fix**: Update the RLS policy to also allow `orders.status = 'delivered'` and update `canReview` in `OrderDetailPage` to include `delivered`.
 
-### 2.5 Feature Gate Enforcement
-- **UI**: Pages wrapped in `<FeatureGate feature="worker_marketplace">`.
-- **Server**: RLS policies `feature_gate_worker_job_requests_insert`, `_update`, `_delete` all check `can_access_feature('worker_marketplace')`. Same for `society_workers` with `workforce_management`.
-- Disabling feature mid-session: UI will refresh on next data fetch (React Query). Backend blocks writes immediately via RLS.
-- **VERDICT: PASS -- Dual enforcement (UI + RLS).**
+### O2 -- CRITICAL: Order cancellation "Undo" always fails
 
----
+`OrderCancellation` (line 77-84) attempts to undo a cancellation by reverting `status` to `previousStatus`. The `validate_order_status_transition` trigger defines `cancelled` as a terminal state with `_allowed := ARRAY[]::text[]`. This means the undo UPDATE will always raise: `Invalid order status transition: cancelled -> placed`. The user sees "Order cancelled" toast with an Undo action that silently fails (the error is caught and shows "Could not undo cancellation").
 
-## Phase 3 -- Configuration Integrity
+**Fix**: Remove the Undo action from the cancellation toast, since the DB enforces cancellation as terminal. Alternatively, add a brief grace window in the trigger (within 5 seconds of cancellation), but this adds complexity.
 
-| Config Item | Source | Dynamic? | Status |
-|---|---|---|---|
-| Language list | `supported_languages` table | Yes | PASS |
-| Default language | `system_settings.default_worker_language` | Yes (stored as `hi`) | PASS |
-| Radius options | `system_settings.worker_broadcast_radius_options` | Yes (`[3, 5, 10]`) | PASS |
-| Default radius | `system_settings.worker_broadcast_default_radius` | Yes (`5`) | PASS |
-| Worker categories | `society_worker_categories` table | Yes | PASS |
-| Society selection | `get_nearby_societies` RPC | Yes (radius param) | PASS |
-| Feature flags | `society_features` / package hierarchy | Yes | PASS |
+### O3 -- MEDIUM: Delivery fee inconsistency in multi-vendor orders
 
-All items can be changed in DB without code deployment.
+In `create_multi_vendor_orders` RPC, the delivery fee is added to `total_amount` only for the first order (`_final_amount + _delivery_fee`), then `_delivery_fee := 0` for subsequent orders. However, the `payment_records.amount` is set to `_final_amount` (without delivery fee) for ALL orders. This means:
+- Order 1: `total_amount = subtotal + delivery_fee`, `payment.amount = subtotal` (mismatch)
+- Order 2+: `total_amount = subtotal`, `payment.amount = subtotal` (match)
 
-**Exception**: Adding a new urgency or entry_frequency enum value to the DB would require a UI code update to display it. See F4.
+The seller earnings page reads from `payment_records`, so the delivery fee revenue is unattributed.
 
----
+**Fix**: The payment record for order 1 should include delivery fee in the amount, or delivery fee should be tracked separately. Document only -- no auto-fix since this involves financial logic.
 
-## Phase 4 -- Role Isolation
+### O4 -- MEDIUM: Coupon applied only for single-seller carts
 
-### Worker Route Protection
-- **WorkerJobsPage.tsx** (lines 199-209): In-page guard via `useWorkerRole()`. Non-workers see "Worker Access Only" message.
-- **WorkerMyJobsPage.tsx**: Same pattern expected.
-- Worker pages are not in admin/builder navigation paths.
+When `sellerGroups.length > 1`, the UI shows "Coupons are not available for multi-seller carts" but the RPC still processes `_coupon_id` and `_coupon_discount` parameters if passed. If a user somehow bypasses the UI restriction, a coupon could be applied to a multi-seller cart. The redemption is only recorded for the first order.
 
-### URL-Based Bypass Risk
-- A resident can navigate to `/worker/jobs` directly but will see "Worker Access Only" since they fail the `isWorker` check.
-- Worker cannot access `/admin`, `/builder-dashboard`, `/society-admin` -- those pages have their own role guards (admin/builder/society-admin checks).
-- **Finding F6**: Route-level guards are **in-page**, not at the router level. This means the component loads before checking role. **Severity: LOW** -- No data is exposed because RLS prevents data loading, and UI shows access-denied immediately. No actual bypass possible.
+**Status**: Low risk since the UI prevents it. Document only.
 
-### Isolation Type
-- **In-page** + **RLS-based**. Not router-level.
-- **VERDICT: PASS -- Functionally secure. No data leakage possible.**
+### O5 -- LOW: Order cancellation undo UX misleads users
+
+Related to O2. The 5-second undo toast creates a false expectation. When clicked, the user sees "Could not undo cancellation" with no explanation. Users may think this is a bug.
+
+**Fix**: Part of O2 fix -- remove the undo action entirely.
+
+### O6 -- LOW: Favorites filtered by effectiveSocietyId
+
+`FavoritesPage` line 41 filters favorites by `effectiveSocietyId`. If an admin uses "view as" another society, their personal favorites from their home society disappear. This is likely unintended for personal data.
+
+**Fix**: Use `profile?.society_id` instead of `effectiveSocietyId` for favorites filtering.
+
+### O7 -- INFO: Order items status has no DB-level transition validation
+
+`OrderItemCard` allows sellers to change item status via a dropdown with forward-only transitions enforced in the UI (line 112: `isDisabled = statusIndex <= currentIndex`), but also allows jumping to `cancelled` (line 119). There is no database trigger validating item status transitions, unlike the order-level `validate_order_status_transition`. A direct DB update could set any status.
+
+**Status**: Not a user-facing issue since the UI prevents backward transitions. Document only.
 
 ---
 
-## Phase 5 -- Mutation Resilience
+## Phase 2: Test Suite
 
-| Scenario | Behavior | Fail-Closed? |
-|---|---|---|
-| Remove all languages from DB | Registration: Dropdown empty, submit disabled (`languages.length === 0`). TTS: `preferred_language` is empty/missing, edge function returns 400 "Language code is required". | **YES** |
-| Remove default radius config | `radiusOptions` is empty, UI shows "Broadcast radius not configured. Contact admin." Nearby scope unusable. | **YES** |
-| Disable `worker_marketplace` feature | UI: FeatureGate blocks rendering. RLS: INSERT/UPDATE/DELETE blocked by `can_access_feature` policies. Immediate. | **YES** |
-| Invalid API insert (bad scope) | DB trigger raises exception. Insert rejected. | **YES** |
-| Cross-society job acceptance outside target list | `accept_worker_job` RPC: Worker lookup fails, returns error "Worker not registered in eligible society". | **YES** |
-| Delete language used by existing worker | Worker record keeps old `preferred_language` value. New registrations with that code fail (`trg_validate_worker_preferred_language`). Existing TTS calls: Edge function DB lookup returns no `ai_name`, falls back to "Hindi-English mix" (F1). | **PARTIAL -- see F1** |
-| Remove worker role mid-session | Next data fetch: `useWorkerRole` returns `isWorker: false`. UI shows access-denied. RLS prevents data queries. | **YES** |
+Create `src/test/orders-payments.test.ts` with approximately 70-80 test cases covering:
+
+**Cart Management**
+- Add item requires authenticated user
+- Add item optimistic update + server sync
+- Update quantity to 0 triggers removal
+- Remove item with undo toast
+- Clear cart confirmation dialog
+- Cart persists across page navigation
+- society_id auto-set via trigger
+
+**Checkout Flow**
+- Minimum order amount per seller enforced
+- Pre-checkout product availability validation
+- Unavailable items flagged and cart refreshed
+- Confirmation dialog shows correct summary
+- Multi-seller cart creates separate orders
+- Submit guard prevents double-click
+- Delivery fee calculation: free above threshold
+- Delivery fee applied only to first order in multi-vendor
+
+**Order Creation (RPC)**
+- `create_multi_vendor_orders` validates buyer profile exists
+- Proportional coupon discount calculation
+- Platform fee computation from system_settings
+- Cross-society distance calculation
+- Urgent orders get `auto_cancel_at = now() + 3min`
+- Cart cleared atomically after order creation
+- Idempotency key generated per order
+- Payment record created with platform fee
+
+**Payment**
+- COD default selection when UPI unavailable
+- UPI blocked when seller has no `upi_id`
+- Razorpay checkout: success polls payment_status
+- Razorpay checkout: failure does not update client-side
+- Payment status webhook polling (15s timeout)
+
+**Order Status Transitions**
+- Valid: placed->accepted->preparing->ready->picked_up->delivered->completed
+- Valid: enquired->quoted->accepted->scheduled->in_progress->completed
+- Invalid: cancelled->anything (terminal)
+- Invalid: completed->anything (terminal)
+- Invalid: placed->preparing (skip not allowed)
+- Seller: Accept, Prepare, Ready, Complete flow
+- Seller: Reject with reason required
+- Delivery orders at "ready": seller action bar shows "Awaiting delivery"
+
+**Cancellation**
+- Buyer can cancel when status is placed or accepted
+- Buyer cannot cancel when preparing or later
+- Cancellation reason required
+- "Other" reason requires text input
+- Undo action fails due to terminal state constraint (O2)
+
+**Urgent Orders**
+- Timer countdown from auto_cancel_at
+- Timer shows warning states (60s, 30s)
+- Timeout triggers refetch + toast
+- Sound hook activated for seller view
+
+**Coupons**
+- Code uppercased and trimmed
+- Society-scoped to seller + buyer society
+- Expiry date check (past = rejected)
+- Start date check (future = rejected)
+- Usage limit enforced
+- Per-user limit enforced via coupon_redemptions count
+- Minimum order amount enforced
+- Percentage discount with max cap
+- Flat discount capped at order total
+- Multi-seller cart blocks coupon input
+
+**Reviews**
+- Review CTA only for completed orders (NOT delivered -- O1)
+- Rating required (1-5 stars)
+- Duplicate review blocked by DB constraint
+- Comment optional, max 500 chars
+- Category-specific dimension ratings loaded from DB
+- Review RLS: buyer_id = auth.uid() AND order completed
+
+**Favorites**
+- Add favorite requires auth
+- Remove favorite with instant UI update
+- Favorites filtered by society (O6)
+- Only approved, available sellers shown
+
+**Reorder**
+- Checks product availability before adding to cart
+- Warns about existing cart items (confirm dialog)
+- Clears existing cart on confirmation
+- Skips unavailable items with count toast
+- Navigates to /cart on success
+
+**Order Detail**
+- Realtime subscription for order updates
+- Chat available when order not completed/cancelled
+- Unread message count badge
+- Copy order ID to clipboard
+- Feedback prompt with localStorage flag
+- Delivery status card for delivery orders
+- Bill summary shows discount and delivery fee
 
 ---
 
-## Summary of Findings
+## Phase 3: Auto-Fixes
 
-| ID | Issue | Severity | Type | Action Required |
-|---|---|---|---|---|
-| F1 | Edge function line 48: `let langName = "Hindi-English mix"` fallback when `ai_name` not found in DB | MEDIUM | Hardcoded fallback | Change to return 400 error if language not found in DB |
-| F2 | `entryFrequency` defaults to `'daily'` in UI state | LOW | Hardcoded default | Consider loading default from DB or leaving unset |
-| F3 | Shift time defaults `06:00`/`18:00` hardcoded | LOW | Hardcoded default | Could be made DB-configurable; low risk |
-| F4 | Urgency and entry_frequency enum options displayed statically in UI | LOW | Static display | UI won't reflect new enum values added to DB without code change |
-| F5 | Overlapping SELECT RLS policies on `worker_job_requests` | INFO | Redundancy | Cleanup opportunity, no security impact |
-| F6 | Route guards are in-page, not router-level | LOW | Architecture | RLS prevents data access regardless; cosmetic concern |
+### Fix O1 (Critical) -- Review eligibility for delivered orders
+1. Update `OrderDetailPage` line 160: change `canReview` to include `delivered`
+2. Add migration: UPDATE reviews INSERT policy to allow `orders.status IN ('completed', 'delivered')`
+
+### Fix O2 (Critical) -- Remove broken cancellation undo
+In `OrderCancellation.tsx`, remove the `action` property from the cancellation toast (lines 75-91). Replace with a simple `toast.success('Order cancelled')`.
+
+### Fix O6 (Low) -- Favorites society filtering
+In `FavoritesPage.tsx` line 41, change `effectiveSocietyId` to `profile?.society_id` to show the user's own favorites regardless of admin view-as state.
 
 ---
 
-## Final Certification
+## Phase 4: Deliverables
 
-### Enforcement-Grade Score: ~95%
-
-### Justification
-- **What is fully compliant**: Language system (DB-backed, trigger-validated), broadcast radius (DB-configurable with UI), job scope validation (DB trigger, fail-closed), cross-society acceptance (server RPC-enforced), feature gating (dual UI + RLS), worker visibility (RLS-only, no frontend filtering), TTS voice mapping (DB-driven), job types (DB-driven), notification triggers (server-side only), mutation resilience (fail-closed in 6/7 scenarios).
-
-- **What prevents 100%**:
-  1. **F1 (MEDIUM)**: The edge function has one remaining hardcoded fallback (`"Hindi-English mix"`) that activates when a language's `ai_name` is not configured. This should return an error instead.
-  2. **F2-F4 (LOW)**: Minor UI defaults and static enum displays that are structurally safe (DB-validated) but not fully DB-driven in display.
-
-### To reach 100%
-1. Fix F1: Replace `let langName = "Hindi-English mix"` with a check that returns 400 error if `ai_name` is not found.
-2. Optionally address F2-F4 for strict compliance (these are safe as-is due to DB validation).
+1. `.lovable/orders-payments-audit.md` -- Feature and Rule Inventory with all 7 issues
+2. `src/test/orders-payments.test.ts` -- Full test suite (~75 tests)
+3. Code fixes for O1, O2, O6
+4. RLS migration for O1 (reviews)
+5. Re-run all tests to verify no regressions

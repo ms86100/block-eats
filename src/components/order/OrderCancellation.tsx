@@ -71,25 +71,7 @@ export function OrderCancellation({ orderId, orderStatus, onCancelled }: OrderCa
 
       setIsOpen(false);
 
-      toast('Order cancelled', {
-        action: {
-          label: 'Undo',
-          onClick: async () => {
-            try {
-              const { error: undoError } = await supabase
-                .from('orders')
-                .update({ status: previousStatus as any, rejection_reason: null })
-                .eq('id', orderId);
-              if (undoError) throw undoError;
-              toast.success('Order restored');
-              onCancelled();
-            } catch {
-              toast.error('Could not undo cancellation');
-            }
-          },
-        },
-        duration: 5000,
-      });
+      toast.success('Order cancelled');
 
       onCancelled();
     } catch (error) {
