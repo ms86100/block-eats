@@ -33,7 +33,7 @@ interface LinkedSociety {
   id: string;
   society_id: string;
   created_at: string;
-  society?: { name: string } | null;
+  society?: { name: string; address?: string } | null;
 }
 
 interface ProfileResult {
@@ -105,7 +105,7 @@ export function BuilderManagementSheet({ open, onOpenChange, builderId, builderN
       const socIds = societyData.map(s => s.society_id);
       const { data: socNames } = await supabase
         .from('societies')
-        .select('id, name')
+        .select('id, name, address')
         .in('id', socIds);
       societyData.forEach(s => {
         s.society = (socNames || []).find((sn: any) => sn.id === s.society_id) as any;
@@ -321,6 +321,9 @@ export function BuilderManagementSheet({ open, onOpenChange, builderId, builderN
                   <CardContent className="p-3 flex items-center justify-between">
                     <div>
                       <p className="text-sm font-medium">{s.society?.name || 'Unknown Society'}</p>
+                      {s.society?.address && (
+                        <p className="text-[10px] text-muted-foreground line-clamp-1">{s.society.address}</p>
+                      )}
                       <p className="text-[10px] text-muted-foreground">
                         Linked {new Date(s.created_at).toLocaleDateString()}
                       </p>
