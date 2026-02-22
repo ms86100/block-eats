@@ -13,7 +13,7 @@ import { friendlyError } from '@/lib/utils';
 import { workerRegistrationSchema, validateForm } from '@/lib/validation-schemas';
 import { useQuery } from '@tanstack/react-query';
 
-const DEFAULT_TYPES = ['maid', 'cook', 'driver', 'nanny', 'gardener', 'electrician', 'plumber', 'caretaker', 'other'];
+// Worker types loaded from categories prop — no hardcoded defaults used when categories available
 const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
 interface WorkerRegistrationSheetProps {
@@ -285,14 +285,7 @@ export function WorkerRegistrationSheet({ open, onOpenChange, onSuccess, categor
             ) : (
               <div>
                 <Label>Type</Label>
-                <Select value={workerType} onValueChange={setWorkerType}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {DEFAULT_TYPES.map(t => (
-                      <SelectItem key={t} value={t} className="capitalize">{t}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <p className="text-xs text-destructive mt-1">⚠️ No worker categories configured. Contact admin.</p>
               </div>
             )}
             <div>

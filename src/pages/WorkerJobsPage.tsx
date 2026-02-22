@@ -14,16 +14,24 @@ import { format } from 'date-fns';
 import { friendlyError } from '@/lib/utils';
 import { FeatureGate } from '@/components/ui/FeatureGate';
 
-const JOB_TYPE_LABELS: Record<string, string> = {
-  maid: '🧹 Maid / Cleaning',
-  cook: '🍳 Cook',
-  nanny: '👶 Nanny / Babysitter',
-  driver: '🚗 Driver',
-  electrician: '⚡ Electrician',
-  plumber: '🔧 Plumber',
-  gardener: '🌱 Gardener',
-  general: '🛠️ General Help',
-};
+// Job type labels fetched dynamically from worker categories or used as structural display-only labels
+function useJobTypeLabels() {
+  const { data: labels = {} } = useQuery({
+    queryKey: ['worker-job-type-labels'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('society_worker_categories')
+        .select('name')
+        .eq('is_active', true);
+      if (error || !data) return {};
+      const map: Record<string, string> = {};
+      data.forEach((c: any) => { map[c.name.toLowerCase()] = c.name; });
+      return map;
+    },
+    staleTime: 10 * 60 * 1000,
+  });
+  return labels;
+}
 
 // Fetch bcp47 voice tags dynamically from DB
 function useLangVoiceMap() {
@@ -52,6 +60,7 @@ export default function WorkerJobsPage() {
   const [speakingJobId, setSpeakingJobId] = useState<string | null>(null);
   const [loadingTtsId, setLoadingTtsId] = useState<string | null>(null);
   const langVoiceMap = useLangVoiceMap();
+  const jobTypeLabels = useJobTypeLabels();
 
   // Fetch open jobs — RLS handles cross-society visibility
   const { data: openJobs = [], isLoading } = useQuery({
@@ -130,7 +139,12 @@ export default function WorkerJobsPage() {
     setLoadingTtsId(job.id);
 
     try {
-      const langCode = (workerProfile as any)?.preferred_language || 'hi';
+      const langCode = (workerProfile as any)?.preferred_language;
+      if (!langCode) {
+        toast.error('No language set on your worker profile');
+        setLoadingTtsId(null);
+        return;
+      }
       const societyName = (job.society as any)?.name || '';
 
       const { data, error } = await supabase.functions.invoke('generate-job-voice-summary', {
@@ -155,7 +169,12 @@ export default function WorkerJobsPage() {
 
       // Use browser SpeechSynthesis with DB-driven voice tag
       const utterance = new SpeechSynthesisUtterance(summary);
-      const voiceTag = langVoiceMap[langCode] || 'hi-IN';
+      const voiceTag = langVoiceMap[langCode];
+      if (!voiceTag) {
+        toast.error('Voice not available for this language');
+        setLoadingTtsId(null);
+        return;
+      }
       utterance.lang = voiceTag;
       utterance.rate = 0.9;
 
@@ -195,7 +214,7 @@ export default function WorkerJobsPage() {
       <div className="p-4 space-y-4 pb-24">
         <div className="flex items-center gap-2 mb-2">
           <Badge variant="secondary" className="text-xs">
-            {workerProfile?.worker_type ? JOB_TYPE_LABELS[workerProfile.worker_type] || workerProfile.worker_type : 'Worker'}
+            {workerProfile?.worker_type ? jobTypeLabels[workerProfile.worker_type] || workerProfile.worker_type : 'Worker'}
           </Badge>
           <Badge variant={workerProfile?.is_available ? 'default' : 'outline'} className="text-xs">
             {workerProfile?.is_available ? '🟢 Available' : '🔴 Unavailable'}
@@ -221,7 +240,7 @@ export default function WorkerJobsPage() {
                 <CardHeader className="pb-2">
                   <div className="flex items-center justify-between">
                     <CardTitle className="text-base">
-                      {JOB_TYPE_LABELS[job.job_type] || job.job_type}
+                      {jobTypeLabels[job.job_type] || job.job_type}
                     </CardTitle>
                     <div className="flex items-center gap-1.5">
                       {job.urgency === 'urgent' && (

@@ -13,7 +13,12 @@ serve(async (req) => {
     const { job, language, society_name } = await req.json();
     if (!job) throw new Error("No job data provided");
 
-    const langCode = language || "hi";
+    const langCode = language;
+    if (!langCode) {
+      return new Response(JSON.stringify({ error: "Language code is required" }), {
+        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
     const jobId = job.id;
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;

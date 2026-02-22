@@ -19,22 +19,28 @@ import { Building, Globe, MapPin, Loader2 } from 'lucide-react';
 import { useSystemSettingsRaw } from '@/hooks/useSystemSettingsRaw';
 
 
-const JOB_TYPES = [
-  { value: 'maid', label: '🧹 Maid / Cleaning' },
-  { value: 'cook', label: '🍳 Cook' },
-  { value: 'nanny', label: '👶 Nanny / Babysitter' },
-  { value: 'driver', label: '🚗 Driver' },
-  { value: 'electrician', label: '⚡ Electrician' },
-  { value: 'plumber', label: '🔧 Plumber' },
-  { value: 'gardener', label: '🌱 Gardener' },
-  { value: 'general', label: '🛠️ General Help' },
-];
+// Job types loaded dynamically from DB worker categories
 
 export default function CreateJobRequestPage() {
   const { profile, effectiveSocietyId } = useAuth();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { getSetting } = useSystemSettingsRaw(['worker_broadcast_radius_options', 'worker_broadcast_default_radius']);
+
+  // Dynamic job types from DB
+  const { data: jobTypes = [] } = useQuery({
+    queryKey: ['worker-job-types', effectiveSocietyId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('society_worker_categories')
+        .select('name')
+        .eq('is_active', true)
+        .order('display_order');
+      if (error || !data) return [];
+      return data.map((c: any) => ({ value: c.name.toLowerCase(), label: c.name }));
+    },
+    staleTime: 10 * 60 * 1000,
+  });
 
   const [jobType, setJobType] = useState('');
   const [description, setDescription] = useState('');
@@ -140,11 +146,18 @@ export default function CreateJobRequestPage() {
               <Select value={jobType} onValueChange={setJobType}>
                 <SelectTrigger><SelectValue placeholder="Select type..." /></SelectTrigger>
                 <SelectContent>
-                  {JOB_TYPES.map(t => (
-                    <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
-                  ))}
+                  {jobTypes.length > 0 ? (
+                    jobTypes.map((t: any) => (
+                      <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+                    ))
+                  ) : (
+                    <SelectItem value="" disabled>No job types configured</SelectItem>
+                  )}
                 </SelectContent>
               </Select>
+              {jobTypes.length === 0 && (
+                <p className="text-xs text-destructive mt-1">⚠️ No job categories configured. Contact admin.</p>
+              )}
             </div>
 
             <div>
