@@ -27,6 +27,7 @@ import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { Textarea } from '@/components/ui/textarea';
 import { ApiKeySettings } from '@/components/admin/ApiKeySettings';
+import { AppNavigator } from '@/components/admin/AppNavigator';
 import { CategoryManager } from '@/components/admin/CategoryManager';
 import { SubcategoryManager } from '@/components/admin/SubcategoryManager';
 import { SellerApplicationReview } from '@/components/admin/SellerApplicationReview';
@@ -329,13 +330,14 @@ export default function AdminPage() {
             <TabsTrigger value="societies" className="text-[10px]">Societies</TabsTrigger>
             <TabsTrigger value="disputes" className="text-[10px]">Disputes</TabsTrigger>
           </TabsList>
-          <TabsList className="w-full grid grid-cols-6 mt-1">
+          <TabsList className="w-full grid grid-cols-7 mt-1">
             <TabsTrigger value="reports" className="text-[10px]">Reports</TabsTrigger>
             <TabsTrigger value="payments" className="text-[10px]">Payments</TabsTrigger>
             <TabsTrigger value="reviews" className="text-[10px]">Reviews</TabsTrigger>
             <TabsTrigger value="featured" className="text-[10px]">Featured</TabsTrigger>
             <TabsTrigger value="features" className="text-[10px]">Features</TabsTrigger>
             <TabsTrigger value="settings" className="text-[10px]">Settings</TabsTrigger>
+            <TabsTrigger value="navigator" className="text-[10px]">Navigate</TabsTrigger>
           </TabsList>
 
           <TabsContent value="products" className="mt-4">
@@ -602,6 +604,10 @@ export default function AdminPage() {
             <ApiKeySettings />
             <CategoryManager />
             <SubcategoryManager />
+          </TabsContent>
+
+          <TabsContent value="navigator" className="mt-4">
+            <AppNavigator />
           </TabsContent>
         </Tabs>
 
