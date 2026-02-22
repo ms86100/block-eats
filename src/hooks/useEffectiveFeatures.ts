@@ -20,7 +20,15 @@ export type FeatureKey =
   | 'vehicle_parking'
   | 'resident_identity_verification'
   | 'worker_marketplace'
-  | 'workforce_management';
+  | 'workforce_management'
+  | 'society_notices'
+  | 'delivery_management'
+  | 'worker_attendance'
+  | 'worker_salary'
+  | 'worker_leave'
+  | 'security_audit'
+  | 'seller_tools'
+  | 'gate_entry';
 
 export type FeatureState = 'enabled' | 'disabled' | 'locked' | 'unavailable';
 
@@ -59,8 +67,12 @@ export function useEffectiveFeatures() {
 
   const isFeatureEnabled = (key: FeatureKey): boolean => {
     const feature = featureMap.get(key);
-    // Backward compat: if no data returned (no builder, no features seeded), default enabled
-    if (!feature) return features.length === 0 ? true : false;
+    if (!feature) {
+      // No features returned at all = RPC error or no society context → default enabled
+      if (features.length === 0) return true;
+      // Features returned but this key missing = not in package → disabled
+      return false;
+    }
     return feature.is_enabled;
   };
 

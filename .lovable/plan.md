@@ -1,261 +1,62 @@
 
 
-# Phase 1-5: Mutation Resilience & Enforcement Hardening
+# Root Cause Analysis: Builder Sees All Modules Regardless of Package
 
-## Overview
+## The Problem
+Builders currently see and can access ALL modules, regardless of which feature package (Basic/Pro/Enterprise) is assigned to them.
 
-Five structural fixes to move Sociva from "dynamic SaaS" to "enforcement-grade SaaS." Prioritized by architectural risk.
+## Root Cause: Broken Database Function
 
----
+The core feature resolution function `get_effective_society_features()` is **completely broken** due to two column name errors introduced in a recent migration. It fails on every call, which causes the frontend to silently fall back to "enable everything."
 
-## Phase 1: Backend Feature Flag Enforcement (Medium-High Priority)
+### Bug 1: Wrong column name on `feature_package_items`
+The function references `fpi.is_enabled` but the actual column is `fpi.enabled`.
 
-### Problem
-`is_feature_enabled_for_society()` exists but is not used in any RLS policy. Feature gates only block UI rendering. Direct API calls can still write to feature-gated tables.
+### Bug 2: Non-existent column on `platform_features`
+The function references `pf.is_enabled_by_default` but this column does not exist in the table.
 
-### Solution
+### How This Causes "All Features Enabled"
+1. Frontend calls `get_effective_society_features()` via RPC
+2. The function errors out immediately (column not found)
+3. The hook receives an empty array and logs the error silently
+4. The fallback logic says: "If no features were returned, assume all features are enabled" (backward compatibility for societies without a builder)
+5. Result: Every `FeatureGate` check returns `true` -- builder sees everything
 
-**Step 1: Create helper function**
+## Fix (2 changes)
 
+### 1. Fix the Database Function
+A single migration to replace the function with corrected column names:
+- `fpi.is_enabled` changed to `fpi.enabled` (3 occurrences)
+- `pf.is_enabled_by_default` changed to `false` (features not in a package should be disabled when a builder is assigned)
+
+### 2. Improve Frontend Fallback Logic
+Update `useEffectiveFeatures.ts` line 71 to distinguish between "RPC errored" and "no builder assigned":
+- If the RPC returned data but a feature is missing from results, it means the feature is not in the package -- disable it
+- Only default to "all enabled" when no builder is assigned (i.e., the RPC returns features with `source = 'default'`)
+- This prevents silent failures from re-enabling everything
+
+## Technical Details
+
+### Database Migration SQL
 ```sql
-CREATE OR REPLACE FUNCTION public.can_access_feature(_feature_key text)
-RETURNS boolean
-LANGUAGE sql STABLE SECURITY DEFINER SET search_path TO 'public'
-AS $$
-  SELECT public.is_feature_enabled_for_society(
-    public.get_user_society_id(auth.uid()),
-    _feature_key
-  )
-$$;
+CREATE OR REPLACE FUNCTION public.get_effective_society_features(_society_id UUID)
+RETURNS TABLE(...)
+-- Fix 1: fpi.is_enabled -> fpi.enabled (3 places)
+-- Fix 2: pf.is_enabled_by_default -> false
 ```
 
-**Step 2: Add RESTRICTIVE write-blocking policies**
-
-Apply to each feature-gated table (INSERT, UPDATE, DELETE only -- SELECT remains open for historical data):
-
-| Feature Key | Tables |
-|---|---|
-| `snag_management` | `snag_tickets` |
-| `disputes` | `dispute_tickets`, `dispute_comments` |
-| `bulletin` | `bulletin_posts`, `bulletin_comments`, `bulletin_votes`, `bulletin_rsvps`, `help_requests`, `help_responses` |
-| `finances` | `society_expenses` |
-| `maintenance` | `maintenance_dues` |
-| `construction_progress` | `construction_milestones` |
-| `visitor_management` | `visitor_entries`, `authorized_persons` |
-| `vehicle_parking` | `society_vehicles` |
-| `parcel_management` | `society_parcels` |
-| `workforce_management` | `society_workers`, `worker_flat_assignments` |
-| `worker_marketplace` | `worker_job_requests` |
-
-Each policy follows this pattern:
-```sql
-CREATE POLICY "feature_gate_<table>_insert"
-ON public.<table>
-AS RESTRICTIVE
-FOR INSERT TO authenticated
-WITH CHECK (public.can_access_feature('<feature_key>'));
-```
-
-Repeat for UPDATE and DELETE where applicable.
-
-**Step 3: Edge function feature checks**
-
-Add feature validation before mutations in `manage-delivery`:
+### Frontend Change (useEffectiveFeatures.ts)
 ```typescript
-const { data: enabled } = await serviceClient.rpc(
-  'is_feature_enabled_for_society',
-  { _society_id: societyId, _feature_key: 'delivery' }
-);
-if (!enabled) return jsonResponse({ error: 'Feature disabled' }, 403);
-```
+// Current (broken fallback):
+if (!feature) return features.length === 0 ? true : false;
 
-### Files Changed
-- 1 new migration (RLS policies + `can_access_feature` function)
-- `supabase/functions/manage-delivery/index.ts` (add feature check)
-
----
-
-## Phase 2: Rate Limiting Standardization (Medium Priority)
-
-### Problem
-Only `gate-token` uses the shared rate limiter. Other mutation endpoints are unprotected.
-
-### Solution
-
-Add `checkRateLimit` calls to these edge functions:
-
-| Function | Key Pattern | Limit |
-|---|---|---|
-| `create-razorpay-order` | `order:${userId}` | 10/min |
-| `manage-delivery` (non-webhook) | `delivery:${userId}` | 20/min |
-| `delete-user-account` | `delete-account:${userId}` | 3/hour |
-| `seed-test-data` | `seed:${userId}` | 5/hour |
-| `generate-product-image` | `gen-image:${userId}` | 10/min |
-| `generate-category-image` | `gen-cat-image:${userId}` | 10/min |
-
-### Files Changed
-- `supabase/functions/create-razorpay-order/index.ts`
-- `supabase/functions/manage-delivery/index.ts`
-- `supabase/functions/delete-user-account/index.ts`
-- `supabase/functions/seed-test-data/index.ts`
-- `supabase/functions/generate-product-image/index.ts`
-- `supabase/functions/generate-category-image/index.ts`
-
----
-
-## Phase 3: 3PL Webhook Signature Validation (Medium Priority)
-
-### Problem
-`manage-delivery` webhook action accepts any payload without signature verification.
-
-### Solution
-
-Add HMAC-SHA256 signature validation to the webhook handler:
-
-```typescript
-async function handleWebhook(req: Request, db: any) {
-  const signature = req.headers.get('x-webhook-signature');
-  const body = await req.text();
-
-  // Get 3PL webhook secret from system_settings
-  const { data: setting } = await db
-    .from('system_settings')
-    .select('value')
-    .eq('key', '3pl_webhook_secret')
-    .maybeSingle();
-
-  if (setting?.value && signature) {
-    const isValid = await verifyHMAC(body, signature, setting.value);
-    if (!isValid) {
-      // Log and reject
-      return jsonResponse({ error: 'Invalid signature' }, 401);
-    }
-  } else if (setting?.value && !signature) {
-    // Secret configured but no signature provided
-    return jsonResponse({ error: 'Missing signature' }, 401);
-  }
-  // If no secret configured, allow (backward compat during setup)
-
-  // ... existing webhook logic
+// Fixed (only default-enable when source confirms no builder):
+if (!feature) {
+  if (features.length === 0) return true; // RPC error or no society
+  return false; // Feature not in package = disabled
 }
 ```
 
-Also add rate limiting to the webhook endpoint: 60 req/min per IP.
-
-### Files Changed
-- `supabase/functions/manage-delivery/index.ts`
-
----
-
-## Phase 4: Realtime Role Change Handling (Low-Medium Priority)
-
-### Problem
-Backend immediately blocks access on role removal, but UI retains stale state until page refresh.
-
-### Solution
-
-Add realtime subscriptions in `useAuthState.ts` for role/permission tables:
-
-```typescript
-// Subscribe to role changes for current user
-const roleChannel = supabase
-  .channel('role-changes')
-  .on('postgres_changes', {
-    event: '*',
-    schema: 'public',
-    table: 'user_roles',
-    filter: `user_id=eq.${session.user.id}`,
-  }, () => fetchProfile(session.user.id))
-  .on('postgres_changes', {
-    event: '*',
-    schema: 'public',
-    table: 'security_staff',
-    filter: `user_id=eq.${session.user.id}`,
-  }, () => fetchProfile(session.user.id))
-  .on('postgres_changes', {
-    event: '*',
-    schema: 'public',
-    table: 'society_admins',
-    filter: `user_id=eq.${session.user.id}`,
-  }, () => fetchProfile(session.user.id))
-  .on('postgres_changes', {
-    event: '*',
-    schema: 'public',
-    table: 'builder_members',
-    filter: `user_id=eq.${session.user.id}`,
-  }, () => fetchProfile(session.user.id))
-  .subscribe();
-```
-
-Requires enabling realtime on `user_roles`, `security_staff`, `society_admins`, `builder_members` tables (migration).
-
-### Files Changed
-- 1 new migration (enable realtime on 4 tables)
-- `src/contexts/auth/useAuthState.ts` (add realtime subscriptions)
-
----
-
-## Phase 5: Edge Function Auth Centralization (Low Priority)
-
-### Problem
-Each edge function manually extracts and validates Bearer tokens with duplicated code.
-
-### Solution
-
-Create `supabase/functions/_shared/auth.ts`:
-
-```typescript
-export async function withAuth(
-  req: Request,
-  corsHeaders: Record<string, string>
-): Promise<{ userId: string; userClient: any } | Response> {
-  const authHeader = req.headers.get('Authorization');
-  if (!authHeader?.startsWith('Bearer ')) {
-    return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-      status: 401,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
-  }
-
-  const userClient = createClient(
-    Deno.env.get('SUPABASE_URL')!,
-    Deno.env.get('SUPABASE_ANON_KEY')!,
-    { global: { headers: { Authorization: authHeader } } }
-  );
-
-  const token = authHeader.replace('Bearer ', '');
-  const { data, error } = await userClient.auth.getClaims(token);
-  if (error || !data?.claims) {
-    return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-      status: 401,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
-  }
-
-  return { userId: data.claims.sub as string, userClient };
-}
-```
-
-Refactor authenticated edge functions to use:
-```typescript
-const authResult = await withAuth(req, corsHeaders);
-if (authResult instanceof Response) return authResult;
-const { userId } = authResult;
-```
-
-### Files Changed
-- New file: `supabase/functions/_shared/auth.ts`
-- Refactor: `manage-delivery`, `gate-token`, `create-razorpay-order`, `delete-user-account`, `generate-product-image`, `generate-category-image`
-
----
-
-## Sequencing
-
-| Phase | Priority | Effort | Description |
-|---|---|---|---|
-| 1 | Immediate | Medium | Feature flag backend enforcement via RLS |
-| 2 | High | Low | Rate limiting on mutation endpoints |
-| 3 | High | Low | 3PL webhook signature validation |
-| 4 | Medium | Low | Realtime role change subscriptions |
-| 5 | Low | Medium | Auth middleware centralization |
+## Verification
+After the fix, calling the RPC for a society with a builder assigned to the "Basic" package should return only the features included in that package as enabled, and all others as disabled.
 
