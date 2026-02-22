@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Card, CardContent } from '@/components/ui/card';
@@ -12,17 +13,28 @@ import {
   HelpCircle,
   ChevronRight,
   BookOpen,
-  RefreshCw
+  RefreshCw,
+  Package, Users, Wrench, Car, Bell, MapPin, Home, Settings,
+  DoorOpen, ClipboardCheck, Landmark, Bug, Scale, IndianRupee,
+  Building2, Briefcase, HardHat, Truck, Calendar, Star,
+  type LucideIcon,
 } from 'lucide-react';
 import { useOnboarding } from '@/components/onboarding/OnboardingWalkthrough';
+import { useSystemSettings } from '@/hooks/useSystemSettings';
 
-const HELP_SECTIONS = [
+export interface HelpSection {
+  icon: LucideIcon;
+  title: string;
+  items: string[];
+}
+
+const DEFAULT_HELP_SECTIONS: HelpSection[] = [
   {
     icon: ShoppingBag,
     title: 'How to Order',
     items: [
       'Browse sellers on the Home screen',
-      'Tap on a seller to see their menu',
+      'Tap on a seller to see their listings',
       'Add items to your cart',
       'Choose payment method (UPI or Cash)',
       'Place your order and track status',
@@ -61,8 +73,37 @@ const HELP_SECTIONS = [
   },
 ];
 
-export default function HelpPage() {
+interface HelpPageProps {
+  /** Override default sections for white-label customization */
+  sections?: HelpSection[];
+}
+
+export default function HelpPage({ sections: customSections }: HelpPageProps) {
   const { resetOnboarding } = useOnboarding();
+  const settings = useSystemSettings();
+
+  // Priority: prop > DB > default
+  const helpSections = useMemo(() => {
+    if (customSections) return customSections;
+    if (settings.helpSectionsJson) {
+      try {
+        const parsed = JSON.parse(settings.helpSectionsJson) as { icon: string; title: string; items: string[] }[];
+        const ICON_MAP: Record<string, LucideIcon> = {
+          ShoppingBag, Store, CreditCard, MessageCircle, Shield, HelpCircle,
+          Package, Users, Wrench, Car, Bell, MapPin, Home, Settings,
+          DoorOpen, ClipboardCheck, Landmark, Bug, Scale, IndianRupee,
+          Building2, Briefcase, HardHat, Truck, Calendar, Star,
+          BookOpen, RefreshCw, ArrowLeft, ChevronRight,
+        };
+        return parsed.map(s => ({
+          icon: ICON_MAP[s.icon] || HelpCircle,
+          title: s.title,
+          items: s.items,
+        }));
+      } catch { /* fall through to defaults */ }
+    }
+    return DEFAULT_HELP_SECTIONS;
+  }, [customSections, settings.helpSectionsJson]);
 
   return (
     <AppLayout showHeader={false} showNav={false}>
@@ -78,7 +119,7 @@ export default function HelpPage() {
           </div>
           <h1 className="text-2xl font-bold">Help & Guide</h1>
           <p className="text-muted-foreground mt-1">
-            Learn how to use Sociva
+            Learn how to use the platform
           </p>
         </div>
 
@@ -105,7 +146,7 @@ export default function HelpPage() {
 
         {/* Help Sections */}
         <div className="space-y-4">
-          {HELP_SECTIONS.map(({ icon: Icon, title, items }) => (
+          {helpSections.map(({ icon: Icon, title, items }) => (
             <Card key={title}>
               <CardContent className="p-4">
                 <div className="flex items-center gap-3 mb-3">
@@ -136,8 +177,8 @@ export default function HelpPage() {
               In accordance with the Consumer Protection (E-Commerce) Rules, 2020:
             </p>
             <div className="bg-muted rounded-lg p-3 space-y-1 text-sm">
-              <p><span className="font-medium">Name:</span> Sociva Grievance Team</p>
-              <p><span className="font-medium">Email:</span> grievance@sociva.in</p>
+              <p><span className="font-medium">Name:</span> {settings.grievanceOfficerName}</p>
+              <p><span className="font-medium">Email:</span> {settings.grievanceEmail}</p>
               <p><span className="font-medium">Response:</span> Within 48 hours</p>
               <p><span className="font-medium">Resolution:</span> Within 30 days</p>
             </div>

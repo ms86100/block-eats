@@ -17,6 +17,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery } from '@tanstack/react-query';
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
+import { useNearbyProducts } from '@/hooks/queries/useNearbyProducts';
 
 export default function CategoryGroupPage() {
   const { category } = useParams<{ category: string }>();
@@ -31,17 +32,31 @@ export default function CategoryGroupPage() {
   const [sortBy, setSortBy] = useState<SortKey>('relevance');
 
   const parentGroup = category ? getGroupBySlug(category) : undefined;
-  const subCategories = category ? groupedConfigs[category] || [] : [];
+  const allSubCategories = category ? groupedConfigs[category] || [] : [];
 
   const { data: allProducts = [], isLoading: productsLoading } = useCategoryProducts(
     category || null,
     effectiveSocietyId
   );
 
+  const { data: nearbyProducts } = useNearbyProducts();
+
+  // Filter sub-categories to only those with at least one product
+  const activeCategorySet = useMemo(
+    () => new Set(allProducts.map((p) => p.category)),
+    [allProducts]
+  );
+  const subCategories = useMemo(
+    () => allSubCategories.filter((c) => activeCategorySet.has(c.category)),
+    [allSubCategories, activeCategorySet]
+  );
+  const showAllTab = subCategories.length > 1;
+
+  // Extract nearby sellers for this parent group from RPC data
   const { data: topSellers = [] } = useQuery({
     queryKey: ['category-sellers', category, effectiveSocietyId],
     queryFn: async () => {
-      let query = supabase
+      const { data, error } = await supabase
         .from('seller_profiles')
         .select(`*, profile:profiles!seller_profiles_user_id_fkey(name, block)`)
         .eq('verification_status', 'approved')
@@ -49,11 +64,6 @@ export default function CategoryGroupPage() {
         .order('rating', { ascending: false })
         .limit(10);
 
-      if (effectiveSocietyId) {
-        query = query.eq('society_id', effectiveSocietyId);
-      }
-
-      const { data, error } = await query;
       if (error) throw error;
       return (data as any) || [];
     },
@@ -161,17 +171,19 @@ export default function CategoryGroupPage() {
           {subCategories.length > 0 && (
             <ScrollArea className="pb-1">
               <div className="flex gap-1.5 pb-1">
-                <button
-                  onClick={() => handleSubCategorySelect(null)}
-                  className={cn(
-                    'px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap border transition-colors',
-                    !activeSubCategory 
-                      ? 'bg-foreground text-background border-foreground' 
-                      : 'bg-background text-foreground border-border'
-                  )}
-                >
-                  All
-                </button>
+                {showAllTab && (
+                  <button
+                    onClick={() => handleSubCategorySelect(null)}
+                    className={cn(
+                      'px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap border transition-colors',
+                      !activeSubCategory 
+                        ? 'bg-foreground text-background border-foreground' 
+                        : 'bg-background text-foreground border-border'
+                    )}
+                  >
+                    All
+                  </button>
+                )}
                 {subCategories.map((config) => (
                   <button
                     key={config.category}

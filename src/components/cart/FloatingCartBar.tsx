@@ -28,11 +28,11 @@ export function FloatingCartBar({ className }: FloatingCartBarProps) {
         animate={{ y: 0, opacity: 1 }}
         exit={{ y: 80, opacity: 0 }}
         transition={{ type: 'spring', stiffness: 400, damping: 30 }}
-        className={cn('fixed bottom-16 left-0 right-0 z-40 px-3 pb-2 safe-bottom', className)}
+        className={cn('fixed bottom-20 left-0 right-0 z-40 px-3 pb-2 safe-bottom', className)}
       >
         <Link to="/cart">
           <motion.div
-            className="rounded-xl bg-primary px-3 py-2.5 flex items-center justify-between shadow-lg"
+            className="rounded-xl bg-primary px-3 py-3.5 flex items-center justify-between shadow-lg"
             whileTap={{ scale: 0.97 }}
           >
             <div className="flex items-center gap-2">
@@ -47,7 +47,7 @@ export function FloatingCartBar({ className }: FloatingCartBarProps) {
                 </div>
               )}
               <div>
-                <p className="text-primary-foreground text-xs font-bold">
+                <p className="text-primary-foreground text-sm font-bold">
                   {itemCount} item{itemCount !== 1 ? 's' : ''} · ₹{totalAmount}
                 </p>
               </div>

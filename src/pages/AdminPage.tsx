@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
+import { useLocation } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Button } from '@/components/ui/button';
@@ -21,20 +22,24 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Profile, SellerProfile, Review, PaymentRecord, ChatMessage, VerificationStatus, PAYMENT_STATUS_LABELS, PaymentStatus, Society } from '@/types/database';
+import { Profile, SellerProfile, Review, PaymentRecord, ChatMessage, VerificationStatus, PaymentStatus, Society } from '@/types/database';
+import { useStatusLabels } from '@/hooks/useStatusLabels';
 import { Check, X, Users, Store, Package, Star, MessageSquare, Award, Eye, EyeOff, CreditCard, DollarSign, Flag, AlertTriangle, Settings, Building2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { Textarea } from '@/components/ui/textarea';
 import { ApiKeySettings } from '@/components/admin/ApiKeySettings';
+import { AppNavigator } from '@/components/admin/AppNavigator';
 import { CategoryManager } from '@/components/admin/CategoryManager';
-import { LicenseManager } from '@/components/admin/LicenseManager';
+import { SubcategoryManager } from '@/components/admin/SubcategoryManager';
+import { SellerApplicationReview } from '@/components/admin/SellerApplicationReview';
 import { AdminDisputesTab } from '@/components/admin/AdminDisputesTab';
 import { EmergencyBroadcastSheet } from '@/components/admin/EmergencyBroadcastSheet';
 import { logAudit } from '@/lib/audit';
 import { SocietySwitcher } from '@/components/admin/SocietySwitcher';
 import { FeatureManagement } from '@/components/admin/FeatureManagement';
 import { AdminProductApprovals } from '@/components/admin/AdminProductApprovals';
+import { PlatformSettingsManager } from '@/components/admin/PlatformSettingsManager';
 interface Report {
   id: string;
   reporter_id: string;
@@ -62,6 +67,10 @@ interface Warning {
 }
 
 export default function AdminPage() {
+  const location = useLocation();
+  const { getPaymentStatus } = useStatusLabels();
+  const tabParam = useMemo(() => new URLSearchParams(location.search).get('tab'), [location.search]);
+  const [activeTab, setActiveTab] = useState(tabParam || 'sellers');
   const [pendingUsers, setPendingUsers] = useState<Profile[]>([]);
   const [pendingSellers, setPendingSellers] = useState<SellerProfile[]>([]);
   const [reviews, setReviews] = useState<Review[]>([]);
@@ -320,22 +329,22 @@ export default function AdminPage() {
           <Card><CardContent className="p-2 text-center"><Flag className="mx-auto text-destructive" size={14} /><p className="text-sm font-bold">{stats.pendingReports}</p><p className="text-[8px] text-muted-foreground">Reports</p></CardContent></Card>
         </div>
 
-        <Tabs defaultValue="sellers">
-          <TabsList className="w-full grid grid-cols-6">
+        <Tabs value={activeTab} onValueChange={setActiveTab}>
+          <TabsList className="w-full grid grid-cols-5">
             <TabsTrigger value="sellers" className="text-[10px]">Sellers</TabsTrigger>
-            <TabsTrigger value="licenses" className="text-[10px]">Licenses</TabsTrigger>
             <TabsTrigger value="products" className="text-[10px]">Products</TabsTrigger>
             <TabsTrigger value="users" className="text-[10px]">Users</TabsTrigger>
             <TabsTrigger value="societies" className="text-[10px]">Societies</TabsTrigger>
             <TabsTrigger value="disputes" className="text-[10px]">Disputes</TabsTrigger>
           </TabsList>
-          <TabsList className="w-full grid grid-cols-6 mt-1">
+          <TabsList className="w-full grid grid-cols-7 mt-1">
             <TabsTrigger value="reports" className="text-[10px]">Reports</TabsTrigger>
             <TabsTrigger value="payments" className="text-[10px]">Payments</TabsTrigger>
             <TabsTrigger value="reviews" className="text-[10px]">Reviews</TabsTrigger>
             <TabsTrigger value="featured" className="text-[10px]">Featured</TabsTrigger>
             <TabsTrigger value="features" className="text-[10px]">Features</TabsTrigger>
             <TabsTrigger value="settings" className="text-[10px]">Settings</TabsTrigger>
+            <TabsTrigger value="navigator" className="text-[10px]">Navigate</TabsTrigger>
           </TabsList>
 
           <TabsContent value="products" className="mt-4">
@@ -360,37 +369,8 @@ export default function AdminPage() {
             )) : <p className="text-center text-muted-foreground py-8 text-sm">No pending users</p>}
           </TabsContent>
 
-          <TabsContent value="sellers" className="space-y-2 mt-4">
-            <h3 className="text-sm font-semibold text-muted-foreground">Pending Sellers ({pendingSellers.length})</h3>
-            {pendingSellers.length > 0 ? pendingSellers.map((seller) => (
-              <Card key={seller.id}><CardContent className="p-4 space-y-3">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <p className="font-semibold text-sm">{seller.business_name}</p>
-                    <p className="text-xs text-muted-foreground">{(seller as any).profile?.name} • Block {(seller as any).profile?.block}, Flat {(seller as any).profile?.flat_number}</p>
-                  </div>
-                  <div className="flex gap-2">
-                    <Button size="sm" variant="outline" className="text-destructive h-8 w-8 p-0" onClick={() => updateSellerStatus(seller.id, 'rejected')}><X size={14} /></Button>
-                    <Button size="sm" className="h-8 w-8 p-0" onClick={() => updateSellerStatus(seller.id, 'approved')}><Check size={14} /></Button>
-                  </div>
-                </div>
-                {seller.description && (
-                  <p className="text-xs text-muted-foreground">{seller.description}</p>
-                )}
-                <div className="grid grid-cols-2 gap-2 text-xs">
-                  {seller.primary_group && (
-                    <div><span className="text-muted-foreground">Category:</span> <span className="font-medium capitalize">{seller.primary_group.replace(/_/g, ' ')}</span></div>
-                  )}
-                  {seller.categories && seller.categories.length > 0 && (
-                    <div className="col-span-2"><span className="text-muted-foreground">Sub-categories:</span> <span className="font-medium">{seller.categories.map((c: string) => c.replace(/_/g, ' ')).join(', ')}</span></div>
-                  )}
-                  {(seller.availability_start || seller.availability_end) && (
-                    <div><span className="text-muted-foreground">Hours:</span> <span className="font-medium">{seller.availability_start || '—'} – {seller.availability_end || '—'}</span></div>
-                  )}
-                  <div><span className="text-muted-foreground">COD:</span> <span className="font-medium">{seller.accepts_cod ? 'Yes' : 'No'}</span></div>
-                </div>
-              </CardContent></Card>
-            )) : <p className="text-center text-muted-foreground py-8 text-sm">No pending sellers</p>}
+          <TabsContent value="sellers" className="mt-4">
+            <SellerApplicationReview />
           </TabsContent>
 
           <TabsContent value="disputes" className="mt-4">
@@ -415,7 +395,7 @@ export default function AdminPage() {
               </Select>
             </div>
             {filteredPayments.length > 0 ? filteredPayments.map((payment) => {
-              const statusInfo = PAYMENT_STATUS_LABELS[payment.payment_status as PaymentStatus];
+              const statusInfo = getPaymentStatus(payment.payment_status as PaymentStatus);
               return (
                 <Card key={payment.id}><CardContent className="p-3">
                   <div className="flex items-start justify-between">
@@ -626,13 +606,16 @@ export default function AdminPage() {
             <FeatureManagement />
           </TabsContent>
 
-          <TabsContent value="licenses" className="mt-4">
-            <LicenseManager />
-          </TabsContent>
 
           <TabsContent value="settings" className="space-y-4 mt-4">
+            <PlatformSettingsManager />
             <ApiKeySettings />
             <CategoryManager />
+            <SubcategoryManager />
+          </TabsContent>
+
+          <TabsContent value="navigator" className="mt-4">
+            <AppNavigator />
           </TabsContent>
         </Tabs>
 

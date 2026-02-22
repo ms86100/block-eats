@@ -10,7 +10,7 @@ import { Switch } from '@/components/ui/switch';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Card, CardContent } from '@/components/ui/card';
-import { ImageUpload } from '@/components/ui/image-upload';
+import { CroppableImageUpload } from '@/components/ui/croppable-image-upload';
 import { useAuth } from '@/contexts/AuthContext';
 import { SellerProfile, ProductCategory, DAYS_OF_WEEK } from '@/types/database';
 import { useCategoryConfigs } from '@/hooks/useCategoryBehavior';
@@ -20,7 +20,7 @@ import { Slider } from '@/components/ui/slider';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { ArrowLeft, Loader2, PauseCircle, PlayCircle, Clock, Smartphone, Banknote, AlertTriangle, Building2, Globe, Truck, Eye } from 'lucide-react';
 import { toast } from 'sonner';
-import { cn } from '@/lib/utils';
+import { cn, friendlyError } from '@/lib/utils';
 import { logAudit } from '@/lib/audit';
 import { LicenseUpload } from '@/components/seller/LicenseUpload';
 
@@ -68,16 +68,14 @@ export default function SellerSettingsPage() {
     is_available: true,
     cover_image_url: null as string | null,
     profile_image_url: null as string | null,
-    // Bank account details for Razorpay payouts
     bank_account_number: '',
     bank_ifsc_code: '',
     bank_account_holder: '',
-    // Cross-society commerce
     sell_beyond_community: false,
     delivery_radius_km: 5,
-    // Fulfillment mode
     fulfillment_mode: 'self_pickup' as string,
     delivery_note: '',
+    minimum_order_amount: '',
   });
 
   useEffect(() => {
@@ -124,6 +122,7 @@ export default function SellerSettingsPage() {
           delivery_radius_km: profile.delivery_radius_km ?? 5,
           fulfillment_mode: profile.fulfillment_mode || 'self_pickup',
           delivery_note: profile.delivery_note || '',
+          minimum_order_amount: profile.minimum_order_amount?.toString() || '',
         });
       }
     } catch (error) {
@@ -225,6 +224,7 @@ export default function SellerSettingsPage() {
 
     setIsSaving(true);
     try {
+      const minOrder = formData.minimum_order_amount ? parseFloat(formData.minimum_order_amount) : null;
       const { error } = await supabase
         .from('seller_profiles')
         .update({
@@ -247,6 +247,7 @@ export default function SellerSettingsPage() {
           delivery_radius_km: formData.delivery_radius_km,
           fulfillment_mode: formData.fulfillment_mode,
           delivery_note: formData.delivery_note.trim() || null,
+          minimum_order_amount: (minOrder !== null && !isNaN(minOrder) && minOrder > 0) ? minOrder : null,
         } as any)
         .eq('id', sellerProfile.id);
 
@@ -266,7 +267,7 @@ export default function SellerSettingsPage() {
       }
     } catch (error: any) {
       console.error('Error saving:', error);
-      toast.error(error.message || 'Failed to save settings');
+      toast.error(friendlyError(error));
     } finally {
       setIsSaving(false);
     }
@@ -300,8 +301,8 @@ export default function SellerSettingsPage() {
     <AppLayout showHeader={false} showNav={false}>
       <div className="p-4 pb-24 safe-top">
         <div className="flex items-center gap-3 mb-6">
-          <Link to="/seller" className="text-muted-foreground">
-            <ArrowLeft size={24} />
+          <Link to="/seller" className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-muted shrink-0">
+            <ArrowLeft size={18} />
           </Link>
           <h1 className="text-xl font-bold">Store Settings</h1>
         </div>
@@ -347,7 +348,7 @@ export default function SellerSettingsPage() {
                 <Label className="text-xs text-muted-foreground mb-2 block">Cover Image</Label>
                 {user && (
                   <div className="max-h-48 max-w-full">
-                    <ImageUpload
+                    <CroppableImageUpload
                       value={formData.cover_image_url}
                       onChange={(url) => setFormData({ ...formData, cover_image_url: url })}
                       folder="sellers"
@@ -355,6 +356,7 @@ export default function SellerSettingsPage() {
                       aspectRatio="video"
                       placeholder="Upload cover photo"
                       className="max-h-48"
+                      cropAspect={16 / 9}
                     />
                   </div>
                 )}
@@ -363,13 +365,14 @@ export default function SellerSettingsPage() {
                 <Label className="text-xs text-muted-foreground mb-2 block">Profile Photo</Label>
                 {user && (
                   <div className="max-w-[160px]">
-                    <ImageUpload
+                    <CroppableImageUpload
                       value={formData.profile_image_url}
                       onChange={(url) => setFormData({ ...formData, profile_image_url: url })}
                       folder="sellers"
                       userId={user.id}
                       aspectRatio="square"
                       placeholder="Upload profile photo"
+                      cropAspect={1}
                     />
                   </div>
                 )}
@@ -567,6 +570,43 @@ export default function SellerSettingsPage() {
             </div>
           </div>
 
+          {/* Minimum Order Amount */}
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <Banknote size={16} className="text-muted-foreground" />
+              <Label>Minimum Order Amount</Label>
+            </div>
+            <div className="p-4 bg-muted rounded-lg space-y-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="font-medium text-sm">Set minimum order value</p>
+                  <p className="text-xs text-muted-foreground">
+                    Buyers must meet this amount to place an order
+                  </p>
+                </div>
+                <Switch
+                  checked={formData.minimum_order_amount !== ''}
+                  onCheckedChange={(checked) =>
+                    setFormData({ ...formData, minimum_order_amount: checked ? '100' : '' })
+                  }
+                />
+              </div>
+              {formData.minimum_order_amount !== '' && (
+                <div className="space-y-2 pt-2 border-t">
+                  <Label htmlFor="min_order" className="text-xs">Minimum Amount (₹)</Label>
+                  <Input
+                    id="min_order"
+                    type="number"
+                    min="0"
+                    placeholder="e.g. 100"
+                    value={formData.minimum_order_amount}
+                    onChange={(e) => setFormData({ ...formData, minimum_order_amount: e.target.value })}
+                  />
+                </div>
+              )}
+            </div>
+          </div>
+
           {/* Fulfillment Mode */}
           <div className="space-y-3">
             <div className="flex items-center gap-2">
@@ -731,7 +771,7 @@ export default function SellerSettingsPage() {
 
       {/* Save Button */}
       <div className="fixed bottom-0 left-0 right-0 p-4 bg-card border-t safe-bottom">
-        <Button className="w-full" onClick={handleSave} disabled={isSaving}>
+        <Button className="w-full h-12" onClick={handleSave} disabled={isSaving}>
           {isSaving ? <Loader2 className="animate-spin mr-2" size={18} /> : null}
           Save Changes
         </Button>

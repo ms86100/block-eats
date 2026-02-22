@@ -6,33 +6,18 @@ import { useProductsByCategory } from '@/hooks/queries/useProductsByCategory';
 import { useNearbySocietySellers } from '@/hooks/queries/useStoreDiscovery';
 import { useAuth } from '@/contexts/AuthContext';
 import { Skeleton } from '@/components/ui/skeleton';
-import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
 import { motion } from 'framer-motion';
 import { Store, Sparkles, Clock } from 'lucide-react';
 
 export default function CategoriesPage() {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const { configs, isLoading: configsLoading } = useCategoryConfigs();
   const { groups, isLoading: groupsLoading } = useParentGroups();
   const { data: productCategories = [], isLoading: productsLoading } = useProductsByCategory();
 
-  const { data: prefs } = useQuery({
-    queryKey: ['user-browse-prefs', user?.id],
-    queryFn: async () => {
-      const { data } = await supabase
-        .from('profiles')
-        .select('browse_beyond_community, search_radius_km')
-        .eq('id', user!.id)
-        .single();
-      return data as any;
-    },
-    enabled: !!user?.id,
-    staleTime: 60_000,
-  });
-
-  const browseBeyond = prefs?.browse_beyond_community ?? false;
-  const { data: nearbyBands = [] } = useNearbySocietySellers();
+  const browseBeyond = profile?.browse_beyond_community ?? true;
+  const searchRadius = profile?.search_radius_km ?? 10;
+  const { data: nearbyBands = [] } = useNearbySocietySellers(searchRadius, browseBeyond);
 
   const activeCategorySet = new Set(productCategories.map(c => c.category));
 

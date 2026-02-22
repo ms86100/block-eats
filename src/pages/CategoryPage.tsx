@@ -12,6 +12,8 @@ import { ProductCategory, Product } from '@/types/database';
 import { SORT_OPTIONS, SortKey } from '@/lib/marketplace-constants';
 import { ArrowLeft, Search, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useNearbyProducts, mergeProducts } from '@/hooks/queries/useNearbyProducts';
+import { useSubcategories } from '@/hooks/useSubcategories';
 
 type ProductWithSellerLocal = Product & {
   seller_id: string;
@@ -34,10 +36,14 @@ export default function CategoryPage() {
   const [isLoadingProducts, setIsLoadingProducts] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState<SortKey>('relevance');
+  const [selectedSubcategory, setSelectedSubcategory] = useState<string>('all');
+  const { data: nearbyProducts } = useNearbyProducts();
 
   // Get all categories in the same parent group for the sidebar
   const categoryInfo = configs.find((c) => c.category === category);
+  const categoryConfigId = categoryInfo?.id || null;
   const parentGroup = categoryInfo?.parentGroup;
+  const { data: subcategories = [] } = useSubcategories(categoryConfigId);
   const siblingCategories = useMemo(() => {
     if (!parentGroup) return [];
     return configs
@@ -59,15 +65,17 @@ export default function CategoryPage() {
         .select('*, seller:seller_profiles!products_seller_id_fkey(id, business_name, rating, society_id, verification_status, fulfillment_mode, delivery_note)')
         .eq('category', category as string)
         .eq('is_available', true)
-        .eq('approval_status', 'approved')
-        .eq('seller.verification_status', 'approved');
+        .eq('approval_status', 'approved');
+
+      // Reset subcategory when category changes
+      setSelectedSubcategory('all');
 
       if (effectiveSocietyId) {
         q = q.eq('seller.society_id', effectiveSocietyId);
       }
 
       const res = await q;
-      const prodResults = (res.data || []).filter((p: any) => p.seller != null) as any[];
+      const prodResults = (res.data || []).filter((p: any) => p.seller != null && p.seller.verification_status === 'approved') as any[];
       const enriched = prodResults.map((p: any) => ({ ...p, seller: p.seller }));
       setProducts(enriched);
     } catch (error) {
@@ -78,21 +86,33 @@ export default function CategoryPage() {
   };
 
   const displayProducts = useMemo(() => {
-    let filtered = products;
+    // Merge local products with cross-society nearby products for this category
+    const nearbyForCategory = (nearbyProducts || []).filter(
+      (p) => p.category === category
+    );
+    const allProducts = mergeProducts(products as any[], nearbyForCategory);
+
+    let filtered = allProducts;
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
       filtered = filtered.filter(
         (p) => p.name.toLowerCase().includes(q) || p.description?.toLowerCase().includes(q)
       );
     }
+    // Subcategory filter
+    if (selectedSubcategory && selectedSubcategory !== 'all') {
+      filtered = filtered.filter((p: any) => p.subcategory_id === selectedSubcategory);
+    }
     const sorted = [...filtered];
     switch (sortBy) {
       case 'price_low': sorted.sort((a, b) => a.price - b.price); break;
       case 'price_high': sorted.sort((a, b) => b.price - a.price); break;
       case 'popular': sorted.sort((a, b) => (b.is_bestseller ? 1 : 0) - (a.is_bestseller ? 1 : 0)); break;
+      case 'rating': sorted.sort((a, b) => ((b as any).seller?.rating || 0) - ((a as any).seller?.rating || 0)); break;
+      case 'newest': sorted.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()); break;
     }
     return sorted;
-  }, [products, searchQuery, sortBy]);
+  }, [products, nearbyProducts, category, searchQuery, sortBy, selectedSubcategory]);
 
   return (
     <AppLayout showHeader={false}>
@@ -100,8 +120,8 @@ export default function CategoryPage() {
       <div className="sticky top-0 z-30 bg-background border-b border-border safe-top">
         <div className="px-3 pt-2.5 pb-2">
           <div className="flex items-center gap-2 mb-2">
-            <Link to="/" className="w-7 h-7 rounded-full bg-muted flex items-center justify-center shrink-0">
-              <ArrowLeft size={16} />
+            <Link to="/" className="w-10 h-10 rounded-full bg-muted flex items-center justify-center shrink-0">
+              <ArrowLeft size={18} />
             </Link>
             <h1 className="text-sm font-bold flex items-center gap-1.5 flex-1 truncate">
               <span className="text-base">{categoryInfo?.icon}</span>
@@ -143,6 +163,37 @@ export default function CategoryPage() {
             </button>
           ))}
         </div>
+
+        {/* Subcategory filter chips */}
+        {subcategories.length > 0 && (
+          <div className="flex gap-1.5 px-3 pb-2 overflow-x-auto scrollbar-hide">
+            <button
+              onClick={() => setSelectedSubcategory('all')}
+              className={cn(
+                'px-2.5 py-1 rounded-full text-[10px] font-medium whitespace-nowrap transition-colors border',
+                selectedSubcategory === 'all'
+                  ? 'bg-primary text-primary-foreground border-primary'
+                  : 'bg-card text-muted-foreground border-border'
+              )}
+            >
+              All
+            </button>
+            {subcategories.map(sub => (
+              <button
+                key={sub.id}
+                onClick={() => setSelectedSubcategory(sub.id)}
+                className={cn(
+                  'px-2.5 py-1 rounded-full text-[10px] font-medium whitespace-nowrap transition-colors border',
+                  selectedSubcategory === sub.id
+                    ? 'bg-primary text-primary-foreground border-primary'
+                    : 'bg-card text-muted-foreground border-border'
+                )}
+              >
+                {sub.icon || ''} {sub.display_name}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Main: Left sidebar + Right product grid */}

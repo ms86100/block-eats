@@ -10,10 +10,13 @@ import { Package, Loader2, Eye, Star, Clock, CheckCircle, XCircle, ShieldCheck }
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
+import { friendlyError } from '@/lib/utils';
 import { logAudit } from '@/lib/audit';
+import { useSystemSettings } from '@/hooks/useSystemSettings';
 
 // Import refactored components
 import { StoreStatusCard } from '@/components/seller/StoreStatusCard';
+import { SellerVisibilityChecklist } from '@/components/seller/SellerVisibilityChecklist';
 import { EarningsSummary } from '@/components/seller/EarningsSummary';
 import { DashboardStats } from '@/components/seller/DashboardStats';
 import { QuickActions } from '@/components/seller/QuickActions';
@@ -25,6 +28,7 @@ import { useSellerOrderStats, useSellerOrdersInfinite, useSellerOrderFilterCount
 
 export default function SellerDashboardPage() {
   const { user, sellerProfiles, currentSellerId } = useAuth();
+  const settings = useSystemSettings();
   const [sellerProfile, setSellerProfile] = useState<SellerProfile | null>(null);
   const [isLoadingProfile, setIsLoadingProfile] = useState(true);
   const [orderFilter, setOrderFilter] = useState<OrderFilter>('all');
@@ -99,7 +103,7 @@ export default function SellerDashboardPage() {
       }
     } catch (error) {
       console.error('Error toggling availability:', error);
-      toast.error('Failed to update availability');
+      toast.error(friendlyError(error));
     }
   };
 
@@ -119,8 +123,11 @@ export default function SellerDashboardPage() {
     return (
       <AppLayout headerTitle="Seller Dashboard" showLocation={false}>
         <div className="p-4 text-center py-12">
-          <p className="text-muted-foreground mb-4">
+          <p className="text-muted-foreground mb-2">
             You haven't set up your seller profile yet
+          </p>
+          <p className="text-xs text-muted-foreground mb-4">
+            {settings.sellerEmptyStateCopy}
           </p>
           <Link to="/become-seller">
             <Button>Become a Seller</Button>
@@ -138,6 +145,8 @@ export default function SellerDashboardPage() {
           sellerProfiles={sellerProfiles}
           onToggleAvailability={toggleAvailability}
         />
+
+        <SellerVisibilityChecklist sellerId={sellerProfile.id} />
 
         {/* Store Performance Card - "How buyers see your store" */}
         <Card>
@@ -252,8 +261,8 @@ export default function SellerDashboardPage() {
               ))}
               {hasNextPage && (
                 <div className="flex justify-center py-2">
-                  <Button variant="outline" size="sm" onClick={() => fetchNextPage()} disabled={isFetchingNextPage}>
-                    {isFetchingNextPage ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Loading...</> : 'Load More'}
+                    <Button variant="secondary" size="default" className="w-full" onClick={() => fetchNextPage()} disabled={isFetchingNextPage}>
+                     {isFetchingNextPage ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Loading...</> : 'Load More'}
                   </Button>
                 </div>
               )}
@@ -263,6 +272,11 @@ export default function SellerDashboardPage() {
               <Package className="mx-auto text-muted-foreground mb-2" size={32} />
               <p className="text-sm text-muted-foreground">
                 No {orderFilter !== 'all' ? orderFilter : ''} orders
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">
+                {orderFilter === 'all'
+                  ? 'Share your store link with neighbors to get your first order'
+                  : 'Orders in this status will appear here as buyers place them'}
               </p>
             </div>
           )}

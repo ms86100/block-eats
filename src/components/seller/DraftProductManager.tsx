@@ -12,6 +12,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Plus, Trash2, Loader2, Package, Percent, CheckCircle2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useCategoryConfigs } from '@/hooks/useCategoryBehavior';
+import { friendlyError } from '@/lib/utils';
 
 interface DraftProduct {
   id?: string;
@@ -89,6 +90,10 @@ export function DraftProductManager({
       toast.error('Price cannot be higher than MRP');
       return;
     }
+    if (!newProduct.image_url.trim()) {
+      toast.error('Product image is required. Please upload or generate an image.');
+      return;
+    }
 
     setIsSaving(true);
     try {
@@ -127,7 +132,7 @@ export function DraftProductManager({
       toast.success('Product added');
     } catch (error: any) {
       console.error('Error adding product:', error);
-      toast.error(error.message || 'Failed to add product');
+      toast.error(friendlyError(error));
     } finally {
       setIsSaving(false);
     }
@@ -341,7 +346,7 @@ export function DraftProductManager({
             
             {/* Product Image - now using ProductImageUpload with AI tab */}
             <div className="space-y-2">
-              <Label className="text-xs">Product Image</Label>
+              <Label className="text-xs">Product Image <span className="text-destructive">*</span></Label>
               {user ? (
                 <ProductImageUpload
                   value={newProduct.image_url || null}

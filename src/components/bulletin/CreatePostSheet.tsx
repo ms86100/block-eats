@@ -6,7 +6,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { CATEGORY_CONFIG, type BulletinCategory } from './CategoryFilter';
-import { cn } from '@/lib/utils';
+import { cn, friendlyError } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from '@/hooks/use-toast';
@@ -131,7 +131,7 @@ export function CreatePostSheet({ open, onOpenChange, onCreated }: CreatePostShe
       onOpenChange(false);
       onCreated();
     } catch (err: any) {
-      toast({ title: 'Failed to create post', description: err.message, variant: 'destructive' });
+      toast({ title: 'Failed to create post', description: friendlyError(err), variant: 'destructive' });
     } finally {
       setLoading(false);
     }
@@ -301,6 +301,25 @@ export function CreatePostSheet({ open, onOpenChange, onCreated }: CreatePostShe
                   onChange={e => setPollDeadline(e.target.value)}
                 />
               </div>
+            </div>
+          )}
+
+          {/* Preview before posting */}
+          {title.trim() && !loading && (
+            <div className="p-3 rounded-lg bg-muted/50 border border-border">
+              <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide mb-1">Preview</p>
+              <div className="flex items-center gap-1.5 mb-1">
+                <span className="text-xs px-1.5 py-0.5 rounded-full bg-primary/10 text-primary font-medium">
+                  {CATEGORY_CONFIG[category]?.label || category}
+                </span>
+              </div>
+              <p className="text-sm font-semibold">{title}</p>
+              {body.trim() && (
+                <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{body}</p>
+              )}
+              {attachments.length > 0 && (
+                <p className="text-[10px] text-muted-foreground mt-1">📎 {attachments.length} image{attachments.length > 1 ? 's' : ''} attached</p>
+              )}
             </div>
           )}
 

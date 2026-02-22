@@ -80,17 +80,17 @@ export function useLocalSellers() {
   });
 }
 
-export function useNearbySocietySellers() {
+export function useNearbySocietySellers(radiusKm: number = 5, enabled: boolean = true) {
   const { effectiveSocietyId, isApproved } = useAuth();
 
   return useQuery({
-    queryKey: ['store-discovery', 'nearby', effectiveSocietyId],
+    queryKey: ['store-discovery', 'nearby', effectiveSocietyId, radiusKm],
     queryFn: async () => {
       if (!effectiveSocietyId) return [];
 
       const { data, error } = await supabase.rpc('search_nearby_sellers', {
         _buyer_society_id: effectiveSocietyId,
-        _radius_km: 10,
+        _radius_km: radiusKm,
       });
 
       if (error) {
@@ -100,11 +100,12 @@ export function useNearbySocietySellers() {
 
       const sellers = (data as NearbySeller[]) || [];
 
-      const BANDS: { label: string; minKm: number; maxKm: number }[] = [
+      const ALL_BANDS: { label: string; minKm: number; maxKm: number }[] = [
         { label: 'Within 2 km', minKm: 0, maxKm: 2 },
         { label: 'Within 5 km', minKm: 2, maxKm: 5 },
         { label: 'Within 10 km', minKm: 5, maxKm: 10 },
       ];
+      const BANDS = ALL_BANDS.filter(b => b.minKm < radiusKm);
 
       const bands: DistanceBand[] = BANDS.map(band => {
         const bandSellers = sellers.filter(
@@ -136,7 +137,7 @@ export function useNearbySocietySellers() {
 
       return bands;
     },
-    enabled: !!isApproved && !!effectiveSocietyId,
+    enabled: !!isApproved && !!effectiveSocietyId && enabled,
     staleTime: jitteredStaleTime(60_000),
   });
 }

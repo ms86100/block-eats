@@ -6,12 +6,14 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAuth } from '@/contexts/AuthContext';
-import { PaymentRecord, Order, PAYMENT_STATUS_LABELS, PaymentStatus, SellerProfile } from '@/types/database';
+import { PaymentRecord, Order, PaymentStatus, SellerProfile } from '@/types/database';
+import { useStatusLabels } from '@/hooks/useStatusLabels';
 import { ArrowLeft, TrendingUp, DollarSign, Calendar, CreditCard } from 'lucide-react';
 import { format, startOfDay, startOfWeek, startOfMonth, isAfter, parseISO } from 'date-fns';
 
 export default function SellerEarningsPage() {
   const { user, currentSellerId, sellerProfiles } = useAuth();
+  const { getPaymentStatus } = useStatusLabels();
   const [payments, setPayments] = useState<(PaymentRecord & { order?: Order })[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [stats, setStats] = useState({
@@ -56,7 +58,7 @@ export default function SellerEarningsPage() {
       const weekStart = startOfWeek(new Date());
       const monthStart = startOfMonth(new Date());
 
-      const paidPayments = paymentList.filter((p: PaymentRecord) => p.payment_status === 'paid');
+      const paidPayments = paymentList.filter((p: PaymentRecord) => p.payment_status === 'paid' || (p.payment_status === 'pending' && (p as any).order?.status === 'completed'));
       const todayPayments = paidPayments.filter((p: PaymentRecord) => 
         isAfter(parseISO(p.created_at), today)
       );
@@ -98,7 +100,9 @@ export default function SellerEarningsPage() {
     <AppLayout showHeader={false}>
       <div className="p-4 safe-top">
         <Link to="/seller" className="flex items-center gap-2 text-muted-foreground mb-6">
-          <ArrowLeft size={20} />
+          <span className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-muted shrink-0">
+            <ArrowLeft size={18} />
+          </span>
           <span>Back to Dashboard</span>
         </Link>
 
@@ -154,7 +158,7 @@ export default function SellerEarningsPage() {
             <div className="space-y-3">
               {payments.map((payment) => {
                 const order = payment.order as any;
-                const statusInfo = PAYMENT_STATUS_LABELS[payment.payment_status as PaymentStatus];
+                const statusInfo = getPaymentStatus(payment.payment_status as PaymentStatus);
                 
                 return (
                   <Card key={payment.id}>

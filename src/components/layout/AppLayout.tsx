@@ -2,6 +2,7 @@ import { ReactNode } from 'react';
 import { BottomNav } from './BottomNav';
 import { Header } from './Header';
 import { FloatingCartBar } from '@/components/cart/FloatingCartBar';
+import { NavigatorBackButton } from '@/components/admin/NavigatorBackButton';
 import { cn } from '@/lib/utils';
 
 interface AppLayoutProps {
@@ -10,6 +11,7 @@ interface AppLayoutProps {
   showNav?: boolean;
   showCart?: boolean;
   showLocation?: boolean;
+  showBack?: boolean;
   headerTitle?: string;
   className?: string;
 }
@@ -20,6 +22,7 @@ export function AppLayout({
   showNav = true,
   showCart = true,
   showLocation = true,
+  showBack,
   headerTitle,
   className,
 }: AppLayoutProps) {
@@ -28,11 +31,13 @@ export function AppLayout({
       {showHeader && (
         <Header 
           showCart={showCart} 
-          showLocation={showLocation} 
+          showLocation={showLocation}
+          showBack={showBack}
           title={headerTitle} 
         />
       )}
       <main className={cn('pb-20', className)}>{children}</main>
+      <NavigatorBackButton />
       <FloatingCartBar />
       {showNav && <BottomNav />}
     </div>

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { AppLayout } from '@/components/layout/AppLayout';
@@ -25,18 +25,31 @@ import {
   Camera,
   Repeat,
   Award,
+  Building2,
 } from 'lucide-react';
+import { FeedbackSheet } from '@/components/feedback/FeedbackSheet';
 import { toast } from 'sonner';
+import { useSystemSettings } from '@/hooks/useSystemSettings';
 
 export default function ProfilePage() {
   const navigate = useNavigate();
-  const { user, profile, society, isSeller, isAdmin, signOut, refreshProfile } = useAuth();
+  const { user, profile, society, isSeller, isAdmin, isBuilderMember, signOut, refreshProfile } = useAuth();
   const { isFeatureEnabled } = useEffectiveFeatures();
+  const settings = useSystemSettings();
   const [largeFont, setLargeFont] = useState(() => {
-    return localStorage.getItem('sociva_large_font') === 'true';
+    return localStorage.getItem('app_large_font') === 'true';
   });
   const [isEditingAvatar, setIsEditingAvatar] = useState(false);
   const [skillBadges, setSkillBadges] = useState<{ skill_name: string; trust_score: number; endorsement_count: number }[]>([]);
+  const [showOnboardingFeedback, setShowOnboardingFeedback] = useState(false);
+
+  // Check for post-seller-onboarding feedback prompt
+  useEffect(() => {
+    if (localStorage.getItem('seller_onboarding_completed') === 'true') {
+      setShowOnboardingFeedback(true);
+      localStorage.removeItem('seller_onboarding_completed');
+    }
+  }, []);
 
   useEffect(() => {
     if (!user) return;
@@ -55,7 +68,7 @@ export default function ProfilePage() {
   useEffect(() => {
     if (largeFont) document.documentElement.classList.add('large-font');
     else document.documentElement.classList.remove('large-font');
-    localStorage.setItem('sociva_large_font', String(largeFont));
+    localStorage.setItem('app_large_font', String(largeFont));
   }, [largeFont]);
 
   const handleSignOut = async () => {
@@ -85,6 +98,9 @@ export default function ProfilePage() {
 
   const menuItems = [
     { icon: Award, label: 'Community Directory', to: '/directory' },
+    ...(isBuilderMember
+      ? [{ icon: Building2, label: 'Builder Dashboard', to: '/builder' }]
+      : []),
     ...(isSeller
       ? [{ icon: Store, label: 'Seller Dashboard', to: '/seller' }]
       : [{ icon: Store, label: 'Become a Seller', to: '/become-seller' }]),
@@ -130,8 +146,10 @@ export default function ProfilePage() {
                 <p className="text-xs text-primary font-medium mt-0.5">{society.name}</p>
               )}
               <div className="flex items-center gap-1 text-xs text-muted-foreground mt-1">
-                <MapPin size={12} />
-                <span>{profile?.phase && `${profile.phase}, `}Block {profile?.block}, {profile?.flat_number}</span>
+                <MapPin size={12} className="shrink-0" />
+                <span className="line-clamp-1">
+                  {[profile?.flat_number, profile?.block && `Block ${profile.block}`, profile?.phase].filter(Boolean).join(', ')}
+                </span>
               </div>
               <div className="flex items-center gap-1 text-xs text-muted-foreground">
                 <Phone size={12} />
@@ -198,7 +216,7 @@ export default function ProfilePage() {
                 </div>
                 <div className="flex-1 min-w-0">
                   <h4 className="font-bold text-sm text-accent-foreground">Start Selling</h4>
-                  <p className="text-[11px] text-accent-foreground/80">Share your homemade food with neighbors</p>
+                  <p className="text-[11px] text-accent-foreground/80">Start selling to your community</p>
                 </div>
                 <ChevronRight className="text-accent-foreground/60 shrink-0" size={18} />
               </div>
@@ -221,15 +239,26 @@ export default function ProfilePage() {
         {/* Menu List */}
         <div className="mt-4 px-4 space-y-px">
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2 px-1">Your Information</p>
-          {menuItems.map(({ icon: Icon, label, to }) => (
+          {menuItems.slice(0, menuItems.findIndex(m => m.label === 'Privacy Policy')).map(({ icon: Icon, label, to }) => (
             <Link key={to} to={to}>
-              <div className="flex items-center gap-3 px-3 py-3 rounded-lg hover:bg-muted/50 active:bg-muted transition-colors">
+              <div className="flex items-center gap-3 px-3 py-3.5 rounded-lg hover:bg-muted/50 active:bg-muted transition-colors">
                 <Icon size={18} className="text-muted-foreground shrink-0" />
                 <span className="flex-1 text-sm font-medium">{label}</span>
                 <ChevronRight size={16} className="text-muted-foreground" />
               </div>
             </Link>
           ))}
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2 mt-4 px-1">Legal & Support</p>
+          {menuItems.slice(menuItems.findIndex(m => m.label === 'Privacy Policy')).map(({ icon: Icon, label, to }) => (
+            <Link key={to} to={to}>
+              <div className="flex items-center gap-3 px-3 py-3.5 rounded-lg hover:bg-muted/50 active:bg-muted transition-colors">
+                <Icon size={18} className="text-muted-foreground shrink-0" />
+                <span className="flex-1 text-sm font-medium">{label}</span>
+                <ChevronRight size={16} className="text-muted-foreground" />
+              </div>
+            </Link>
+          ))}
+          <FeedbackSheet triggerOpen={showOnboardingFeedback} onOpenChange={() => setShowOnboardingFeedback(false)} />
         </div>
 
         {/* Sign Out */}
@@ -241,11 +270,12 @@ export default function ProfilePage() {
         </div>
 
         {/* Delete Account */}
-        <div className="px-4 mt-3">
+        <div className="px-4 mt-8">
+          <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold mb-2 px-1">Danger Zone</p>
           <DeleteAccountDialog />
         </div>
 
-        <p className="text-center text-[11px] text-muted-foreground mt-4">Sociva v2.0.0</p>
+        <p className="text-center text-[11px] text-muted-foreground mt-4">{settings.platformName} v{settings.appVersion}</p>
       </div>
     </AppLayout>
   );

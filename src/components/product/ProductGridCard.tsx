@@ -6,6 +6,7 @@ import { VegBadge } from '@/components/ui/veg-badge';
 import { useCart } from '@/hooks/useCart';
 import { Product } from '@/types/database';
 import { cn } from '@/lib/utils';
+import { useCurrency } from '@/hooks/useCurrency';
 
 export interface ProductWithSeller extends Product {
   seller_name?: string;
@@ -27,6 +28,7 @@ export function ProductGridCard({ product, behavior, onTap, className, viewOnly 
   const navigate = useNavigate();
   const { items, addItem, updateQuantity } = useCart();
   const { impact, selectionChanged } = useHaptics();
+  const { formatPrice } = useCurrency();
   const cartItem = items.find((item) => item.product_id === product.id);
   const quantity = cartItem?.quantity || 0;
 
@@ -108,17 +110,17 @@ export function ProductGridCard({ product, behavior, onTap, className, viewOnly 
             {quantity === 0 ? (
               <button
                 onClick={handleAdd}
-                className="border-2 border-accent text-accent bg-card font-bold text-[11px] px-5 py-1 rounded-lg shadow-sm hover:bg-accent hover:text-accent-foreground transition-all uppercase tracking-wide active:scale-90"
+                className="border-2 border-accent text-accent bg-card font-bold text-[11px] px-5 py-1.5 rounded-lg shadow-sm hover:bg-accent hover:text-accent-foreground transition-all uppercase tracking-wide active:scale-90"
               >
                 ADD
               </button>
             ) : (
               <div className="flex items-center bg-accent rounded-lg overflow-hidden shadow-sm animate-stepper-pop">
-                <button onClick={handleDecrement} className="px-2.5 py-1 text-accent-foreground">
+                <button onClick={handleDecrement} className="px-2.5 py-1.5 text-accent-foreground">
                   <Minus size={13} strokeWidth={3} />
                 </button>
                 <span className="font-bold text-xs text-accent-foreground min-w-[20px] text-center">{quantity}</span>
-                <button onClick={handleIncrement} className="px-2.5 py-1 text-accent-foreground">
+                <button onClick={handleIncrement} className="px-2.5 py-1.5 text-accent-foreground">
                   <Plus size={13} strokeWidth={3} />
                 </button>
               </div>
@@ -143,7 +145,7 @@ export function ProductGridCard({ product, behavior, onTap, className, viewOnly 
         <div className="flex-1 min-h-0.5" />
 
         <div className="flex items-end gap-1 mt-auto">
-          <span className="font-bold text-xs text-foreground leading-none">₹{product.price}</span>
+          <span className="font-bold text-xs text-foreground leading-none">{formatPrice(product.price)}</span>
         </div>
       </div>
     </div>

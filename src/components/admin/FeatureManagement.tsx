@@ -10,9 +10,15 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Plus, Package, Layers, Building2, Trash2, Check } from 'lucide-react';
+import { Plus, Package, Layers, Building2, Trash2, Check, BarChart3, Settings2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { logAudit } from '@/lib/audit';
+import { friendlyError } from '@/lib/utils';
+import { useAuth } from '@/contexts/AuthContext';
+import { CreateBuilderSheet } from './CreateBuilderSheet';
+import { PackageComparisonMatrix } from './PackageComparisonMatrix';
+import { SocietyFeatureAudit } from './SocietyFeatureAudit';
+import { BuilderManagementSheet } from './BuilderManagementSheet';
 
 interface PlatformFeature {
   id: string;
@@ -47,6 +53,7 @@ const CATEGORIES = ['governance', 'marketplace', 'finance', 'operations', 'const
 const TIERS = ['free', 'basic', 'pro', 'enterprise'];
 
 export function FeatureManagement() {
+  const { user } = useAuth();
   const [features, setFeatures] = useState<PlatformFeature[]>([]);
   const [packages, setPackages] = useState<FeaturePackage[]>([]);
   const [assignments, setAssignments] = useState<BuilderAssignment[]>([]);
@@ -65,12 +72,20 @@ export function FeatureManagement() {
   const [editingPkg, setEditingPkg] = useState<string | null>(null);
   const [pkgItems, setPkgItems] = useState<Record<string, boolean>>({});
 
+  // Comparison matrix
+  const [showComparison, setShowComparison] = useState(false);
+  const [allPkgItems, setAllPkgItems] = useState<Record<string, Record<string, boolean>>>({});
+
   // Assignment form
   const [assignOpen, setAssignOpen] = useState(false);
   const [assignBuilder, setAssignBuilder] = useState('');
   const [assignPackage, setAssignPackage] = useState('');
 
-  useEffect(() => { fetchAll(); }, []);
+  // Builder management sheet
+  const [manageBuilderId, setManageBuilderId] = useState<string | null>(null);
+  const [manageBuilderName, setManageBuilderName] = useState('');
+
+  useEffect(() => { fetchAll(); }, [user?.id]);
 
   const fetchAll = async () => {
     const [featRes, pkgRes, assignRes, builderRes] = await Promise.all([
@@ -83,13 +98,29 @@ export function FeatureManagement() {
     setPackages((pkgRes.data as FeaturePackage[]) || []);
     setAssignments((assignRes.data as any) || []);
     setBuilders((builderRes.data as any) || []);
+
+    // Load all package items for comparison matrix
+    const pkgIds = (pkgRes.data || []).map((p: any) => p.id);
+    if (pkgIds.length > 0) {
+      const { data: allItems } = await supabase
+        .from('feature_package_items')
+        .select('package_id, feature_id, enabled')
+        .in('package_id', pkgIds);
+      const grouped: Record<string, Record<string, boolean>> = {};
+      (allItems || []).forEach((item: any) => {
+        if (!grouped[item.package_id]) grouped[item.package_id] = {};
+        grouped[item.package_id][item.feature_id] = item.enabled;
+      });
+      setAllPkgItems(grouped);
+    }
+
     setIsLoading(false);
   };
 
   const createFeature = async () => {
     if (!newFeature.feature_key || !newFeature.feature_name) return;
     const { error } = await supabase.from('platform_features').insert(newFeature);
-    if (error) { toast.error(error.message); return; }
+    if (error) { toast.error(friendlyError(error)); return; }
     await logAudit('feature_created', 'platform_feature', '', null, { feature_key: newFeature.feature_key });
     toast.success('Feature created');
     setNewFeatureOpen(false);
@@ -106,7 +137,7 @@ export function FeatureManagement() {
   const createPackage = async () => {
     if (!newPkg.package_name) return;
     const { error } = await supabase.from('feature_packages').insert(newPkg);
-    if (error) { toast.error(error.message); return; }
+    if (error) { toast.error(friendlyError(error)); return; }
     await logAudit('package_created', 'feature_package', '', null, { name: newPkg.package_name });
     toast.success('Package created');
     setNewPkgOpen(false);
@@ -150,7 +181,7 @@ export function FeatureManagement() {
     });
     if (error) {
       if (error.code === '23505') toast.error('Already assigned');
-      else toast.error(error.message);
+      else toast.error(friendlyError(error));
       return;
     }
     await logAudit('package_assigned_to_builder', 'builder_feature_package', assignBuilder, null, { package_id: assignPackage });
@@ -244,9 +275,13 @@ export function FeatureManagement() {
 
         {/* PACKAGES TAB */}
         <TabsContent value="packages" className="space-y-3 mt-3">
-          <div className="flex justify-between items-center">
+           <div className="flex justify-between items-center">
             <h3 className="text-sm font-semibold text-muted-foreground">Feature Packages ({packages.length})</h3>
-            <Sheet open={newPkgOpen} onOpenChange={setNewPkgOpen}>
+            <div className="flex gap-2">
+              <Button size="sm" variant={showComparison ? 'default' : 'outline'} className="gap-1 text-xs" onClick={() => setShowComparison(v => !v)}>
+                <BarChart3 size={12} /> Compare
+              </Button>
+              <Sheet open={newPkgOpen} onOpenChange={setNewPkgOpen}>
               <SheetTrigger asChild><Button size="sm" variant="outline" className="gap-1"><Plus size={14} /> Create</Button></SheetTrigger>
               <SheetContent>
                 <SheetHeader><SheetTitle>New Package</SheetTitle></SheetHeader>
@@ -263,9 +298,13 @@ export function FeatureManagement() {
                   <Button className="w-full" onClick={createPackage}>Create Package</Button>
                 </div>
               </SheetContent>
-            </Sheet>
-          </div>
+             </Sheet>
+            </div>
+           </div>
 
+          {showComparison && (
+            <PackageComparisonMatrix features={features} packages={packages} packageItems={allPkgItems} />
+          )}
           {packages.map(pkg => (
             <Card key={pkg.id}>
               <CardContent className="p-3">
@@ -307,50 +346,67 @@ export function FeatureManagement() {
         <TabsContent value="assignments" className="space-y-3 mt-3">
           <div className="flex justify-between items-center">
             <h3 className="text-sm font-semibold text-muted-foreground">Builder Assignments ({assignments.length})</h3>
-            <Sheet open={assignOpen} onOpenChange={setAssignOpen}>
-              <SheetTrigger asChild><Button size="sm" variant="outline" className="gap-1"><Plus size={14} /> Assign</Button></SheetTrigger>
-              <SheetContent>
-                <SheetHeader><SheetTitle>Assign Package to Builder</SheetTitle></SheetHeader>
-                <div className="mt-4 space-y-3">
-                  <div>
-                    <Label className="text-xs">Builder</Label>
-                    <Select value={assignBuilder} onValueChange={setAssignBuilder}>
-                      <SelectTrigger><SelectValue placeholder="Select builder" /></SelectTrigger>
-                      <SelectContent>{builders.map(b => <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>)}</SelectContent>
-                    </Select>
+            <div className="flex gap-2">
+              <CreateBuilderSheet onCreated={fetchAll} />
+              <Sheet open={assignOpen} onOpenChange={setAssignOpen}>
+                <SheetTrigger asChild><Button size="sm" variant="outline" className="gap-1"><Plus size={14} /> Assign</Button></SheetTrigger>
+                <SheetContent>
+                  <SheetHeader><SheetTitle>Assign Package to Builder</SheetTitle></SheetHeader>
+                  <div className="mt-4 space-y-3">
+                    <div>
+                      <Label className="text-xs">Builder</Label>
+                      <Select value={assignBuilder} onValueChange={setAssignBuilder}>
+                        <SelectTrigger><SelectValue placeholder="Select builder" /></SelectTrigger>
+                        <SelectContent>{builders.map(b => <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>)}</SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label className="text-xs">Package</Label>
+                      <Select value={assignPackage} onValueChange={setAssignPackage}>
+                        <SelectTrigger><SelectValue placeholder="Select package" /></SelectTrigger>
+                        <SelectContent>{packages.map(p => <SelectItem key={p.id} value={p.id}>{p.package_name}</SelectItem>)}</SelectContent>
+                      </Select>
+                    </div>
+                    <Button className="w-full" onClick={assignPackageToBuilder} disabled={!assignBuilder || !assignPackage}>
+                      <Check size={14} className="mr-1" /> Assign Package
+                    </Button>
                   </div>
-                  <div>
-                    <Label className="text-xs">Package</Label>
-                    <Select value={assignPackage} onValueChange={setAssignPackage}>
-                      <SelectTrigger><SelectValue placeholder="Select package" /></SelectTrigger>
-                      <SelectContent>{packages.map(p => <SelectItem key={p.id} value={p.id}>{p.package_name}</SelectItem>)}</SelectContent>
-                    </Select>
-                  </div>
-                  <Button className="w-full" onClick={assignPackageToBuilder} disabled={!assignBuilder || !assignPackage}>
-                    <Check size={14} className="mr-1" /> Assign Package
-                  </Button>
-                </div>
-              </SheetContent>
-            </Sheet>
+                </SheetContent>
+              </Sheet>
+            </div>
           </div>
-
           {assignments.map(a => (
             <Card key={a.id}>
-              <CardContent className="p-3 flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium">{(a as any).builder?.name || 'Unknown Builder'}</p>
-                  <p className="text-xs text-muted-foreground">{(a as any).package?.package_name || 'Unknown Package'}</p>
-                  {a.expires_at && <p className="text-[10px] text-warning">Expires: {new Date(a.expires_at).toLocaleDateString()}</p>}
+              <CardContent className="p-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium">{(a as any).builder?.name || 'Unknown Builder'}</p>
+                    <p className="text-xs text-muted-foreground">{(a as any).package?.package_name || 'Unknown Package'}</p>
+                    {a.expires_at && <p className="text-[10px] text-warning">Expires: {new Date(a.expires_at).toLocaleDateString()}</p>}
+                  </div>
+                   <div className="flex items-center gap-1">
+                     <Button size="sm" variant="outline" className="text-xs h-8 gap-1" onClick={() => { setManageBuilderId(a.builder_id); setManageBuilderName((a as any).builder?.name || 'Builder'); }}>
+                       <Settings2 size={12} /> Manage
+                     </Button>
+                     <SocietyFeatureAudit builderId={a.builder_id} builderName={(a as any).builder?.name || 'Builder'} />
+                     <Button size="sm" variant="ghost" className="text-destructive h-8 w-8 p-0" onClick={() => removeAssignment(a.id, a.builder_id, a.package_id)}>
+                       <Trash2 size={14} />
+                     </Button>
+                   </div>
                 </div>
-                <Button size="sm" variant="ghost" className="text-destructive h-8 w-8 p-0" onClick={() => removeAssignment(a.id, a.builder_id, a.package_id)}>
-                  <Trash2 size={14} />
-                </Button>
               </CardContent>
             </Card>
           ))}
           {assignments.length === 0 && <p className="text-center text-muted-foreground py-8 text-sm">No assignments yet</p>}
         </TabsContent>
       </Tabs>
+
+      <BuilderManagementSheet
+        open={!!manageBuilderId}
+        onOpenChange={(open) => { if (!open) setManageBuilderId(null); }}
+        builderId={manageBuilderId || ''}
+        builderName={manageBuilderName}
+      />
     </div>
   );
 }

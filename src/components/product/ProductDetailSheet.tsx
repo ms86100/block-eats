@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import { supabase } from '@/integrations/supabase/client';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
 import { VegBadge } from '@/components/ui/veg-badge';
@@ -8,9 +9,11 @@ import { useCart } from '@/hooks/useCart';
 import { useSellerTrustSnapshot } from '@/hooks/queries/useProductTrustMetrics';
 import { ContactSellerModal } from './ContactSellerModal';
 import { ProductEnquirySheet } from './ProductEnquirySheet';
+import { ReportSheet } from '@/components/report/ReportSheet';
 import { ProductActionType } from '@/types/database';
 import { ACTION_CONFIG } from '@/lib/marketplace-constants';
-import { Plus, Minus, Store, MapPin, Home, Clock, Truck, Users, Zap, RotateCcw, ChevronRight, ChevronDown, Shield } from 'lucide-react';
+import { Plus, Minus, Store, MapPin, Home, Clock, Truck, Users, Zap, RotateCcw, ChevronRight, ChevronDown, Shield, Flag } from 'lucide-react';
+import { useCurrency } from '@/hooks/useCurrency';
 
 interface ProductDetail {
   product_id: string;
@@ -54,6 +57,26 @@ export function ProductDetailSheet({
   const [contactOpen, setContactOpen] = useState(false);
   const [enquiryOpen, setEnquiryOpen] = useState(false);
   const [showDetails, setShowDetails] = useState(false);
+  const [reportOpen, setReportOpen] = useState(false);
+  const [similarProducts, setSimilarProducts] = useState<any[]>([]);
+  const { formatPrice } = useCurrency();
+
+  // Fetch similar products from same category
+  useEffect(() => {
+    if (!product || !open) return;
+    const fetchSimilar = async () => {
+      const { data } = await supabase
+        .from('products')
+        .select('id, name, price, image_url, is_veg, seller_id, seller:seller_profiles!products_seller_id_fkey(business_name)')
+        .eq('category', product.category as string)
+        .eq('is_available', true)
+        .eq('approval_status', 'approved')
+        .neq('id', product.product_id)
+        .limit(6);
+      setSimilarProducts(data || []);
+    };
+    fetchSimilar();
+  }, [product?.product_id, open]);
 
   if (!product) return null;
 
@@ -104,7 +127,7 @@ export function ProductDetailSheet({
           </SheetHeader>
 
           {/* Image — full width carousel style */}
-          <div className="relative w-full aspect-square bg-muted">
+          <div className="relative w-full aspect-[4/3] max-h-[45vh] bg-muted">
             {product.image_url ? (
               <img
                 src={product.image_url}
@@ -156,7 +179,7 @@ export function ProductDetailSheet({
               {actionType === 'contact_seller' ? (
                 <span className="text-sm font-medium text-muted-foreground">Contact for price</span>
               ) : (
-                <span className="text-xl font-bold text-foreground">₹{product.price}</span>
+                <span className="text-xl font-bold text-foreground">{formatPrice(product.price)}</span>
               )}
             </div>
 
@@ -172,16 +195,22 @@ export function ProductDetailSheet({
             {showDetails && (
               <div className="space-y-3 animate-fade-in">
                 {/* Quick support badges */}
-                <div className="flex gap-3">
-                  <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-                    <Shield size={14} className="text-accent" />
-                    <span>24/7 Support</span>
+                {product.fulfillment_mode && (
+                  <div className="flex gap-3">
+                    {product.fulfillment_mode === 'delivery' || product.fulfillment_mode === 'both' ? (
+                      <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                        <Truck size={14} className="text-accent" />
+                        <span>Seller Delivers</span>
+                      </div>
+                    ) : null}
+                    {product.fulfillment_mode === 'self_pickup' || product.fulfillment_mode === 'both' ? (
+                      <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                        <Shield size={14} className="text-accent" />
+                        <span>Self Pickup</span>
+                      </div>
+                    ) : null}
                   </div>
-                  <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-                    <Truck size={14} className="text-accent" />
-                    <span>Fast Delivery</span>
-                  </div>
-                </div>
+                )}
 
                 {/* Fulfillment info */}
                 {product.fulfillment_mode && (
@@ -269,17 +298,51 @@ export function ProductDetailSheet({
             </Link>
           </div>
 
+          {/* Similar Products */}
+          {similarProducts.length > 0 && (
+            <div className="px-4 pb-3">
+              <h4 className="text-xs font-bold text-foreground mb-2 uppercase tracking-wide">Similar in {categoryName || 'this category'}</h4>
+              <div className="flex gap-3 overflow-x-auto scrollbar-hide -mx-4 px-4 pb-1">
+                {similarProducts.map((sp) => (
+                  <div key={sp.id} className="shrink-0 w-28">
+                    <div className="w-28 h-28 rounded-xl bg-muted overflow-hidden mb-1.5">
+                      {sp.image_url ? (
+                        <img src={sp.image_url} alt={sp.name} className="w-full h-full object-cover" />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-2xl">🛍️</div>
+                      )}
+                    </div>
+                    <p className="text-[11px] font-medium line-clamp-1">{sp.name}</p>
+                    <p className="text-[11px] text-muted-foreground">{sp.seller?.business_name}</p>
+                    {sp.price > 0 && <p className="text-xs font-bold">{formatPrice(sp.price)}</p>}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Report button — above sticky CTA */}
+          <div className="px-6 pb-3">
+            <button
+              onClick={() => { onOpenChange(false); setReportOpen(true); }}
+              className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-destructive transition-colors"
+            >
+              <Flag size={12} />
+              Report this product
+            </button>
+          </div>
+
           {/* Sticky bottom CTA — Blinkit style */}
           <div className="sticky bottom-0 bg-background border-t border-border p-4">
             {isCartAction ? (
               quantity === 0 ? (
                 <Button className="w-full h-12 text-base font-bold bg-accent hover:bg-accent/90 text-accent-foreground rounded-xl" onClick={handleAdd}>
-                  Add to cart · ₹{product.price}
+                  Add to cart · {formatPrice(product.price)}
                 </Button>
               ) : (
                 <div className="flex items-center justify-between">
                   <div>
-                    <span className="text-lg font-bold text-foreground">₹{product.price * quantity}</span>
+                    <span className="text-lg font-bold text-foreground">{formatPrice(product.price * quantity)}</span>
                     <span className="text-xs text-muted-foreground ml-1.5">{quantity} item{quantity > 1 ? 's' : ''}</span>
                   </div>
                   <div className="flex items-center bg-accent rounded-xl overflow-hidden">
@@ -300,6 +363,7 @@ export function ProductDetailSheet({
               </Button>
             )}
           </div>
+
         </SheetContent>
       </Sheet>
 
@@ -324,6 +388,14 @@ export function ProductDetailSheet({
           price={product.price}
         />
       )}
+
+      <ReportSheet
+        open={reportOpen}
+        onOpenChange={setReportOpen}
+        targetType="product"
+        targetId={product.product_id}
+        targetName={product.product_name}
+      />
     </>
   );
 }

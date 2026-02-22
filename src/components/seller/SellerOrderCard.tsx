@@ -1,9 +1,9 @@
 import { Link } from 'react-router-dom';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { ORDER_STATUS_LABELS } from '@/types/database';
+import { useStatusLabels } from '@/hooks/useStatusLabels';
 import { OrderItemStatusBadge, ItemStatus } from './OrderItemStatusBadge';
-import { ChevronRight, Clock, CreditCard, Package, MessageSquare, User } from 'lucide-react';
+import { ChevronRight, Clock, CreditCard, Package, MessageSquare, User, Truck, ShoppingBag } from 'lucide-react';
 import { format } from 'date-fns';
 
 interface OrderItemWithStatus {
@@ -21,6 +21,7 @@ interface SellerOrderCardOrder {
   status: string;
   payment_status?: string | null;
   payment_type?: string | null;
+  fulfillment_type?: string | null;
   buyer?: { name: string; block: string; flat_number: string };
   items?: OrderItemWithStatus[];
 }
@@ -30,9 +31,10 @@ interface SellerOrderCardProps {
 }
 
 export function SellerOrderCard({ order }: SellerOrderCardProps) {
+  const { getOrderStatus } = useStatusLabels();
   const buyer = order.buyer;
   const items = order.items || [];
-  const statusInfo = ORDER_STATUS_LABELS[order.status as keyof typeof ORDER_STATUS_LABELS] || { label: order.status, color: 'bg-muted text-muted-foreground' };
+  const statusInfo = getOrderStatus(order.status);
 
   // Calculate item-level stats
   const itemStatuses = items.map(item => item.status || 'pending');
@@ -70,9 +72,22 @@ export function SellerOrderCard({ order }: SellerOrderCardProps) {
             </div>
             <div className="flex flex-col items-end gap-1">
               <span className={`text-[10px] px-2 py-0.5 rounded-full ${statusInfo.color}`}>
-                {statusInfo.label}
+                {order.fulfillment_type === 'delivery' && order.status === 'ready'
+                  ? 'Awaiting Pickup'
+                  : statusInfo.label}
               </span>
-              {getPaymentBadge()}
+              <div className="flex items-center gap-1">
+                {order.fulfillment_type === 'delivery' ? (
+                  <Badge variant="outline" className="text-[10px] border-primary/40 text-primary gap-0.5">
+                    <Truck size={10} /> Delivery
+                  </Badge>
+                ) : (
+                  <Badge variant="outline" className="text-[10px] border-muted-foreground/40 text-muted-foreground gap-0.5">
+                    <ShoppingBag size={10} /> Pickup
+                  </Badge>
+                )}
+                {getPaymentBadge()}
+              </div>
             </div>
           </div>
 
@@ -99,7 +114,7 @@ export function SellerOrderCard({ order }: SellerOrderCardProps) {
             <div className="space-y-1.5">
               {items.slice(0, 3).map((item) => (
                 <div key={item.id} className="flex items-center justify-between text-xs">
-                  <span className="text-muted-foreground truncate max-w-[60%]">
+                  <span className="text-muted-foreground line-clamp-1 max-w-[65%]">
                     {item.quantity}x {item.product_name}
                   </span>
                   <OrderItemStatusBadge status={(item.status || 'pending') as ItemStatus} />

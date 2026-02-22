@@ -3,6 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { ProductWithSeller } from '@/components/product/ProductListingCard';
 import { jitteredStaleTime } from '@/lib/query-utils';
+import { useNearbyProducts, mergeProducts } from './useNearbyProducts';
 
 interface CategoryGroup {
   category: string;
@@ -15,14 +16,13 @@ interface CategoryGroup {
 export function useProductsByCategory(limit = 50) {
   const { effectiveSocietyId } = useAuth();
   const queryClient = useQueryClient();
+  const { data: nearbyProducts } = useNearbyProducts();
 
-  return useQuery({
+  const localQuery = useQuery({
     queryKey: ['products-by-category', effectiveSocietyId, limit],
     queryFn: async (): Promise<CategoryGroup[]> => {
-      // Try to use cached category configs (shared with useCategoryConfigs / useCategoryBehavior)
       let configs: any[] | undefined = queryClient.getQueryData(['category-configs']);
 
-      // If not cached, fetch configs in parallel with products
       const configPromise = configs
         ? Promise.resolve(configs)
         : supabase
@@ -68,7 +68,7 @@ export function useProductsByCategory(limit = 50) {
           delivery_note: p.seller?.delivery_note || null,
         }));
 
-      // Group by category
+      // Build config map for grouping
       const configMap = new Map(
         (resolvedConfigs || []).map((c: any) => [
           c.category,
@@ -76,28 +76,41 @@ export function useProductsByCategory(limit = 50) {
         ])
       );
 
-      const grouped: Record<string, ProductWithSeller[]> = {};
-      for (const product of approved) {
-        const cat = product.category;
-        if (!grouped[cat]) grouped[cat] = [];
-        grouped[cat].push(product);
-      }
-
-      const result: CategoryGroup[] = [];
-      for (const [category, items] of Object.entries(grouped)) {
-        const cfg = configMap.get(category);
-        result.push({
-          category,
-          parentGroup: cfg?.parent_group || category,
-          displayName: cfg?.display_name || category,
-          icon: cfg?.icon || '📦',
-          products: items,
-        });
-      }
-
-      return result;
+      return { approved, configMap } as any;
     },
     enabled: !!effectiveSocietyId,
     staleTime: jitteredStaleTime(5 * 60 * 1000),
   });
+
+  // Post-process: merge nearby products and group by category
+  const rawData = localQuery.data as any;
+  let result: CategoryGroup[] = [];
+
+  if (rawData?.approved) {
+    const allProducts = mergeProducts(rawData.approved, nearbyProducts);
+    const configMap: Map<string, any> = rawData.configMap;
+
+    const grouped: Record<string, ProductWithSeller[]> = {};
+    for (const product of allProducts) {
+      const cat = product.category;
+      if (!grouped[cat]) grouped[cat] = [];
+      grouped[cat].push(product);
+    }
+
+    for (const [category, items] of Object.entries(grouped)) {
+      const cfg = configMap.get(category);
+      result.push({
+        category,
+        parentGroup: cfg?.parent_group || category,
+        displayName: cfg?.display_name || category,
+        icon: cfg?.icon || '📦',
+        products: items,
+      });
+    }
+  }
+
+  return {
+    ...localQuery,
+    data: result,
+  };
 }

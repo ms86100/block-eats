@@ -7,14 +7,16 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ReorderButton } from '@/components/order/ReorderButton';
 import { useAuth } from '@/contexts/AuthContext';
-import { Order, ORDER_STATUS_LABELS } from '@/types/database';
-import { Package, ChevronRight, Loader2, ArrowLeft, CheckCircle } from 'lucide-react';
+import { Order } from '@/types/database';
+import { useStatusLabels } from '@/hooks/useStatusLabels';
+import { Package, ChevronRight, Loader2, ArrowLeft, CheckCircle, Truck } from 'lucide-react';
 import { format } from 'date-fns';
 
 const PAGE_SIZE = 20;
 
 function OrderCard({ order, type }: { order: Order; type: 'buyer' | 'seller' }) {
-  const statusInfo = ORDER_STATUS_LABELS[order.status];
+  const { getOrderStatus } = useStatusLabels();
+  const statusInfo = getOrderStatus(order.status);
   const seller = (order as any).seller;
   const buyer = (order as any).buyer;
   const items = (order as any).items || [];
@@ -47,6 +49,11 @@ function OrderCard({ order, type }: { order: Order; type: 'buyer' | 'seller' }) 
             {/* Status + date row */}
             <div className="flex items-center gap-2 mt-0.5">
               {isCompleted && <CheckCircle size={12} className="text-accent shrink-0" />}
+              {(order as any).fulfillment_type === 'delivery' && (
+                <span className="text-[11px] px-1.5 py-0.5 rounded bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300 flex items-center gap-0.5">
+                  <Truck size={10} /> Delivery
+                </span>
+              )}
               <span className={`text-[11px] px-1.5 py-0.5 rounded ${statusInfo.color}`}>
                 {statusInfo.label}
               </span>
@@ -79,13 +86,18 @@ function OrderCard({ order, type }: { order: Order; type: 'buyer' | 'seller' }) 
   );
 }
 
-function EmptyState({ message }: { message: string }) {
+function EmptyState({ message, type }: { message: string; type?: 'buyer' | 'seller' }) {
   return (
     <div className="text-center py-16">
       <div className="w-16 h-16 mx-auto mb-3 rounded-full bg-muted flex items-center justify-center">
         <Package size={28} className="text-muted-foreground" />
       </div>
-      <p className="text-sm text-muted-foreground mb-4">{message}</p>
+      <p className="text-sm text-muted-foreground mb-1">{message}</p>
+      {type === 'seller' && (
+        <p className="text-xs text-muted-foreground mb-4 max-w-[220px] mx-auto">
+          Share your store link with neighbors to get your first order
+        </p>
+      )}
       <Link to="/"><Button size="sm">Browse Sellers</Button></Link>
     </div>
   );
@@ -158,7 +170,7 @@ function OrderList({ type, userId, sellerId }: { type: 'buyer' | 'seller'; userI
   }
 
   if (orders.length === 0) {
-    return <EmptyState message={type === 'buyer' ? "You haven't placed any orders yet" : "No orders received yet"} />;
+    return <EmptyState message={type === 'buyer' ? "You haven't placed any orders yet" : "No orders received yet"} type={type} />;
   }
 
   return (
@@ -166,7 +178,7 @@ function OrderList({ type, userId, sellerId }: { type: 'buyer' | 'seller'; userI
       {orders.map(order => <OrderCard key={order.id} order={order} type={type} />)}
       {hasMore && (
         <div className="flex justify-center py-4">
-          <Button variant="outline" size="sm" onClick={loadMore} disabled={isLoadingMore}>
+          <Button variant="secondary" size="default" className="w-full" onClick={loadMore} disabled={isLoadingMore}>
             {isLoadingMore ? <><Loader2 className="mr-2 h-3 w-3 animate-spin" /> Loading...</> : 'Load More'}
           </Button>
         </div>

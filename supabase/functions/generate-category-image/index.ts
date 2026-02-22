@@ -1,5 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { checkRateLimit, rateLimitResponse } from "../_shared/rate-limiter.ts";
+import { withAuth } from "../_shared/auth.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -13,6 +15,15 @@ serve(async (req) => {
   }
 
   try {
+    // Phase 5: Centralized auth
+    const authResult = await withAuth(req, corsHeaders);
+    if (authResult instanceof Response) return authResult;
+    const { userId } = authResult;
+
+    // Phase 2: Rate limit — 10/min
+    const { allowed } = await checkRateLimit(`gen-cat-image:${userId}`, 10, 60);
+    if (!allowed) return rateLimitResponse(corsHeaders);
+
     const { categoryName, parentGroup, categoryKey } = await req.json();
 
     if (!categoryName || !categoryKey) {
@@ -27,7 +38,6 @@ serve(async (req) => {
       throw new Error("LOVABLE_API_KEY is not configured");
     }
 
-    // Generate image using Lovable AI
     const prompt = `Generate a high-quality, vibrant product photography image for a "${categoryName}" category in a grocery/services marketplace app. The image should be a clean, well-lit product shot or service illustration on a light/neutral background. Style: professional e-commerce photography, appetizing if food, clean and modern if service. Square format 1:1. No text or labels in the image.`;
 
     const aiResponse = await fetch(
@@ -66,14 +76,12 @@ serve(async (req) => {
     }
 
     const aiData = await aiResponse.json();
-    const imageData =
-      aiData.choices?.[0]?.message?.images?.[0]?.image_url?.url;
+    const imageData = aiData.choices?.[0]?.message?.images?.[0]?.image_url?.url;
 
     if (!imageData) {
       throw new Error("No image returned from AI");
     }
 
-    // Extract base64 data
     const base64Match = imageData.match(
       /^data:image\/(png|jpeg|jpg|webp);base64,(.+)$/
     );
@@ -84,14 +92,12 @@ serve(async (req) => {
     const imageFormat = base64Match[1] === "jpg" ? "jpeg" : base64Match[1];
     const base64Data = base64Match[2];
 
-    // Decode base64 to binary
     const binaryString = atob(base64Data);
     const bytes = new Uint8Array(binaryString.length);
     for (let i = 0; i < binaryString.length; i++) {
       bytes[i] = binaryString.charCodeAt(i);
     }
 
-    // Upload to Supabase Storage
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
@@ -110,14 +116,12 @@ serve(async (req) => {
       throw new Error(`Failed to upload image: ${uploadError.message}`);
     }
 
-    // Get public URL
     const { data: urlData } = supabase.storage
       .from("category-images")
       .getPublicUrl(filePath);
 
     const publicUrl = urlData.publicUrl;
 
-    // Update category_config with the image URL
     const { error: updateError } = await supabase
       .from("category_config")
       .update({ image_url: publicUrl })
@@ -125,7 +129,6 @@ serve(async (req) => {
 
     if (updateError) {
       console.error("DB update error:", updateError);
-      // Image is uploaded, just couldn't update DB - return URL anyway
     }
 
     return new Response(

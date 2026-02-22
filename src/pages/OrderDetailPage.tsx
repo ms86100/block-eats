@@ -9,19 +9,22 @@ import { OrderChat } from '@/components/chat/OrderChat';
 import { ReorderButton } from '@/components/order/ReorderButton';
 import { UrgentOrderTimer } from '@/components/order/UrgentOrderTimer';
 import { OrderRejectionDialog } from '@/components/order/OrderRejectionDialog';
+import { DeliveryStatusCard } from '@/components/delivery/DeliveryStatusCard';
 import { useUrgentOrderSound } from '@/hooks/useUrgentOrderSound';
 import { useAuth } from '@/contexts/AuthContext';
-import { sendOrderStatusNotification } from '@/lib/notifications';
 import { logAudit } from '@/lib/audit';
-import { Order, OrderItem, ORDER_STATUS_LABELS, PAYMENT_STATUS_LABELS, OrderStatus, PaymentStatus, ItemStatus, ITEM_STATUS_LABELS } from '@/types/database';
+import { Order, OrderItem, OrderStatus, PaymentStatus, ItemStatus } from '@/types/database';
+import { useStatusLabels } from '@/hooks/useStatusLabels';
 import { OrderItemCard } from '@/components/order/OrderItemCard';
-import { ArrowLeft, Phone, MapPin, Check, Star, MessageCircle, CreditCard, XCircle, Package, ChevronRight, Copy } from 'lucide-react';
+import { ArrowLeft, Phone, MapPin, Check, Star, MessageCircle, CreditCard, XCircle, Package, ChevronRight, Copy, Truck } from 'lucide-react';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
+import { FeedbackSheet } from '@/components/feedback/FeedbackSheet';
 
 export default function OrderDetailPage() {
   const { id } = useParams();
   const { user, isSeller } = useAuth();
+  const { getOrderStatus, getPaymentStatus, getItemStatus } = useStatusLabels();
   const [order, setOrder] = useState<Order | null>(null);
   const [hasReview, setHasReview] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -92,16 +95,11 @@ export default function OrderDetailPage() {
       const { error } = await supabase.from('orders').update(updateData).eq('id', order.id);
       if (error) throw error;
       setOrder({ ...order, ...updateData });
-      toast.success(`Order ${ORDER_STATUS_LABELS[newStatus].label.toLowerCase()}`);
+      toast.success(`Order ${getOrderStatus(newStatus).label.toLowerCase()}`);
       if (order.society_id) {
         logAudit(`order_${newStatus}`, 'order', order.id, order.society_id, { old_status: order.status, new_status: newStatus, rejection_reason: rejectionReason });
       }
-      const buyerName = buyer?.name || 'Customer';
-      const sellerName = seller?.business_name || 'Seller';
-      const sellerUserId = seller?.user_id;
-      if (order.buyer_id && order.seller_id && sellerUserId) {
-        sendOrderStatusNotification(order.id, newStatus, order.buyer_id, order.seller_id, sellerUserId, sellerName, buyerName);
-      }
+      // Notifications are now handled by database triggers (enqueue_order_status_notification)
     } catch (error: any) {
       console.error('Error updating order:', error);
       toast.error('Failed to update order');
@@ -139,16 +137,21 @@ export default function OrderDetailPage() {
   const sellerProfile = seller?.profile;
   const buyer = (order as any).buyer;
   const items = (order as any).items || [];
-  const statusInfo = ORDER_STATUS_LABELS[order.status];
-  const paymentStatusInfo = PAYMENT_STATUS_LABELS[(order.payment_status as PaymentStatus) || 'pending'];
+  const statusInfo = getOrderStatus(order.status);
+  const paymentStatusInfo = getPaymentStatus((order.payment_status as PaymentStatus) || 'pending');
   const isBuyerView = order.buyer_id === user?.id;
 
   const statusOrder: OrderStatus[] = ['placed', 'accepted', 'preparing', 'ready', 'picked_up', 'delivered', 'completed'];
   const currentStatusIndex = statusOrder.indexOf(order.status);
   const displayStatuses = ['placed', 'accepted', 'preparing', 'ready'];
+  const orderFulfillmentType = (order as any).fulfillment_type || 'self_pickup';
 
   const getNextStatus = (): OrderStatus | null => {
     if (order.status === 'cancelled' || order.status === 'completed') return null;
+    // For delivery orders at 'ready', the delivery system takes over
+    if (orderFulfillmentType === 'delivery' && order.status === 'ready') return null;
+    // For self_pickup orders at 'ready', skip to completed
+    if (orderFulfillmentType !== 'delivery' && order.status === 'ready') return 'completed';
     const nextIndex = currentStatusIndex + 1;
     return nextIndex < statusOrder.length ? statusOrder[nextIndex] : null;
   };
@@ -169,9 +172,9 @@ export default function OrderDetailPage() {
     <AppLayout showHeader={false} showNav={!isSellerView || order.status === 'completed' || order.status === 'cancelled'}>
       <div className="pb-28">
         {/* Sticky Header */}
-        <div className="sticky top-0 z-30 bg-background border-b border-border px-4 py-3 safe-top flex items-center gap-3">
-          <Link to="/orders" className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-muted shrink-0">
-            <ArrowLeft size={16} />
+        <div className="sticky top-0 z-30 bg-background border-b border-border px-4 py-3.5 safe-top flex items-center gap-3">
+          <Link to="/orders" className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-muted shrink-0">
+            <ArrowLeft size={18} />
           </Link>
           <div className="flex-1 min-w-0">
             <h1 className="text-base font-bold">Order Summary</h1>
@@ -237,12 +240,25 @@ export default function OrderDetailPage() {
                         {isCompleted ? <Check size={14} /> : index + 1}
                       </div>
                       <span className="text-[9px] text-center mt-1 text-muted-foreground leading-tight">
-                        {ORDER_STATUS_LABELS[status as OrderStatus].label}
+                        {getOrderStatus(status as OrderStatus).label}
                       </span>
                     </div>
                   );
                 })}
               </div>
+            )}
+
+            {/* Status reassurance message */}
+            {order.status !== 'cancelled' && isBuyerView && (
+              <p className="text-xs text-muted-foreground mt-3 bg-muted/50 rounded-lg px-3 py-2">
+                {order.status === 'placed' && '⏳ Waiting for seller to accept. You will be notified once confirmed.'}
+                {order.status === 'accepted' && '✅ Your order has been confirmed and will be prepared soon.'}
+                {order.status === 'preparing' && '👨‍🍳 Your order is being prepared. Sit tight!'}
+                {order.status === 'ready' && ((order as any).fulfillment_type === 'delivery' ? '📦 Your order is ready and will be dispatched shortly.' : '📦 Your order is ready for pickup!')}
+                {order.status === 'picked_up' && '🚚 Your order is on the way!'}
+                {order.status === 'delivered' && '🎉 Your order has been delivered. Enjoy!'}
+                {order.status === 'completed' && '⭐ Order completed. Thank you for your purchase!'}
+              </p>
             )}
           </div>
 
@@ -261,6 +277,11 @@ export default function OrderDetailPage() {
             </span>
           </div>
 
+          {/* Delivery Status */}
+          {(order as any).fulfillment_type === 'delivery' && (
+            <DeliveryStatusCard orderId={order.id} isBuyerView={isBuyerView} />
+          )}
+
           {/* Reorder CTA */}
           {canReorder && (
             <div className="bg-accent/10 border border-accent/20 rounded-xl p-3 flex items-center justify-between">
@@ -272,6 +293,23 @@ export default function OrderDetailPage() {
                 </div>
               </div>
               <ReorderButton orderItems={items} sellerId={order.seller_id} size="sm" />
+            </div>
+          )}
+
+          {/* Contextual Feedback Prompt */}
+          {isBuyerView && (order.status === 'completed' || order.status === 'delivered') && !localStorage.getItem(`feedback_prompted_${order.id}`) && (
+            <div className="bg-secondary/50 border border-border rounded-xl p-3 flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <span className="text-lg">💬</span>
+                <div>
+                  <p className="text-sm font-semibold">How was your experience?</p>
+                  <p className="text-[11px] text-muted-foreground">Share feedback to help us improve</p>
+                </div>
+              </div>
+              <FeedbackSheet
+                triggerLabel="Share"
+                onSubmitted={() => localStorage.setItem(`feedback_prompted_${order.id}`, 'true')}
+              />
             </div>
           )}
 
@@ -328,8 +366,8 @@ export default function OrderDetailPage() {
                   const count = items.filter((i: OrderItem) => (i.status || 'pending') === status).length;
                   if (count === 0) return null;
                   return (
-                    <span key={status} className={`text-[10px] px-1.5 py-0.5 rounded ${ITEM_STATUS_LABELS[status].color}`}>
-                      {count} {ITEM_STATUS_LABELS[status].label}
+                    <span key={status} className={`text-[10px] px-1.5 py-0.5 rounded ${getItemStatus(status).color}`}>
+                      {count} {getItemStatus(status).label}
                     </span>
                   );
                 })}
@@ -361,7 +399,13 @@ export default function OrderDetailPage() {
               )}
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Delivery</span>
-                <span className="text-primary font-medium">FREE</span>
+                {orderFulfillmentType === 'delivery' ? (
+                  <span className={`font-medium ${(order as any).delivery_fee > 0 ? '' : 'text-primary'}`}>
+                    {(order as any).delivery_fee > 0 ? `₹${(order as any).delivery_fee}` : 'FREE'}
+                  </span>
+                ) : (
+                  <span className="text-muted-foreground">Self Pickup</span>
+                )}
               </div>
               <div className="flex justify-between font-bold pt-1 border-t border-border">
                 <span>Total</span>
@@ -387,26 +431,29 @@ export default function OrderDetailPage() {
             {order.status === 'placed' && (
               <Button
                 variant="outline"
-                className="flex-1 border-destructive text-destructive hover:bg-destructive hover:text-destructive-foreground"
+                className="flex-1 border-destructive text-destructive hover:bg-destructive hover:text-destructive-foreground h-12"
                 onClick={() => setIsRejectionDialogOpen(true)}
                 disabled={isUpdating}
-                size="sm"
               >
-                <XCircle size={14} className="mr-1.5" />
+                <XCircle size={16} className="mr-1.5" />
                 Reject
               </Button>
             )}
-            {nextStatus && (
+            {orderFulfillmentType === 'delivery' && order.status === 'ready' ? (
+              <div className="flex-1 flex items-center justify-center gap-2 h-12 text-sm text-muted-foreground">
+                <Truck size={16} className="text-primary" />
+                <span>Awaiting delivery pickup</span>
+              </div>
+            ) : nextStatus ? (
               <Button
-                className="flex-1 bg-accent text-accent-foreground hover:bg-accent/90"
+                className="flex-1 bg-accent text-accent-foreground hover:bg-accent/90 h-12"
                 onClick={() => updateOrderStatus(nextStatus)}
                 disabled={isUpdating}
-                size="sm"
               >
-                {isUpdating ? 'Updating...' : `Mark ${ORDER_STATUS_LABELS[nextStatus].label}`}
+                {isUpdating ? 'Updating...' : `Mark ${getOrderStatus(nextStatus).label}`}
                 <ChevronRight size={14} className="ml-1" />
               </Button>
-            )}
+            ) : null}
           </div>
         </div>
       )}

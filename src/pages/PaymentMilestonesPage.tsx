@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { FeatureGate } from '@/components/ui/FeatureGate';
 import { supabase } from '@/integrations/supabase/client';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Card, CardContent } from '@/components/ui/card';
@@ -6,9 +7,16 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { useAuth } from '@/contexts/AuthContext';
+import { toast } from 'sonner';
+import { friendlyError } from '@/lib/utils';
 import {
-  IndianRupee, Calendar, CheckCircle, Clock, AlertTriangle, Building2
+  IndianRupee, Calendar, CheckCircle, Clock, AlertTriangle, Building2, Plus, Trash2, Edit2, Loader2
 } from 'lucide-react';
 
 interface PaymentMilestone {
@@ -50,10 +58,22 @@ const statusConfig: Record<string, { color: string; icon: typeof CheckCircle }> 
 };
 
 export default function PaymentMilestonesPage() {
-  const { user, effectiveSocietyId, effectiveSociety } = useAuth();
+  const { user, effectiveSocietyId, effectiveSociety, isSocietyAdmin, isAdmin, isBuilderMember } = useAuth();
   const [milestones, setMilestones] = useState<PaymentMilestone[]>([]);
   const [payments, setPayments] = useState<ResidentPayment[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+
+  // Admin form
+  const canManage = isSocietyAdmin || isAdmin || isBuilderMember;
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const [editing, setEditing] = useState<PaymentMilestone | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [formTitle, setFormTitle] = useState('');
+  const [formDesc, setFormDesc] = useState('');
+  const [formStage, setFormStage] = useState('booking');
+  const [formPct, setFormPct] = useState('');
+  const [formDue, setFormDue] = useState('');
+  const [formStatus, setFormStatus] = useState('upcoming');
 
   useEffect(() => {
     if (!effectiveSocietyId) return;
@@ -79,12 +99,61 @@ export default function PaymentMilestonesPage() {
     setIsLoading(false);
   };
 
+  const openCreate = () => {
+    setEditing(null);
+    setFormTitle(''); setFormDesc(''); setFormStage('booking'); setFormPct(''); setFormDue(''); setFormStatus('upcoming');
+    setSheetOpen(true);
+  };
+
+  const openEdit = (m: PaymentMilestone) => {
+    setEditing(m);
+    setFormTitle(m.title); setFormDesc(m.description || ''); setFormStage(m.milestone_stage);
+    setFormPct(String(m.amount_percentage)); setFormDue(m.due_date?.split('T')[0] || ''); setFormStatus(m.status);
+    setSheetOpen(true);
+  };
+
+  const handleSave = async () => {
+    if (!formTitle.trim() || !effectiveSocietyId) return;
+    setSaving(true);
+    try {
+      const payload: any = {
+        society_id: effectiveSocietyId,
+        title: formTitle.trim(),
+        description: formDesc.trim() || null,
+        milestone_stage: formStage,
+        amount_percentage: Number(formPct) || 0,
+        due_date: formDue || null,
+        status: formStatus,
+      };
+      if (editing) {
+        const { error } = await supabase.from('payment_milestones').update(payload).eq('id', editing.id);
+        if (error) throw error;
+        toast.success('Milestone updated');
+      } else {
+        const { error } = await supabase.from('payment_milestones').insert(payload);
+        if (error) throw error;
+        toast.success('Milestone created');
+      }
+      setSheetOpen(false);
+      fetchData();
+    } catch (err: any) {
+      toast.error(friendlyError(err));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!confirm('Delete this milestone?')) return;
+    const { error } = await supabase.from('payment_milestones').delete().eq('id', id);
+    if (error) toast.error(friendlyError(error));
+    else { toast.success('Deleted'); fetchData(); }
+  };
+
   // Group milestones by stage
   const groupedMilestones = stageOrder.reduce((acc, stage) => {
     const stageMilestones = milestones.filter(m => m.milestone_stage === stage);
-    if (stageMilestones.length > 0) {
-      acc.push({ stage, milestones: stageMilestones });
-    }
+    if (stageMilestones.length > 0) acc.push({ stage, milestones: stageMilestones });
     return acc;
   }, [] as { stage: string; milestones: PaymentMilestone[] }[]);
 
@@ -105,7 +174,6 @@ export default function PaymentMilestonesPage() {
         <div className="p-4 space-y-4">
           <Skeleton className="h-24 w-full" />
           <Skeleton className="h-32 w-full" />
-          <Skeleton className="h-32 w-full" />
         </div>
       </AppLayout>
     );
@@ -113,6 +181,7 @@ export default function PaymentMilestonesPage() {
 
   return (
     <AppLayout headerTitle="Payment Schedule" showLocation={false}>
+      <FeatureGate feature="payment_milestones">
       <div className="p-4 space-y-4">
         {/* Overview Card */}
         <Card className="border-primary/20 bg-primary/5">
@@ -121,10 +190,15 @@ export default function PaymentMilestonesPage() {
               <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
                 <IndianRupee className="text-primary" size={24} />
               </div>
-              <div>
+              <div className="flex-1">
                 <p className="font-semibold">{effectiveSociety?.name}</p>
                 <p className="text-xs text-muted-foreground">Payment Milestone Tracker</p>
               </div>
+              {canManage && (
+                <Button size="sm" className="gap-1" onClick={openCreate}>
+                  <Plus size={14} /> Add
+                </Button>
+              )}
             </div>
             <div className="space-y-2">
               <div className="flex justify-between text-sm">
@@ -140,25 +214,21 @@ export default function PaymentMilestonesPage() {
           <div className="text-center py-16 text-muted-foreground">
             <Building2 className="mx-auto mb-3" size={40} />
             <p className="font-semibold">No Payment Milestones</p>
-            <p className="text-sm mt-1">Your society admin hasn't set up payment milestones yet.</p>
+            <p className="text-sm mt-1">
+              {canManage ? 'Tap "Add" to create payment milestones.' : "Your society admin hasn't set up payment milestones yet."}
+            </p>
           </div>
         ) : (
-          /* Timeline */
           <div className="relative">
-            {/* Vertical line */}
             <div className="absolute left-5 top-0 bottom-0 w-0.5 bg-border" />
-
             {groupedMilestones.map(({ stage, milestones: stageMilestones }) => (
               <div key={stage} className="relative mb-6">
-                {/* Stage header */}
                 <div className="flex items-center gap-3 mb-3 relative z-10">
                   <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center text-primary-foreground text-xs font-bold">
                     {stageOrder.indexOf(stage) + 1}
                   </div>
                   <h3 className="font-semibold">{stageLabels[stage] || stage}</h3>
                 </div>
-
-                {/* Milestone cards */}
                 <div className="ml-14 space-y-3">
                   {stageMilestones.map(milestone => {
                     const payment = getPaymentForMilestone(milestone.id);
@@ -192,8 +262,17 @@ export default function PaymentMilestonesPage() {
                                 )}
                               </div>
                             </div>
+                            {canManage && (
+                              <div className="flex gap-1 ml-2">
+                                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(milestone)}>
+                                  <Edit2 size={12} />
+                                </Button>
+                                <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => handleDelete(milestone.id)}>
+                                  <Trash2 size={12} />
+                                </Button>
+                              </div>
+                            )}
                           </div>
-
                           {payment?.paid_at && (
                             <p className="text-[10px] text-success mt-2">
                               ✓ Paid on {new Date(payment.paid_at).toLocaleDateString('en-IN')}
@@ -210,6 +289,45 @@ export default function PaymentMilestonesPage() {
           </div>
         )}
       </div>
+
+      {/* Create/Edit Sheet */}
+      <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
+        <SheetContent side="bottom" className="rounded-t-2xl h-[70vh] overflow-y-auto">
+          <SheetHeader>
+            <SheetTitle>{editing ? 'Edit Milestone' : 'New Payment Milestone'}</SheetTitle>
+          </SheetHeader>
+          <div className="space-y-4 mt-4">
+            <div><Label>Title</Label><Input value={formTitle} onChange={e => setFormTitle(e.target.value)} placeholder="e.g. Foundation Complete" /></div>
+            <div><Label>Description</Label><Textarea value={formDesc} onChange={e => setFormDesc(e.target.value)} placeholder="Details..." rows={2} /></div>
+            <div><Label>Stage</Label>
+              <Select value={formStage} onValueChange={setFormStage}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {stageOrder.map(s => <SelectItem key={s} value={s}>{stageLabels[s]}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div><Label>Amount (% of total)</Label><Input type="number" value={formPct} onChange={e => setFormPct(e.target.value)} placeholder="e.g. 10" min={0} max={100} /></div>
+            <div><Label>Due Date</Label><Input type="date" value={formDue} onChange={e => setFormDue(e.target.value)} /></div>
+            <div><Label>Status</Label>
+              <Select value={formStatus} onValueChange={setFormStatus}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="upcoming">Upcoming</SelectItem>
+                  <SelectItem value="due">Due</SelectItem>
+                  <SelectItem value="overdue">Overdue</SelectItem>
+                  <SelectItem value="paid">Paid</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <Button className="w-full" onClick={handleSave} disabled={saving || !formTitle.trim()}>
+              {saving && <Loader2 size={16} className="animate-spin mr-2" />}
+              {editing ? 'Update Milestone' : 'Create Milestone'}
+            </Button>
+          </div>
+        </SheetContent>
+      </Sheet>
+      </FeatureGate>
     </AppLayout>
   );
 }

@@ -1,7 +1,15 @@
-import React, { createContext, useContext } from 'react';
+import React, { useMemo } from 'react';
 import { AuthContextType } from './types';
 import { useAuthState } from './useAuthState';
+import {
+  IdentityContext, IdentityContextType,
+  RoleContext, RoleContextType,
+  SocietyContext, SocietyContextType,
+  SellerContext, SellerContextType,
+} from './contexts';
+import { createContext, useContext } from 'react';
 
+// Legacy combined context — kept for backward compatibility
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -22,20 +30,49 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const effectiveSocietyId = viewAsSocietyId || profile?.society_id || null;
   const effectiveSociety = viewAsSocietyId ? viewAsSociety : society;
 
+  // ── Memoized sub-context values ───────────────────────
+  const identityValue = useMemo<IdentityContextType>(() => ({
+    user, session, isLoading, signOut, refreshProfile,
+  }), [user, session, isLoading, signOut, refreshProfile]);
+
+  const roleValue = useMemo<RoleContextType>(() => ({
+    profile, roles, isApproved, isAdmin, isSocietyAdmin,
+    isBuilderMember, societyAdminRole, managedBuilderIds,
+  }), [profile, roles, isApproved, isAdmin, isSocietyAdmin, isBuilderMember, societyAdminRole, managedBuilderIds]);
+
+  const societyValue = useMemo<SocietyContextType>(() => ({
+    society, viewAsSocietyId, setViewAsSociety,
+    effectiveSocietyId, effectiveSociety,
+  }), [society, viewAsSocietyId, setViewAsSociety, effectiveSocietyId, effectiveSociety]);
+
+  const sellerValue = useMemo<SellerContextType>(() => ({
+    sellerProfiles, currentSellerId, isSeller,
+    setCurrentSellerId: (id: string | null) => setPartial({ currentSellerId: id }),
+  }), [sellerProfiles, currentSellerId, isSeller, setPartial]);
+
+  // Legacy combined value (not memoized — consumers should migrate to focused hooks)
+  const legacyValue: AuthContextType = {
+    user, session, profile, society, roles, sellerProfiles,
+    currentSellerId, isLoading, isApproved, isSeller, isAdmin,
+    isSocietyAdmin, isBuilderMember, societyAdminRole, managedBuilderIds,
+    signOut, refreshProfile,
+    setCurrentSellerId: (id) => setPartial({ currentSellerId: id }),
+    viewAsSocietyId, setViewAsSociety,
+    effectiveSocietyId, effectiveSociety,
+  };
+
   return (
-    <AuthContext.Provider
-      value={{
-        user, session, profile, society, roles, sellerProfiles,
-        currentSellerId, isLoading, isApproved, isSeller, isAdmin,
-        isSocietyAdmin, isBuilderMember, societyAdminRole, managedBuilderIds,
-        signOut, refreshProfile,
-        setCurrentSellerId: (id) => setPartial({ currentSellerId: id }),
-        viewAsSocietyId, setViewAsSociety,
-        effectiveSocietyId, effectiveSociety,
-      }}
-    >
-      {children}
-    </AuthContext.Provider>
+    <IdentityContext.Provider value={identityValue}>
+      <RoleContext.Provider value={roleValue}>
+        <SocietyContext.Provider value={societyValue}>
+          <SellerContext.Provider value={sellerValue}>
+            <AuthContext.Provider value={legacyValue}>
+              {children}
+            </AuthContext.Provider>
+          </SellerContext.Provider>
+        </SocietyContext.Provider>
+      </RoleContext.Provider>
+    </IdentityContext.Provider>
   );
 }
 

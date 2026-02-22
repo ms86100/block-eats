@@ -6,12 +6,15 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
+import { friendlyError } from '@/lib/utils';
 import { Mail, ArrowRight, Loader2, Eye, EyeOff, CheckCircle2, User, Search, MapPin, Building2, Plus, Navigation, Key, ShieldCheck, Sparkles, Home, ArrowLeft, Phone } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
 import { motion, AnimatePresence } from 'framer-motion';
 import authHero from '@/assets/auth-hero.jpg';
 import { Society } from '@/types/database';
 import { PasswordStrengthIndicator } from '@/components/auth/PasswordStrengthIndicator';
 import { useAutocomplete, PlaceDetails } from '@/hooks/useGoogleMaps';
+import { useSystemSettings } from '@/hooks/useSystemSettings';
 
 type SignupStep = 'credentials' | 'society' | 'profile' | 'verification';
 type SocietySubStep = 'search' | 'map-confirm' | 'request-form';
@@ -46,11 +49,13 @@ export default function AuthPage() {
   const [inviteCode, setInviteCode] = useState('');
   const [gpsStatus, setGpsStatus] = useState<'idle' | 'loading' | 'verified' | 'failed' | 'unavailable'>('idle');
   const [gpsDistance, setGpsDistance] = useState<number | null>(null);
+  const [ageConfirmed, setAgeConfirmed] = useState(false);
 
   // Google Places autocomplete state
   const { predictions, isSearching, searchPlaces, getPlaceDetails, clearPredictions, isLoaded: mapsLoaded } = useAutocomplete();
   const [selectedPlace, setSelectedPlace] = useState<PlaceDetails | null>(null);
   const [adjustedCoords, setAdjustedCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const settings = useSystemSettings();
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Request form
@@ -161,14 +166,19 @@ export default function AuthPage() {
       if (error) throw error;
       const { data: profile } = await supabase.from('profiles').select('*').eq('id', data.user?.id).single();
       if (profile) { toast.success('Welcome back!'); navigate('/'); }
-      else { setAuthMode('signup'); setSignupStep('society'); }
+      else {
+        // User has auth credentials but no profile — this is an orphaned account.
+        // Sign them out and show a clear error instead of redirecting to signup.
+        await supabase.auth.signOut();
+        toast.error('Your account setup is incomplete. Please sign up again with a new account, or contact support.', { duration: 8000 });
+      }
     } catch (error: any) {
       if (error.message.includes('Email not confirmed')) {
         toast.error('Your email is not verified yet. Please check your inbox and click the verification link before logging in.', { duration: 6000 });
       } else if (error.message.includes('Invalid login')) {
         toast.error('Invalid email or password. If you just signed up, please verify your email first by clicking the link we sent to your inbox.', { duration: 6000 });
       } else {
-        toast.error(error.message || 'Failed to login');
+        toast.error(friendlyError(error));
       }
     } finally { setIsLoading(false); }
   };
@@ -190,7 +200,7 @@ export default function AuthPage() {
       setResetEmailSent(true);
       toast.success('Password reset email sent! Check your inbox.');
     } catch (error: any) {
-      toast.error(error.message || 'Failed to send reset email');
+      toast.error(friendlyError(error));
     } finally { setIsLoading(false); }
   };
 
@@ -282,44 +292,73 @@ export default function AuthPage() {
           toast.error('This email is already registered. Please login instead.');
           setAuthMode('login'); setSignupStep('credentials'); return;
         }
-        try {
-          // If pending new society, create it via edge function first
-          let finalSocietyId = selectedSociety.id;
-          if (pendingNewSociety && selectedSociety.id === 'pending') {
-            try {
-              const { data: validateData, error: validateError } = await supabase.functions.invoke('validate-society', {
-                body: { new_society: pendingNewSociety },
-              });
-              if (validateError) throw validateError;
-              if (validateData?.society?.id) {
-                finalSocietyId = validateData.society.id;
-              }
-            } catch (validateErr) {
-              console.warn('Society creation via edge function failed:', validateErr);
-              toast.error('Failed to register society. Please try again.');
-              setIsLoading(false);
-              return;
+        // Step 1: Insert profile FIRST while JWT is fresh (before any server-side user modifications)
+        let finalSocietyId = selectedSociety.id;
+        
+        // For pending new society, we need the ID before profile insert.
+        // Create society via edge function but WITHOUT the metadata update.
+        if (pendingNewSociety && selectedSociety.id === 'pending') {
+          try {
+            const { data: validateData, error: validateError } = await supabase.functions.invoke('validate-society', {
+              body: { new_society: pendingNewSociety },
+            });
+            if (validateError) throw validateError;
+            if (validateData?.society?.id) {
+              finalSocietyId = validateData.society.id;
             }
-          } else {
-            // Validate existing society server-side
-            try {
-              await supabase.functions.invoke('validate-society', {
-                body: { society_id: selectedSociety.id },
-              });
-            } catch (validateErr) {
-              console.warn('Society validation call failed, will be validated by admin:', validateErr);
-            }
+          } catch (validateErr) {
+            console.warn('Society creation via edge function failed:', validateErr);
+            toast.error('Failed to register society. Please try again.');
+            await supabase.auth.signOut();
+            setIsLoading(false);
+            return;
           }
+        }
 
-          const { error: profileError } = await supabase.from('profiles').insert({
-            id: data.user.id, email, phone: `+91${profileData.phone}`, name: profileData.name,
-            flat_number: profileData.flat_number, block: profileData.block,
-            phase: profileData.phase || null, society_id: finalSocietyId,
-          });
-          if (!profileError) {
-            await supabase.from('user_roles').insert({ user_id: data.user.id, role: 'buyer' });
+        // Guard: ensure we have a valid society ID before profile insert
+        if (!finalSocietyId || finalSocietyId === 'pending') {
+          toast.error('Failed to set up your society. Please try again.');
+          await supabase.auth.signOut();
+          setIsLoading(false);
+          return;
+        }
+
+        const { error: profileError } = await supabase.from('profiles').insert({
+          id: data.user.id, email, phone: `+91${profileData.phone}`, name: profileData.name,
+          flat_number: profileData.flat_number, block: profileData.block,
+          phase: profileData.phase || null, society_id: finalSocietyId,
+        });
+
+        if (profileError) {
+          console.error('Profile insert error:', profileError);
+          const msg = profileError.message || '';
+          if (msg.includes('idx_profiles_email_unique') || msg.includes('profiles_email')) {
+            toast.error('This email is already registered. Please login instead.');
+            setAuthMode('login'); setSignupStep('credentials'); setIsLoading(false); return;
+          } else if (msg.includes('idx_profiles_phone_unique') || msg.includes('profiles_phone')) {
+            toast.error('This phone number is already in use by another account.');
+            setIsLoading(false); return;
           }
-        } catch (e) { console.log('Profile will be created after email verification'); }
+          await supabase.auth.signOut();
+          toast.error('Account setup failed. Please try signing up again. If the problem persists, contact support.', { duration: 8000 });
+          setIsLoading(false);
+          return;
+        }
+
+        // Step 2: Insert role
+        await supabase.from('user_roles').insert({ user_id: data.user.id, role: 'buyer' });
+
+        // Step 3: Validate existing society AFTER profile is safely created
+        // (JWT invalidation from edge function no longer matters)
+        if (!pendingNewSociety && selectedSociety.id !== 'pending') {
+          try {
+            await supabase.functions.invoke('validate-society', {
+              body: { society_id: selectedSociety.id },
+            });
+          } catch (validateErr) {
+            console.warn('Society validation call failed, will be validated by admin:', validateErr);
+          }
+        }
         setSignupStep('verification');
         toast.success('Please check your email to verify your account');
       }
@@ -327,7 +366,7 @@ export default function AuthPage() {
       if (error.message.includes('already registered')) {
         toast.error('This email is already registered. Please login instead.');
         setAuthMode('login'); setSignupStep('credentials');
-      } else { toast.error(error.message || 'Failed to create account'); }
+      } else { toast.error(friendlyError(error)); }
     } finally { setIsLoading(false); }
   };
 
@@ -352,7 +391,7 @@ export default function AuthPage() {
   return (
     <div className="min-h-screen bg-gradient-to-b from-background to-secondary/20">
       {/* Hero Banner */}
-      <div className="relative h-56 overflow-hidden">
+      <div className="relative h-44 sm:h-56 overflow-hidden">
         <img src={authHero} alt="Community marketplace" className="w-full h-full object-cover" />
         <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-black/20 to-background" />
         <div className="absolute bottom-6 left-5 right-5">
@@ -360,7 +399,7 @@ export default function AuthPage() {
             <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
               <Home className="text-primary-foreground" size={16} />
             </div>
-            <h1 className="text-2xl font-extrabold text-white tracking-tight drop-shadow-lg">Sociva</h1>
+            <h1 className="text-2xl font-extrabold text-white tracking-tight drop-shadow-lg">{settings.platformName}</h1>
           </div>
           <p className="text-sm text-white/80 drop-shadow font-medium">Your Community Marketplace</p>
         </div>
@@ -554,7 +593,23 @@ export default function AuthPage() {
                     </div>
                     <PasswordStrengthIndicator password={password} />
                   </div>
-                  <Button onClick={handleCredentialsNext} disabled={!email || password.length < 6} className="w-full h-12 rounded-xl text-base font-semibold">
+                  <div className="flex items-start gap-3 pt-1">
+                    <Checkbox
+                      id="age-confirm"
+                      checked={ageConfirmed}
+                      onCheckedChange={(checked) => setAgeConfirmed(checked === true)}
+                      className="mt-0.5"
+                    />
+                    <div>
+                      <label htmlFor="age-confirm" className="text-xs text-muted-foreground leading-snug">
+                        I confirm that I am <strong>18 years of age or older</strong> and agree to the{' '}
+                        <a href="#/terms" target="_blank" className="text-primary underline">Terms & Conditions</a> and{' '}
+                        <a href="#/privacy-policy" target="_blank" className="text-primary underline">Privacy Policy</a>.
+                      </label>
+                      <p className="text-[10px] text-muted-foreground/60 mt-0.5">Required to comply with marketplace regulations</p>
+                    </div>
+                  </div>
+                  <Button onClick={handleCredentialsNext} disabled={!email || password.length < 6 || !ageConfirmed} className="w-full h-12 rounded-xl text-base font-semibold">
                     <ArrowRight className="mr-2" size={18} /> Continue
                   </Button>
                   <div className="text-center pt-1">
@@ -568,6 +623,9 @@ export default function AuthPage() {
               {/* Signup Step 2: Society Selection */}
               {authMode === 'signup' && signupStep === 'society' && (
                 <motion.div key="signup-society" initial={{ opacity: 0, x: 30 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -30 }} transition={{ duration: 0.25, ease: 'easeInOut' }} className="space-y-4">
+                  <button type="button" onClick={() => setSignupStep('credentials')} className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors mb-1">
+                    <ArrowLeft size={16} /> Back
+                  </button>
                   <AnimatePresence mode="wait">
 
                     {/* Sub-step: Request Form */}
@@ -703,38 +761,7 @@ export default function AuthPage() {
                           </div>
                         )}
 
-                        {/* Request society button */}
-                        <button onClick={() => setSocietySubStep('request-form')} className="w-full flex items-center gap-2 p-3 rounded-xl border-2 border-dashed border-muted-foreground/30 text-sm text-muted-foreground hover:border-primary/50 hover:text-primary transition-colors">
-                          <Plus size={16} /> Can't find your society? Request to add it
-                        </button>
-
                         {/* Invite code */}
-                        {selectedSociety?.invite_code && (
-                          <div className="space-y-2">
-                            <Label htmlFor="invite_code" className="flex items-center gap-1"><Key size={14} /> Invite Code *</Label>
-                            <Input id="invite_code" placeholder="Enter society invite code" value={inviteCode} onChange={(e) => setInviteCode(e.target.value)} className="h-12 rounded-xl" />
-                            <p className="text-[10px] text-muted-foreground">Ask your society admin for the invite code</p>
-                          </div>
-                        )}
-
-                        {/* GPS verification */}
-                        {selectedSociety && (
-                          <div className="space-y-2">
-                            <button onClick={verifyGpsLocation} disabled={gpsStatus === 'loading'} className={`w-full flex items-center gap-2 p-3 rounded-xl border text-sm transition-colors ${
-                              gpsStatus === 'verified' ? 'border-primary/30 bg-primary/5 text-primary' :
-                              gpsStatus === 'failed' ? 'border-warning/30 bg-warning/5 text-warning' :
-                              'border-border hover:border-primary/30 text-muted-foreground hover:text-foreground'
-                            }`}>
-                              <Navigation size={16} className={gpsStatus === 'loading' ? 'animate-spin' : ''} />
-                              {gpsStatus === 'idle' && 'Verify your location (optional)'}
-                              {gpsStatus === 'loading' && 'Checking location...'}
-                              {gpsStatus === 'verified' && `✓ Location verified (${gpsDistance}m away)`}
-                              {gpsStatus === 'failed' && `Location check failed${gpsDistance ? ` (${gpsDistance}m away)` : ''}`}
-                              {gpsStatus === 'unavailable' && 'GPS not available for this society'}
-                            </button>
-                            <p className="text-[10px] text-muted-foreground text-center">Location verification helps speed up admin approval</p>
-                          </div>
-                        )}
 
                         {/* Navigation buttons */}
                         <div className="flex gap-2">
@@ -754,6 +781,9 @@ export default function AuthPage() {
               {/* Signup Step 3: Profile Details */}
               {authMode === 'signup' && signupStep === 'profile' && (
                 <motion.div key="signup-profile" initial={{ opacity: 0, x: 30 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -30 }} transition={{ duration: 0.25, ease: 'easeInOut' }} className="space-y-4">
+                  <button type="button" onClick={() => setSignupStep('society')} className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors mb-1">
+                    <ArrowLeft size={16} /> Back
+                  </button>
                   {selectedSociety && (
                     <div className="flex items-center gap-2 p-2.5 bg-primary/5 rounded-xl border border-primary/20">
                       <Building2 size={14} className="text-primary" />
@@ -780,15 +810,18 @@ export default function AuthPage() {
                     <Input id="phase" placeholder="e.g., Phase 1, Wing A" value={profileData.phase} onChange={(e) => setProfileData({ ...profileData, phase: e.target.value })} className="h-12 rounded-xl" />
                   </div>
 
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-2">
-                      <Label htmlFor="block">Block / Tower *</Label>
-                      <Input id="block" placeholder="e.g., A, B, T1" value={profileData.block} onChange={(e) => setProfileData({ ...profileData, block: e.target.value })} className="h-12 rounded-xl" />
+                  <div className="space-y-1">
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-2">
+                        <Label htmlFor="block">{settings.addressBlockLabel} *</Label>
+                        <Input id="block" placeholder="e.g., A, B, T1" value={profileData.block} onChange={(e) => setProfileData({ ...profileData, block: e.target.value })} className="h-12 rounded-xl" />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="flat">{settings.addressFlatLabel} *</Label>
+                        <Input id="flat" placeholder="e.g., 101" value={profileData.flat_number} onChange={(e) => setProfileData({ ...profileData, flat_number: e.target.value })} className="h-12 rounded-xl" />
+                      </div>
                     </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="flat">Flat Number *</Label>
-                      <Input id="flat" placeholder="e.g., 101" value={profileData.flat_number} onChange={(e) => setProfileData({ ...profileData, flat_number: e.target.value })} className="h-12 rounded-xl" />
-                    </div>
+                    <p className="text-[10px] text-muted-foreground/60 px-1">Used for delivery and identity verification within your society</p>
                   </div>
 
                   <div className="flex gap-2">

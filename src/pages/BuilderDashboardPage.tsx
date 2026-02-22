@@ -8,6 +8,11 @@ import { Builder } from '@/types/database';
 import { Building2, Users, Shield, AlertTriangle, ChevronRight, IndianRupee, Clock, BarChart3 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useBuilderStats } from '@/hooks/queries/useBuilderStats';
+import { BuilderFeaturePlan } from '@/components/builder/BuilderFeaturePlan';
+import { BuilderSocietyFeatures } from '@/components/builder/BuilderSocietyFeatures';
+import { BuilderActionCenter } from '@/components/builder/BuilderActionCenter';
+import { BuilderAnnouncementSheet } from '@/components/builder/BuilderAnnouncementSheet';
+import { BuilderSetupWizard } from '@/components/builder/BuilderSetupWizard';
 
 interface BuilderSociety {
   id: string;
@@ -149,6 +154,25 @@ export default function BuilderDashboardPage() {
           </Card>
         )}
 
+        {/* Builder Feature Plan + Announcement */}
+        {managedBuilderIds.length > 0 && (
+          <div className="flex items-center justify-between">
+            <BuilderFeaturePlan builderId={managedBuilderIds[0]} />
+            <BuilderAnnouncementSheet
+              societies={societies.map(s => ({ id: s.id, name: s.name }))}
+              builderId={managedBuilderIds[0]}
+            />
+          </div>
+        )}
+
+        {/* Action Center - Consolidated snags & disputes */}
+        {societyIds.length > 0 && (
+          <BuilderActionCenter 
+            societyIds={societyIds} 
+            onNavigateToSociety={handleSocietyClick} 
+          />
+        )}
+
         {/* Analytics Link */}
         <Card 
           className="hover:shadow-md transition-shadow cursor-pointer border-primary/20 bg-primary/5"
@@ -198,6 +222,10 @@ export default function BuilderDashboardPage() {
                         {s.open_disputes} disputes
                       </button>
                     )}
+                    <BuilderSocietyFeatures societyId={s.id} />
+                    <span onClick={e => e.stopPropagation()}>
+                      <BuilderSetupWizard societyId={s.id} societyName={s.name} />
+                    </span>
                     {s.open_snags > 0 && (
                       <button
                         className="text-[10px] bg-destructive/10 text-destructive px-1.5 py-0.5 rounded hover:bg-destructive/20 transition-colors"

@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { FeatureGate } from '@/components/ui/FeatureGate';
 import { supabase } from '@/integrations/supabase/client';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Card, CardContent } from '@/components/ui/card';
@@ -14,21 +15,32 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue
 } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
+import { ConfirmAction } from '@/components/ui/confirm-action';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
+import { friendlyError } from '@/lib/utils';
+import { useActionLoading } from '@/hooks/useActionLoading';
 import {
   UserPlus, Shield, Clock, Car, Phone, Truck, Users,
-  CheckCircle, XCircle, Copy, RefreshCw, LogIn, LogOut
+  CheckCircle, XCircle, Copy, RefreshCw, LogIn, LogOut, Download, Loader2
 } from 'lucide-react';
+import { Switch } from '@/components/ui/switch';
+import { exportVisitorLog } from '@/lib/csv-export';
+import { useQuery } from '@tanstack/react-query';
 
-type VisitorType = 'guest' | 'delivery' | 'cab' | 'domestic_help' | 'contractor';
 type VisitorStatus = 'expected' | 'checked_in' | 'checked_out' | 'cancelled' | 'expired';
+
+interface VisitorTypeConfig {
+  type_key: string;
+  label: string;
+  icon: string | null;
+}
 
 interface VisitorEntry {
   id: string;
   visitor_name: string;
   visitor_phone: string | null;
-  visitor_type: VisitorType;
+  visitor_type: string;
   purpose: string | null;
   expected_date: string | null;
   expected_time: string | null;
@@ -44,13 +56,14 @@ interface VisitorEntry {
   created_at: string;
 }
 
-const visitorTypeLabels: Record<VisitorType, { label: string; icon: typeof Users }> = {
-  guest: { label: 'Guest', icon: Users },
-  delivery: { label: 'Delivery', icon: Truck },
-  cab: { label: 'Cab/Ride', icon: Car },
-  domestic_help: { label: 'Domestic Help', icon: Users },
-  contractor: { label: 'Contractor', icon: Users },
-};
+// Fallback visitor types if DB hasn't been seeded
+const FALLBACK_VISITOR_TYPES: VisitorTypeConfig[] = [
+  { type_key: 'guest', label: 'Guest', icon: null },
+  { type_key: 'delivery', label: 'Delivery', icon: null },
+  { type_key: 'cab', label: 'Cab/Ride', icon: null },
+  { type_key: 'domestic_help', label: 'Domestic Help', icon: null },
+  { type_key: 'contractor', label: 'Contractor', icon: null },
+];
 
 const statusColors: Record<VisitorStatus, string> = {
   expected: 'bg-warning/10 text-warning',
@@ -70,16 +83,39 @@ export default function VisitorManagementPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('today');
+  const { loadingId, withLoading } = useActionLoading();
+
+  // Fetch visitor types from DB
+  const { data: visitorTypes = FALLBACK_VISITOR_TYPES } = useQuery({
+    queryKey: ['visitor-types', effectiveSocietyId],
+    queryFn: async () => {
+      if (!effectiveSocietyId) return FALLBACK_VISITOR_TYPES;
+      const { data, error } = await supabase.rpc('get_visitor_types_for_society', {
+        _society_id: effectiveSocietyId,
+      });
+      if (error || !data?.length) return FALLBACK_VISITOR_TYPES;
+      return (data as VisitorTypeConfig[]);
+    },
+    enabled: !!effectiveSocietyId,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const getVisitorTypeLabel = (typeKey: string) => {
+    const found = visitorTypes.find(vt => vt.type_key === typeKey);
+    return found?.label || typeKey.replace('_', ' ');
+  };
 
   // Form state
   const [visitorName, setVisitorName] = useState('');
   const [visitorPhone, setVisitorPhone] = useState('');
-  const [visitorType, setVisitorType] = useState<VisitorType>('guest');
+  const [visitorType, setVisitorType] = useState('guest');
   const [purpose, setPurpose] = useState('');
   const [vehicleNumber, setVehicleNumber] = useState('');
   const [expectedDate, setExpectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [expectedTime, setExpectedTime] = useState('');
   const [isPreapproved, setIsPreapproved] = useState(true);
+  const [isRecurring, setIsRecurring] = useState(false);
+  const [recurringDays, setRecurringDays] = useState<string[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const fetchVisitors = useCallback(async () => {
@@ -104,6 +140,7 @@ export default function VisitorManagementPage() {
 
     const { data, error } = await query.limit(50);
     if (error) {
+      toast.error('Could not load visitors. Please try again.');
       console.error('Fetch visitors error:', error);
     }
     setVisitors((data as VisitorEntry[]) || []);
@@ -130,13 +167,15 @@ export default function VisitorManagementPage() {
       otp_code: isPreapproved ? otp : null,
       otp_expires_at: isPreapproved ? new Date(Date.now() + 24 * 3600000).toISOString() : null,
       is_preapproved: isPreapproved,
+      is_recurring: isRecurring,
+      recurring_days: isRecurring && recurringDays.length > 0 ? recurringDays : null,
       vehicle_number: vehicleNumber || null,
       flat_number: profile?.flat_number || null,
       status: 'expected',
     });
 
     if (error) {
-      toast.error('Failed to add visitor');
+      toast.error(friendlyError(error));
       console.error(error);
     } else {
       toast.success(`Visitor added! ${isPreapproved ? `OTP: ${otp}` : ''}`);
@@ -147,14 +186,14 @@ export default function VisitorManagementPage() {
     setIsSubmitting(false);
   };
 
-  const handleCheckIn = async (id: string) => {
+  const handleCheckIn = withLoading(async (id: string) => {
     if (!user) return;
     const { error } = await supabase.from('visitor_entries')
       .update({ status: 'checked_in', checked_in_at: new Date().toISOString() })
       .eq('id', id)
       .eq('resident_id', user.id);
     if (!error) { toast.success('Visitor checked in'); fetchVisitors(); }
-  };
+  });
 
   const handleCheckOut = async (id: string) => {
     if (!user) return;
@@ -182,18 +221,21 @@ export default function VisitorManagementPage() {
   const resetForm = () => {
     setVisitorName('');
     setVisitorPhone('');
-    setVisitorType('guest');
+    setVisitorType(visitorTypes[0]?.type_key || 'guest');
     setPurpose('');
     setVehicleNumber('');
     setExpectedDate(new Date().toISOString().split('T')[0]);
     setExpectedTime('');
     setIsPreapproved(true);
+    setIsRecurring(false);
+    setRecurringDays([]);
   };
 
   const todayCount = visitors.filter(v => v.status === 'expected' || v.status === 'checked_in').length;
 
   return (
     <AppLayout headerTitle="Visitor Management" showLocation={false}>
+      <FeatureGate feature="visitor_management">
       <div className="p-4 space-y-4">
         {/* Summary Card */}
         <Card className="border-primary/20 bg-primary/5">
@@ -214,6 +256,11 @@ export default function VisitorManagementPage() {
                   Add
                 </Button>
               </SheetTrigger>
+            {visitors.length > 0 && (
+              <Button size="sm" variant="outline" onClick={() => exportVisitorLog(visitors)} title="Export CSV">
+                <Download size={16} />
+              </Button>
+            )}
               <SheetContent side="bottom" className="rounded-t-2xl max-h-[85vh] overflow-y-auto">
                 <SheetHeader>
                   <SheetTitle>Add Visitor</SheetTitle>
@@ -230,11 +277,11 @@ export default function VisitorManagementPage() {
                   </div>
                   <div>
                     <Label>Visitor Type</Label>
-                    <Select value={visitorType} onValueChange={v => setVisitorType(v as VisitorType)}>
+                    <Select value={visitorType} onValueChange={setVisitorType}>
                       <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        {Object.entries(visitorTypeLabels).map(([key, { label }]) => (
-                          <SelectItem key={key} value={key}>{label}</SelectItem>
+                        {visitorTypes.map(vt => (
+                          <SelectItem key={vt.type_key} value={vt.type_key}>{vt.label}</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
@@ -253,12 +300,39 @@ export default function VisitorManagementPage() {
                       <Input type="time" value={expectedTime} onChange={e => setExpectedTime(e.target.value)} />
                     </div>
                   </div>
-                  <div>
-                    <Label>Vehicle Number (optional)</Label>
-                    <Input value={vehicleNumber} onChange={e => setVehicleNumber(e.target.value)} placeholder="MH 01 AB 1234" />
-                  </div>
-                  <Button onClick={handleAddVisitor} disabled={!visitorName.trim() || isSubmitting} className="w-full">
-                    {isSubmitting ? 'Adding...' : 'Add Visitor & Generate OTP'}
+                   <div>
+                     <Label>Vehicle Number (optional)</Label>
+                     <Input value={vehicleNumber} onChange={e => setVehicleNumber(e.target.value)} placeholder="MH 01 AB 1234" />
+                   </div>
+                   <div className="flex items-center justify-between py-2">
+                     <Label className="text-sm">Recurring Visitor</Label>
+                     <Switch checked={isRecurring} onCheckedChange={setIsRecurring} />
+                   </div>
+                   {isRecurring && (
+                     <div>
+                       <Label className="text-xs">Active Days</Label>
+                       <div className="flex flex-wrap gap-1.5 mt-1">
+                         {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(day => (
+                           <button
+                             key={day}
+                             type="button"
+                             onClick={() => setRecurringDays(prev => 
+                               prev.includes(day) ? prev.filter(d => d !== day) : [...prev, day]
+                             )}
+                             className={`px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${
+                               recurringDays.includes(day)
+                                 ? 'bg-primary text-primary-foreground'
+                                 : 'bg-muted text-muted-foreground'
+                             }`}
+                           >
+                             {day}
+                           </button>
+                         ))}
+                       </div>
+                     </div>
+                   )}
+                   <Button onClick={handleAddVisitor} disabled={!visitorName.trim() || isSubmitting} className="w-full">
+                    {isSubmitting ? <><Loader2 size={16} className="mr-1 animate-spin" /> Adding...</> : 'Add Visitor & Generate OTP'}
                   </Button>
                 </div>
               </SheetContent>
@@ -281,6 +355,7 @@ export default function VisitorManagementPage() {
               <div className="text-center py-12 text-muted-foreground">
                 <Users className="mx-auto mb-3" size={32} />
                 <p className="text-sm">No visitors {activeTab === 'today' ? 'expected today' : activeTab === 'upcoming' ? 'upcoming' : 'in history'}</p>
+                <p className="text-xs mt-1">Pre-approve visitors with an OTP so they can enter smoothly at the gate.</p>
               </div>
             ) : (
               visitors.map(visitor => (
@@ -295,7 +370,7 @@ export default function VisitorManagementPage() {
                           </Badge>
                         </div>
                         <div className="flex flex-wrap items-center gap-2 mt-1 text-xs text-muted-foreground">
-                          <span className="capitalize">{visitorTypeLabels[visitor.visitor_type]?.label}</span>
+                          <span className="capitalize">{getVisitorTypeLabel(visitor.visitor_type)}</span>
                           {visitor.visitor_phone && (
                             <span className="flex items-center gap-0.5">
                               <Phone size={10} /> {visitor.visitor_phone}
@@ -334,18 +409,33 @@ export default function VisitorManagementPage() {
                     {/* Actions */}
                     {visitor.status === 'expected' && (
                       <div className="flex gap-2 mt-3">
-                        <Button size="sm" variant="default" className="flex-1" onClick={() => handleCheckIn(visitor.id)}>
-                          <LogIn size={14} className="mr-1" /> Check In
+                        <Button size="sm" variant="default" className="flex-1" onClick={() => handleCheckIn(visitor.id)} disabled={loadingId === visitor.id}>
+                          {loadingId === visitor.id ? <Loader2 size={14} className="mr-1 animate-spin" /> : <LogIn size={14} className="mr-1" />} Check In
                         </Button>
-                        <Button size="sm" variant="outline" onClick={() => handleCancel(visitor.id)}>
-                          <XCircle size={14} />
-                        </Button>
+                        <ConfirmAction
+                          title="Cancel Visitor Entry?"
+                          description={`Are you sure you want to cancel the entry for ${visitor.visitor_name}? The OTP will no longer work.`}
+                          actionLabel="Cancel Entry"
+                          onConfirm={() => handleCancel(visitor.id)}
+                        >
+                          <Button size="sm" variant="outline">
+                            <XCircle size={14} />
+                          </Button>
+                        </ConfirmAction>
                       </div>
                     )}
                     {visitor.status === 'checked_in' && (
-                      <Button size="sm" variant="outline" className="w-full mt-3" onClick={() => handleCheckOut(visitor.id)}>
-                        <LogOut size={14} className="mr-1" /> Check Out
-                      </Button>
+                      <ConfirmAction
+                        title="Check Out Visitor?"
+                        description={`Mark ${visitor.visitor_name} as checked out?`}
+                        actionLabel="Check Out"
+                        variant="default"
+                        onConfirm={() => handleCheckOut(visitor.id)}
+                      >
+                        <Button size="sm" variant="outline" className="w-full mt-3">
+                          <LogOut size={14} className="mr-1" /> Check Out
+                        </Button>
+                      </ConfirmAction>
                     )}
                     {visitor.checked_in_at && (
                       <p className="text-[10px] text-muted-foreground mt-2">
@@ -360,6 +450,7 @@ export default function VisitorManagementPage() {
           </TabsContent>
         </Tabs>
       </div>
+      </FeatureGate>
     </AppLayout>
   );
 }

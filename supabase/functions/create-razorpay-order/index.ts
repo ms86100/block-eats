@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { checkRateLimit, rateLimitResponse } from "../_shared/rate-limiter.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -16,7 +17,6 @@ interface CreateOrderRequest {
 }
 
 async function getRazorpayKeys(supabase: any): Promise<{ keyId: string; keySecret: string } | null> {
-  // First try to get from admin_settings table
   const { data: settings } = await supabase
     .from('admin_settings')
     .select('key, value, is_active')
@@ -27,29 +27,21 @@ async function getRazorpayKeys(supabase: any): Promise<{ keyId: string; keySecre
     const keySecretSetting = settings.find((s: any) => s.key === 'razorpay_key_secret');
 
     if (keyIdSetting?.value && keySecretSetting?.value && keyIdSetting.is_active && keySecretSetting.is_active) {
-      return {
-        keyId: keyIdSetting.value,
-        keySecret: keySecretSetting.value,
-      };
+      return { keyId: keyIdSetting.value, keySecret: keySecretSetting.value };
     }
   }
 
-  // Fallback to environment variables
   const envKeyId = Deno.env.get('RAZORPAY_KEY_ID');
   const envKeySecret = Deno.env.get('RAZORPAY_KEY_SECRET');
 
   if (envKeyId && envKeySecret) {
-    return {
-      keyId: envKeyId,
-      keySecret: envKeySecret,
-    };
+    return { keyId: envKeyId, keySecret: envKeySecret };
   }
 
   return null;
 }
 
 serve(async (req) => {
-  // Handle CORS preflight
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
   }
@@ -59,7 +51,6 @@ serve(async (req) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Get Razorpay keys
     const razorpayKeys = await getRazorpayKeys(supabase);
     if (!razorpayKeys) {
       console.error('Razorpay keys not configured');
@@ -69,7 +60,7 @@ serve(async (req) => {
       );
     }
 
-    // Get auth user
+    // Auth check
     const authHeader = req.headers.get('Authorization');
     if (!authHeader) {
       return new Response(
@@ -88,12 +79,15 @@ serve(async (req) => {
       );
     }
 
+    // Phase 2: Rate limit — 10/min
+    const { allowed } = await checkRateLimit(`order:${user.id}`, 10, 60);
+    if (!allowed) return rateLimitResponse(corsHeaders);
+
     const body: CreateOrderRequest = await req.json();
     const { orderId, amount, sellerId, customerName, customerEmail, customerPhone } = body;
 
     console.log('Creating Razorpay order:', { orderId, amount, sellerId });
 
-    // Validate order belongs to user
     const { data: order, error: orderError } = await supabase
       .from('orders')
       .select('*')
@@ -109,18 +103,16 @@ serve(async (req) => {
       );
     }
 
-    // Get seller's Razorpay account (if using Route)
     const { data: seller } = await supabase
       .from('seller_profiles')
       .select('razorpay_account_id, business_name')
       .eq('id', sellerId)
       .single();
 
-    // Create Razorpay order
     const razorpayAuth = btoa(`${razorpayKeys.keyId}:${razorpayKeys.keySecret}`);
     
     const orderPayload: any = {
-      amount: Math.round(amount * 100), // Amount in paise
+      amount: Math.round(amount * 100),
       currency: 'INR',
       receipt: orderId,
       notes: {
@@ -130,17 +122,13 @@ serve(async (req) => {
       },
     };
 
-    // If seller has Razorpay linked account, add transfer
     if (seller?.razorpay_account_id) {
       orderPayload.transfers = [
         {
           account: seller.razorpay_account_id,
-          amount: Math.round(amount * 100), // Full amount to seller (can add platform fee logic)
+          amount: Math.round(amount * 100),
           currency: 'INR',
-          notes: {
-            order_id: orderId,
-            type: 'seller_payout',
-          },
+          notes: { order_id: orderId, type: 'seller_payout' },
           on_hold: 0,
         },
       ];
@@ -169,7 +157,6 @@ serve(async (req) => {
     const razorpayOrder = await razorpayResponse.json();
     console.log('Razorpay order created:', razorpayOrder.id);
 
-    // Update order with Razorpay order ID
     await supabase
       .from('orders')
       .update({ razorpay_order_id: razorpayOrder.id })
@@ -181,11 +168,7 @@ serve(async (req) => {
         razorpay_key_id: razorpayKeys.keyId,
         amount: razorpayOrder.amount,
         currency: razorpayOrder.currency,
-        prefill: {
-          name: customerName,
-          email: customerEmail,
-          contact: customerPhone,
-        },
+        prefill: { name: customerName, email: customerEmail, contact: customerPhone },
         notes: razorpayOrder.notes,
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

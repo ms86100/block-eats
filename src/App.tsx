@@ -74,6 +74,16 @@ const WorkerJobsPage = lazy(() => import("./pages/WorkerJobsPage"));
 const WorkerMyJobsPage = lazy(() => import("./pages/WorkerMyJobsPage"));
 const WorkerHirePage = lazy(() => import("./pages/WorkerHirePage"));
 const CreateJobRequestPage = lazy(() => import("./pages/CreateJobRequestPage"));
+const SocietyNoticesPage = lazy(() => import("./pages/SocietyNoticesPage"));
+const SocietyDeliveriesPage = lazy(() => import("./pages/SocietyDeliveriesPage"));
+const DeliveryPartnerManagementPage = lazy(() => import("./pages/DeliveryPartnerManagementPage"));
+const DeliveryPartnerDashboardPage = lazy(() => import("./pages/DeliveryPartnerDashboardPage"));
+const WorkerAttendancePage = lazy(() => import("./pages/WorkerAttendancePage"));
+const MyWorkersPage = lazy(() => import("./pages/MyWorkersPage"));
+const WorkerLeavePage = lazy(() => import("./pages/WorkerLeavePage"));
+const WorkerSalaryPage = lazy(() => import("./pages/WorkerSalaryPage"));
+const AuthorizedPersonsPage = lazy(() => import("./pages/AuthorizedPersonsPage"));
+const BuilderInspectionsPage = lazy(() => import("./pages/BuilderInspectionsPage"));
 
 const queryClient = new QueryClient({
   queryCache: new QueryCache({
@@ -170,6 +180,30 @@ function SecurityRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+// Route guard for society admins
+function SocietyAdminRoute({ children }: { children: React.ReactNode }) {
+  const { isSocietyAdmin, isAdmin, isLoading } = useAuth();
+  if (isLoading) return <div className="min-h-screen flex items-center justify-center bg-background"><div className="animate-pulse text-primary text-xl font-bold">Loading...</div></div>;
+  if (!isSocietyAdmin && !isAdmin) return <Navigate to="/" replace />;
+  return <>{children}</>;
+}
+
+// Route guard for builder members
+function BuilderRoute({ children }: { children: React.ReactNode }) {
+  const { isBuilderMember, isAdmin, isLoading } = useAuth();
+  if (isLoading) return <div className="min-h-screen flex items-center justify-center bg-background"><div className="animate-pulse text-primary text-xl font-bold">Loading...</div></div>;
+  if (!isBuilderMember && !isAdmin) return <Navigate to="/" replace />;
+  return <>{children}</>;
+}
+
+// Route guard for society management pages (society admin, builder, or platform admin)
+function ManagementRoute({ children }: { children: React.ReactNode }) {
+  const { isSocietyAdmin, isBuilderMember, isAdmin, isLoading } = useAuth();
+  if (isLoading) return <div className="min-h-screen flex items-center justify-center bg-background"><div className="animate-pulse text-primary text-xl font-bold">Loading...</div></div>;
+  if (!isSocietyAdmin && !isBuilderMember && !isAdmin) return <Navigate to="/" replace />;
+  return <>{children}</>;
+}
+
 // Median.co SPA Navigation Handler + Deep Links
 function NavigationHandler() {
   const navigate = useNavigate();
@@ -194,14 +228,14 @@ function AppRoutes() {
       <Routes>
         {/* Landing page for unauthenticated users */}
         <Route path="/welcome" element={user && profile ? <Navigate to="/" replace /> : <LandingPage />} />
-        <Route path="/auth" element={user && profile ? <Navigate to="/" replace /> : <AuthPage />} />
+        <Route path="/auth" element={user && profile ? <Navigate to="/" replace /> : <RouteErrorBoundary sectionName="Authentication"><AuthPage /></RouteErrorBoundary>} />
         <Route path="/" element={user ? <ProtectedRoute><HomePage /></ProtectedRoute> : <Navigate to="/welcome" replace />} />
         <Route path="/search" element={<ProtectedRoute><SearchPage /></ProtectedRoute>} />
         <Route path="/community" element={<ProtectedRoute><BulletinPage /></ProtectedRoute>} />
         <Route path="/categories" element={<ProtectedRoute><CategoriesPage /></ProtectedRoute>} />
         <Route path="/category/:category" element={<ProtectedRoute><CategoryGroupPage /></ProtectedRoute>} />
         <Route path="/seller/:id" element={<ProtectedRoute><SellerDetailPage /></ProtectedRoute>} />
-        <Route path="/cart" element={<ProtectedRoute><CartPage /></ProtectedRoute>} />
+        <Route path="/cart" element={<ProtectedRoute><RouteErrorBoundary sectionName="Cart"><CartPage /></RouteErrorBoundary></ProtectedRoute>} />
         <Route path="/orders" element={<ProtectedRoute><OrdersPage /></ProtectedRoute>} />
         <Route path="/orders/:id" element={<ProtectedRoute><OrderDetailPage /></ProtectedRoute>} />
         <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
@@ -216,9 +250,9 @@ function AppRoutes() {
         <Route path="/notifications/inbox" element={<ProtectedRoute><NotificationInboxPage /></ProtectedRoute>} />
         <Route path="/maintenance" element={<ProtectedRoute><RouteErrorBoundary sectionName="Maintenance"><MaintenancePage /></RouteErrorBoundary></ProtectedRoute>} />
         <Route path="/society/reports" element={<ProtectedRoute><RouteErrorBoundary sectionName="Society Reports"><SocietyReportPage /></RouteErrorBoundary></ProtectedRoute>} />
-        <Route path="/society/admin" element={<ProtectedRoute><RouteErrorBoundary sectionName="Society Admin"><SocietyAdminPage /></RouteErrorBoundary></ProtectedRoute>} />
-        <Route path="/builder" element={<ProtectedRoute><RouteErrorBoundary sectionName="Builder Dashboard"><BuilderDashboardPage /></RouteErrorBoundary></ProtectedRoute>} />
-        <Route path="/builder/analytics" element={<ProtectedRoute><RouteErrorBoundary sectionName="Builder Analytics"><BuilderAnalyticsPage /></RouteErrorBoundary></ProtectedRoute>} />
+        <Route path="/society/admin" element={<ProtectedRoute><SocietyAdminRoute><RouteErrorBoundary sectionName="Society Admin"><SocietyAdminPage /></RouteErrorBoundary></SocietyAdminRoute></ProtectedRoute>} />
+        <Route path="/builder" element={<ProtectedRoute><BuilderRoute><RouteErrorBoundary sectionName="Builder Dashboard"><BuilderDashboardPage /></RouteErrorBoundary></BuilderRoute></ProtectedRoute>} />
+        <Route path="/builder/analytics" element={<ProtectedRoute><BuilderRoute><RouteErrorBoundary sectionName="Builder Analytics"><BuilderAnalyticsPage /></RouteErrorBoundary></BuilderRoute></ProtectedRoute>} />
         <Route path="/parking" element={<ProtectedRoute><VehicleParkingPage /></ProtectedRoute>} />
         <Route path="/visitors" element={<ProtectedRoute><VisitorManagementPage /></ProtectedRoute>} />
         <Route path="/payment-milestones" element={<ProtectedRoute><PaymentMilestonesPage /></ProtectedRoute>} />
@@ -226,7 +260,7 @@ function AppRoutes() {
         <Route path="/domestic-help" element={<ProtectedRoute><DomesticHelpPage /></ProtectedRoute>} />
         <Route path="/workforce" element={<ProtectedRoute><WorkforceManagementPage /></ProtectedRoute>} />
         <Route path="/parcels" element={<ProtectedRoute><ParcelManagementPage /></ProtectedRoute>} />
-        <Route path="/guard-kiosk" element={<ProtectedRoute><GuardKioskPage /></ProtectedRoute>} />
+        <Route path="/guard-kiosk" element={<ProtectedRoute><SecurityRoute><GuardKioskPage /></SecurityRoute></ProtectedRoute>} />
         <Route path="/gate-entry" element={<ProtectedRoute><GateEntryPage /></ProtectedRoute>} />
         <Route path="/security/verify" element={<ProtectedRoute><SecurityRoute><SecurityVerifyPage /></SecurityRoute></ProtectedRoute>} />
         <Route path="/security/audit" element={<ProtectedRoute><SecurityRoute><SecurityAuditPage /></SecurityRoute></ProtectedRoute>} />
@@ -234,7 +268,17 @@ function AppRoutes() {
         <Route path="/worker/my-jobs" element={<ProtectedRoute><WorkerMyJobsPage /></ProtectedRoute>} />
         <Route path="/worker-hire" element={<ProtectedRoute><WorkerHirePage /></ProtectedRoute>} />
         <Route path="/worker-hire/create" element={<ProtectedRoute><CreateJobRequestPage /></ProtectedRoute>} />
-        <Route path="/become-seller" element={<ProtectedRoute><BecomeSellerPage /></ProtectedRoute>} />
+        <Route path="/society/notices" element={<ProtectedRoute><SocietyNoticesPage /></ProtectedRoute>} />
+        <Route path="/society/deliveries" element={<ProtectedRoute><SocietyDeliveriesPage /></ProtectedRoute>} />
+        <Route path="/delivery-partners" element={<ProtectedRoute><ManagementRoute><DeliveryPartnerManagementPage /></ManagementRoute></ProtectedRoute>} />
+        <Route path="/my-deliveries" element={<ProtectedRoute><DeliveryPartnerDashboardPage /></ProtectedRoute>} />
+        <Route path="/worker-attendance" element={<ProtectedRoute><ManagementRoute><WorkerAttendancePage /></ManagementRoute></ProtectedRoute>} />
+        <Route path="/my-workers" element={<ProtectedRoute><MyWorkersPage /></ProtectedRoute>} />
+        <Route path="/worker-leave" element={<ProtectedRoute><ManagementRoute><WorkerLeavePage /></ManagementRoute></ProtectedRoute>} />
+        <Route path="/worker-salary" element={<ProtectedRoute><ManagementRoute><WorkerSalaryPage /></ManagementRoute></ProtectedRoute>} />
+        <Route path="/authorized-persons" element={<ProtectedRoute><AuthorizedPersonsPage /></ProtectedRoute>} />
+        <Route path="/builder-inspections" element={<ProtectedRoute><BuilderRoute><BuilderInspectionsPage /></BuilderRoute></ProtectedRoute>} />
+        <Route path="/become-seller" element={<ProtectedRoute><RouteErrorBoundary sectionName="Seller Onboarding"><BecomeSellerPage /></RouteErrorBoundary></ProtectedRoute>} />
         <Route path="/seller" element={<ProtectedRoute><RouteErrorBoundary sectionName="Seller Dashboard"><SellerDashboardPage /></RouteErrorBoundary></ProtectedRoute>} />
         <Route path="/seller/products" element={<ProtectedRoute><RouteErrorBoundary sectionName="Products"><SellerProductsPage /></RouteErrorBoundary></ProtectedRoute>} />
         <Route path="/seller/settings" element={<ProtectedRoute><RouteErrorBoundary sectionName="Seller Settings"><SellerSettingsPage /></RouteErrorBoundary></ProtectedRoute>} />

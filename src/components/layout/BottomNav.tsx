@@ -6,6 +6,7 @@ import { useEffectiveFeatures } from '@/hooks/useEffectiveFeatures';
 import { useSecurityOfficer } from '@/hooks/useSecurityOfficer';
 import { useWorkerRole } from '@/hooks/useWorkerRole';
 import { useCart } from '@/hooks/useCart';
+import { useAuth } from '@/contexts/AuthContext';
 import type { FeatureKey } from '@/hooks/useEffectiveFeatures';
 
 const residentNavItems: { to: string; icon: typeof Home; label: string; featureKey?: FeatureKey; badge?: string }[] = [
@@ -17,7 +18,7 @@ const residentNavItems: { to: string; icon: typeof Home; label: string; featureK
 ];
 
 const securityNavItems: { to: string; icon: typeof Shield; label: string }[] = [
-  { to: '/security/verify', icon: Shield, label: 'Verify' },
+  { to: '/guard-kiosk', icon: Shield, label: 'Kiosk' },
   { to: '/security/audit', icon: ClipboardList, label: 'History' },
   { to: '/profile', icon: User, label: 'Profile' },
 ];
@@ -33,10 +34,18 @@ export function BottomNav() {
   const { isFeatureEnabled, isLoading } = useEffectiveFeatures();
   const { isSecurityOfficer } = useSecurityOfficer();
   const { isWorker } = useWorkerRole();
+  const { isAdmin, isSocietyAdmin, isBuilderMember } = useAuth();
   const { itemCount } = useCart();
   const { selectionChanged } = useHaptics();
 
-  const navItems = isSecurityOfficer ? securityNavItems : isWorker ? workerNavItems : residentNavItems;
+  // Builders, admins, and society admins always see the full resident nav
+  // Only pure security officers / workers (no admin/builder role) get restricted nav
+  const isPrimaryRoleUser = isAdmin || isSocietyAdmin || isBuilderMember;
+  const navItems = !isPrimaryRoleUser && isSecurityOfficer
+    ? securityNavItems
+    : !isPrimaryRoleUser && isWorker
+      ? workerNavItems
+      : residentNavItems;
 
   const visibleItems = isLoading
     ? navItems
@@ -44,7 +53,7 @@ export function BottomNav() {
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-50 bg-background border-t border-border safe-bottom">
-      <div className="flex items-center justify-around px-1 py-1">
+      <div className="flex items-center justify-around px-1 py-2">
         {visibleItems.map(({ to, icon: Icon, label }) => {
           const isActive = location.pathname === to || 
             (to !== '/' && location.pathname.startsWith(to));
@@ -65,7 +74,7 @@ export function BottomNav() {
               <div className="relative">
                 <Icon size={20} strokeWidth={isActive ? 2.5 : 1.8} />
                 {showCartBadge && (
-                  <span className="absolute -top-1 -right-2 min-w-[14px] h-[14px] px-0.5 rounded-full bg-primary text-primary-foreground text-[8px] font-bold flex items-center justify-center">
+                  <span className="absolute -top-1 -right-1.5 min-w-[16px] h-[16px] px-0.5 rounded-full bg-primary text-primary-foreground text-[8px] font-bold flex items-center justify-center">
                     {itemCount > 9 ? '9+' : itemCount}
                   </span>
                 )}

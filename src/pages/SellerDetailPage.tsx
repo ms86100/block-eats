@@ -29,7 +29,8 @@ import { useCart } from '@/hooks/useCart';
 import { useAuth } from '@/contexts/AuthContext';
 import { SellerProfile, Product, DAYS_OF_WEEK } from '@/types/database';
 import { useCategoryConfigs } from '@/hooks/useCategoryBehavior';
-import { ArrowLeft, Clock, MapPin, Phone, ShoppingCart, Star, Calendar, Flag, Zap, Users, ShieldCheck } from 'lucide-react';
+import { ArrowLeft, Clock, MapPin, Phone, Search, ShoppingCart, Star, Calendar, Flag, X, Zap, Users, ShieldCheck } from 'lucide-react';
+import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 
@@ -43,6 +44,8 @@ export default function SellerDetailPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [activeCategory, setActiveCategory] = useState<string>('all');
   const [activeTab, setActiveTab] = useState('menu');
+  const [menuSearch, setMenuSearch] = useState('');
+  const [distanceKm, setDistanceKm] = useState<number | null>(null);
   const [isReportOpen, setIsReportOpen] = useState(false);
   const [reportType, setReportType] = useState<string>('');
   const [reportDescription, setReportDescription] = useState('');
@@ -62,7 +65,7 @@ export default function SellerDetailPage() {
           .select(`
             *,
             profile:profiles!seller_profiles_user_id_fkey(name, block, flat_number, phone),
-            society:societies!seller_profiles_society_id_fkey(name, address, city, state, pincode)
+            society:societies!seller_profiles_society_id_fkey(name, address, city, state, pincode, latitude, longitude)
           `)
           .eq('id', id)
           .single(),
@@ -96,6 +99,33 @@ export default function SellerDetailPage() {
 
       setSeller(sellerData);
       setProducts((productsRes.data || []) as Product[]);
+
+      // Calculate distance from buyer's society to seller's society
+      if (effectiveSocietyId && sellerData.society?.latitude && sellerData.society?.longitude) {
+        try {
+          const { data: buyerSociety } = await supabase
+            .from('societies')
+            .select('latitude, longitude')
+            .eq('id', effectiveSocietyId)
+            .single();
+
+          if (buyerSociety?.latitude && buyerSociety?.longitude) {
+            const toRad = (deg: number) => (deg * Math.PI) / 180;
+            const R = 6371;
+            const dLat = toRad(sellerData.society.latitude - buyerSociety.latitude);
+            const dLon = toRad(sellerData.society.longitude - buyerSociety.longitude);
+            const a =
+              Math.sin(dLat / 2) ** 2 +
+              Math.cos(toRad(buyerSociety.latitude)) *
+                Math.cos(toRad(sellerData.society.latitude)) *
+                Math.sin(dLon / 2) ** 2;
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+            setDistanceKm(Math.round(R * c * 10) / 10);
+          }
+        } catch (e) {
+          console.error('Distance calc error:', e);
+        }
+      }
     } catch (error) {
       console.error('Error fetching seller:', error);
     } finally {
@@ -103,9 +133,14 @@ export default function SellerDetailPage() {
     }
   };
 
-  const filteredProducts = activeCategory === 'all'
-    ? products
-    : products.filter((p) => p.category === activeCategory);
+  const filteredProducts = (() => {
+    let result = activeCategory === 'all' ? products : products.filter((p) => p.category === activeCategory);
+    if (menuSearch.trim()) {
+      const q = menuSearch.toLowerCase();
+      result = result.filter((p) => p.name.toLowerCase().includes(q) || p.description?.toLowerCase().includes(q));
+    }
+    return result;
+  })();
 
   const categories = ['all', ...new Set(products.map((p) => p.category))];
 
@@ -194,16 +229,16 @@ export default function SellerDetailPage() {
         <div className="absolute top-4 left-4 right-4 flex justify-between safe-top">
           <Link
             to="/"
-            className="w-10 h-10 rounded-full bg-white/90 flex items-center justify-center shadow-md"
+            className="w-10 h-10 rounded-full bg-black/50 backdrop-blur-sm flex items-center justify-center shadow-md border border-white/20"
           >
-            <ArrowLeft size={20} />
+            <ArrowLeft size={18} className="text-white" />
           </Link>
           <div className="flex gap-2">
             {user && (
               <Dialog open={isReportOpen} onOpenChange={setIsReportOpen}>
                 <DialogTrigger asChild>
-                  <button className="w-10 h-10 rounded-full bg-white/90 flex items-center justify-center shadow-md">
-                    <Flag size={18} className="text-muted-foreground" />
+                   <button className="w-10 h-10 rounded-full bg-black/50 backdrop-blur-sm flex items-center justify-center shadow-md border border-white/20">
+                     <Flag size={18} className="text-white" />
                   </button>
                 </DialogTrigger>
                 <DialogContent>
@@ -255,107 +290,126 @@ export default function SellerDetailPage() {
           </div>
         </div>
 
-        {/* Seller Avatar */}
-        {seller.profile_image_url && (
-          <div className="absolute bottom-4 left-4 w-16 h-16 rounded-full border-3 border-white overflow-hidden shadow-lg">
-            <img
-              src={seller.profile_image_url}
-              alt={seller.business_name}
-              className="w-full h-full object-cover"
-            />
-          </div>
-        )}
       </div>
 
       {/* Seller Info */}
       <div className="px-4 -mt-8 relative z-10">
-        <div className="bg-card rounded-xl shadow-elevated p-4">
-          <div className="flex items-start justify-between">
-            <div className={seller.profile_image_url ? 'ml-16' : ''}>
-              <h1 className="text-xl font-bold">{seller.business_name}</h1>
-              {seller.description && (
-                <p className="text-sm text-muted-foreground mt-1 line-clamp-2">
-                  {seller.description}
-                </p>
-              )}
+        <div className="bg-card rounded-xl shadow-elevated p-4 space-y-3">
+          {/* Row 1: Avatar + Name + Rating */}
+          <div className="flex items-start gap-3">
+            {seller.profile_image_url && (
+              <div className="w-14 h-14 rounded-full border-2 border-primary/30 overflow-hidden shadow-md shrink-0">
+                <img
+                  src={seller.profile_image_url}
+                  alt={seller.business_name}
+                  className="w-full h-full object-cover"
+                />
+              </div>
+            )}
+            <div className="flex-1 min-w-0">
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <h1 className="text-xl font-bold">{seller.business_name}</h1>
+                  {seller.description && (
+                    <p className="text-sm text-muted-foreground mt-0.5 line-clamp-2">
+                      {seller.description}
+                    </p>
+                  )}
+                </div>
+                <RatingStars
+                  rating={seller.rating}
+                  totalReviews={seller.total_reviews}
+                  size="md"
+                />
+              </div>
             </div>
-            <RatingStars
-              rating={seller.rating}
-              totalReviews={seller.total_reviews}
-              size="md"
-            />
           </div>
 
-          <div className="flex flex-wrap gap-3 mt-4 text-sm text-muted-foreground">
-            {profile && (
+          {/* Row 2: Location · Distance · Hours — compact info line */}
+          <div className="flex items-center gap-2 text-sm text-muted-foreground flex-wrap">
+            {(seller as any).society && (
               <span className="flex items-center gap-1">
-                <MapPin size={14} />
-                Block {profile.block}, {profile.flat_number}
-                {(seller as any).society?.name && `, ${(seller as any).society.name}`}
-                {(seller as any).society?.city && `, ${(seller as any).society.city}`}
+                <MapPin size={13} className="text-primary shrink-0" />
+                {(seller as any).society.name}
               </span>
+            )}
+            {distanceKm !== null && distanceKm > 0 && (
+              <>
+                <span className="text-muted-foreground/40">·</span>
+                <span className="text-xs font-medium text-primary">📍 {distanceKm} km</span>
+              </>
             )}
             {seller.availability_start && seller.availability_end && (
-              <span className="flex items-center gap-1">
-                <Clock size={14} />
-                {seller.availability_start.slice(0, 5)} - {seller.availability_end.slice(0, 5)}
-              </span>
+              <>
+                <span className="text-muted-foreground/40">·</span>
+                <span className="flex items-center gap-1">
+                  <Clock size={13} className="shrink-0" />
+                  {seller.availability_start.slice(0, 5)} – {seller.availability_end.slice(0, 5)}
+                </span>
+              </>
             )}
           </div>
 
-          {/* Real trust signals */}
-          <div className="flex flex-wrap gap-2 mt-3">
-            {(seller as any).completed_order_count > 0 && (
-              <Badge variant="secondary" className="text-[10px] bg-primary/10 text-primary border-0">
-                <Users size={10} className="mr-1" />
-                {(seller as any).completed_order_count} orders fulfilled
-              </Badge>
-            )}
-            {(seller as any).avg_response_minutes != null && (seller as any).avg_response_minutes > 0 && (
-              <Badge variant="secondary" className="text-[10px] bg-success/10 text-success border-0">
-                <Zap size={10} className="mr-1" />
-                Responds in ~{(seller as any).avg_response_minutes} min
-              </Badge>
-            )}
-            {(seller as any).cancellation_rate !== undefined && (seller as any).cancellation_rate === 0 && (seller as any).completed_order_count > 2 && (
-              <Badge variant="secondary" className="text-[10px] bg-success/10 text-success border-0">
-                <ShieldCheck size={10} className="mr-1" />
-                0% cancellation
-              </Badge>
-            )}
+          {/* Row 3: Status badges — Active + Fulfillment + Min order */}
+          <div className="flex items-center gap-2 flex-wrap">
             {(seller as any).last_active_at && (Date.now() - new Date((seller as any).last_active_at).getTime()) < 24 * 60 * 60 * 1000 && (
-              <Badge variant="secondary" className="text-[10px] bg-success/10 text-success border-0">
+              <Badge variant="secondary" className="text-[10px] bg-success/15 text-success border-0 font-medium">
                 <span className="w-1.5 h-1.5 rounded-full bg-success animate-pulse mr-1" />
                 Active today
               </Badge>
             )}
+            {(seller as any).fulfillment_mode && (
+              <Badge variant="outline" className="text-[10px] font-medium">
+                {(seller as any).fulfillment_mode === 'self_pickup' && '🏪 Self Pickup'}
+                {(seller as any).fulfillment_mode === 'delivery' && '🚚 Delivery'}
+                {(seller as any).fulfillment_mode === 'both' && '🏪🚚 Pickup & Delivery'}
+              </Badge>
+            )}
+            {(seller as any).minimum_order_amount != null && (seller as any).minimum_order_amount > 0 && (
+              <Badge variant="outline" className="text-[10px] font-medium">
+                Min ₹{(seller as any).minimum_order_amount}
+              </Badge>
+            )}
+            {(seller as any).delivery_note && (
+              <span className="text-[11px] text-muted-foreground italic">{(seller as any).delivery_note}</span>
+            )}
           </div>
 
-          {/* Fulfillment Info */}
-          {(seller as any).fulfillment_mode && (
-            <div className="flex items-center gap-2 mt-3 text-sm text-muted-foreground">
-              <Badge variant="outline" className="text-[10px]">
-                {(seller as any).fulfillment_mode === 'self_pickup' && '🏪 Self Pickup Only'}
-                {(seller as any).fulfillment_mode === 'delivery' && '🚚 Seller Delivers'}
-                {(seller as any).fulfillment_mode === 'both' && '🏪🚚 Pickup or Delivery'}
-              </Badge>
-              {(seller as any).delivery_note && (
-                <span className="text-xs italic">{(seller as any).delivery_note}</span>
+          {/* Row 4: Trust signals */}
+          {((seller as any).completed_order_count > 0 || ((seller as any).avg_response_minutes != null && (seller as any).avg_response_minutes > 0)) && (
+            <div className="flex items-center gap-2 flex-wrap">
+              {(seller as any).completed_order_count > 0 && (
+                <Badge variant="secondary" className="text-[10px] bg-primary/10 text-primary border-0">
+                  <Users size={10} className="mr-1" />
+                  {(seller as any).completed_order_count} orders
+                </Badge>
+              )}
+              {(seller as any).avg_response_minutes != null && (seller as any).avg_response_minutes > 0 && (
+                <Badge variant="secondary" className="text-[10px] bg-success/10 text-success border-0">
+                  <Zap size={10} className="mr-1" />
+                  ~{(seller as any).avg_response_minutes} min response
+                </Badge>
+              )}
+              {(seller as any).cancellation_rate !== undefined && (seller as any).cancellation_rate === 0 && (seller as any).completed_order_count > 2 && (
+                <Badge variant="secondary" className="text-[10px] bg-success/10 text-success border-0">
+                  <ShieldCheck size={10} className="mr-1" />
+                  0% cancellation
+                </Badge>
               )}
             </div>
           )}
 
-          {/* Operating Days */}
-          <div className="flex items-center gap-2 mt-3">
-            <Calendar size={14} className="text-muted-foreground" />
+          {/* Row 5: Operating days */}
+          <div className="flex items-center gap-2">
+            <Calendar size={14} className="text-muted-foreground shrink-0" />
             <div className="flex gap-1">
               {DAYS_OF_WEEK.map((day) => (
                 <span
                   key={day}
-                  className={`text-[10px] px-1.5 py-0.5 rounded ${
+                  className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${
                     operatingDays.includes(day)
                       ? 'bg-success/20 text-success'
-                      : 'bg-muted text-muted-foreground'
+                      : 'bg-muted text-muted-foreground/50'
                   }`}
                 >
                   {day}
@@ -364,14 +418,15 @@ export default function SellerDetailPage() {
             </div>
           </div>
 
+          {/* Row 6: Category tags */}
           {seller.categories.length > 0 && (
-            <div className="flex flex-wrap gap-1.5 mt-3">
+            <div className="flex flex-wrap gap-1.5">
               {seller.categories.map((cat) => {
                 const categoryInfo = allCategoryConfigs.find((c) => c.category === cat);
                 return (
                   <span
                     key={cat}
-                    className="text-xs px-2 py-1 rounded-full bg-secondary text-secondary-foreground"
+                    className="text-xs px-2.5 py-1 rounded-full bg-secondary text-secondary-foreground font-medium"
                   >
                     {categoryInfo?.icon} {categoryInfo?.displayName || cat}
                   </span>
@@ -393,6 +448,21 @@ export default function SellerDetailPage() {
           </TabsList>
 
           <TabsContent value="menu" className="mt-4">
+            {/* Search within menu */}
+            <div className="relative mb-3">
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                placeholder={`Search in ${seller.business_name}…`}
+                value={menuSearch}
+                onChange={(e) => setMenuSearch(e.target.value)}
+                className="pl-8 pr-8 h-9 bg-muted border-0 rounded-lg text-sm"
+              />
+              {menuSearch && (
+                <button onClick={() => setMenuSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground">
+                  <X size={14} />
+                </button>
+              )}
+            </div>
             {categories.length > 2 && (
               <div className="flex gap-2 overflow-x-auto scrollbar-hide mb-4 -mx-4 px-4">
                 {categories.map((cat) => {

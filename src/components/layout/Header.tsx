@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
-import { Bell, Building, ChevronDown } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { useState, useEffect, useCallback } from 'react';
+import { ArrowLeft, Bell, Building, Building2, ChevronDown } from 'lucide-react';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { ThemeToggle } from '@/components/ui/theme-toggle';
 import { useAuth } from '@/contexts/AuthContext';
@@ -9,11 +9,13 @@ import { supabase } from '@/integrations/supabase/client';
 import { cn } from '@/lib/utils';
 import { useHaptics } from '@/hooks/useHaptics';
 import { useSearchPlaceholder } from '@/hooks/useSearchPlaceholder';
+import { useSystemSettings } from '@/hooks/useSystemSettings';
 
 interface HeaderProps {
   showCart?: boolean;
   showLocation?: boolean;
   title?: string;
+  showBack?: boolean;
   className?: string;
 }
 
@@ -21,8 +23,21 @@ export function Header({
   showCart = true, 
   showLocation = true, 
   title,
+  showBack,
   className 
 }: HeaderProps) {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const settings = useSystemSettings();
+
+  const handleBack = useCallback(() => {
+    // If there's real history, go back; otherwise navigate to society dashboard or home
+    if (window.history.length > 2) {
+      navigate(-1);
+    } else {
+      navigate('/society');
+    }
+  }, [navigate]);
   const { profile, isApproved, society, user, viewAsSocietyId, effectiveSociety, setViewAsSociety, isAdmin, isBuilderMember } = useAuth();
   const { itemCount } = useCart();
   const { selectionChanged } = useHaptics();
@@ -76,7 +91,19 @@ export function Header({
           {/* Top row: delivery info + actions */}
           <div className="flex items-start justify-between">
             {title ? (
-              <h1 className="text-lg font-bold text-foreground">{title}</h1>
+              <div className="flex items-center gap-2">
+                {(showBack ?? true) && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 rounded-full shrink-0"
+                    onClick={handleBack}
+                  >
+                    <ArrowLeft size={18} />
+                  </Button>
+                )}
+                <h1 className="text-lg font-bold text-foreground">{title}</h1>
+              </div>
             ) : (
               <div className="min-w-0 flex-1">
                 <h1 className="text-[22px] font-extrabold tracking-tight leading-tight">
@@ -86,7 +113,7 @@ export function Header({
                   <span className="text-foreground">a</span>
                 </h1>
                 <p className="text-[10px] font-bold text-muted-foreground tracking-widest uppercase">
-                  Your Society, Your Store
+                  {settings.headerTagline}
                 </p>
                 {showLocation && displaySociety && (
                   <button 
@@ -94,7 +121,7 @@ export function Header({
                     onClick={() => selectionChanged()}
                   >
                     <Building size={12} className="text-muted-foreground shrink-0" />
-                    <span className="text-[11px] font-semibold text-foreground truncate max-w-[200px]">
+                    <span className="text-[11px] font-semibold text-foreground truncate max-w-[65vw]">
                       {displaySociety.name}
                     </span>
                     <ChevronDown size={12} className="text-muted-foreground shrink-0" />
@@ -105,6 +132,17 @@ export function Header({
 
             <div className="flex items-center gap-1.5 mt-1">
               <ThemeToggle className="h-8 w-8 rounded-full bg-muted text-foreground hover:bg-muted/80" />
+              {isBuilderMember && (
+                <Link to="/builder">
+                  <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    className="h-8 w-8 rounded-full bg-muted text-foreground hover:bg-muted/80"
+                  >
+                    <Building2 size={16} />
+                  </Button>
+                </Link>
+              )}
               {isApproved && (
                 <>
                   <Link to="/notifications/inbox">

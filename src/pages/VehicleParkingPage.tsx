@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { FeatureGate } from '@/components/ui/FeatureGate';
 import { supabase } from '@/integrations/supabase/client';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Card, CardContent } from '@/components/ui/card';
@@ -14,6 +15,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useAuth } from '@/contexts/AuthContext';
 import { Car, Bike, AlertTriangle, Plus, ParkingSquare, Check, X } from 'lucide-react';
 import { toast } from 'sonner';
+import { friendlyError } from '@/lib/utils';
 
 interface ParkingSlot {
   id: string;
@@ -23,6 +25,8 @@ interface ParkingSlot {
   vehicle_type: string | null;
   is_occupied: boolean;
   assigned_to: string | null;
+  resident_id: string | null;
+  flat_number: string | null;
 }
 
 interface ParkingViolation {
@@ -47,6 +51,7 @@ export default function VehicleParkingPage() {
   const [slotNumber, setSlotNumber] = useState('');
   const [slotType, setSlotType] = useState('car');
   const [vehicleNumber, setVehicleNumber] = useState('');
+  const [slotFlatNumber, setSlotFlatNumber] = useState('');
 
   // Report violation form
   const [violationVehicle, setViolationVehicle] = useState('');
@@ -70,6 +75,7 @@ export default function VehicleParkingPage() {
       setSlots((slotsRes.data as ParkingSlot[]) || []);
       setViolations((violationsRes.data as ParkingViolation[]) || []);
     } catch (error) {
+      toast.error('Could not load parking data. Please try again.');
       console.error('Error:', error);
     } finally {
       setIsLoading(false);
@@ -86,7 +92,8 @@ export default function VehicleParkingPage() {
         vehicle_number: vehicleNumber.trim() || null,
         is_occupied: !!vehicleNumber.trim(),
         assigned_to: vehicleNumber.trim() ? profile?.id : null,
-      });
+        flat_number: slotFlatNumber.trim() || null,
+      } as any);
       if (error) throw error;
       toast.success('Parking slot added');
       setAddSlotOpen(false);
@@ -95,7 +102,7 @@ export default function VehicleParkingPage() {
       fetchData();
     } catch (error: any) {
       if (error?.code === '23505') toast.error('Slot number already exists');
-      else toast.error('Failed to add slot');
+      else toast.error(friendlyError(error));
     }
   };
 
@@ -116,7 +123,7 @@ export default function VehicleParkingPage() {
       setViolationDesc('');
       fetchData();
     } catch {
-      toast.error('Failed to report');
+      toast.error('Failed to report violation. Please try again.');
     }
   };
 
@@ -131,7 +138,7 @@ export default function VehicleParkingPage() {
       toast.success(`Violation ${status}`);
       fetchData();
     } catch {
-      toast.error('Failed to update');
+      toast.error('Failed to update violation. Please try again.');
     }
   };
 
@@ -150,6 +157,7 @@ export default function VehicleParkingPage() {
 
   return (
     <AppLayout headerTitle="Vehicle Parking" showLocation={false}>
+      <FeatureGate feature="vehicle_parking">
       <div className="p-4 space-y-4">
         {/* Stats */}
         <div className="grid grid-cols-3 gap-3">
@@ -191,7 +199,12 @@ export default function VehicleParkingPage() {
                       </SelectContent>
                     </Select>
                   </div>
-                  <div><Label>Vehicle Number (optional)</Label><Input value={vehicleNumber} onChange={e => setVehicleNumber(e.target.value)} placeholder="e.g. MH-02-AB-1234" /></div>
+                   <div><Label>Vehicle Number (optional)</Label><Input value={vehicleNumber} onChange={e => setVehicleNumber(e.target.value)} placeholder="e.g. MH-02-AB-1234" /></div>
+                   <div><Label>Flat Number (optional)</Label><Input value={slotFlatNumber} onChange={e => setSlotFlatNumber(e.target.value)} placeholder="e.g. A-101" /></div>
+                   <div className="flex items-center gap-2 p-2 rounded-lg bg-muted/50">
+                     <input type="checkbox" id="visitorSlot" checked={slotType === 'visitor'} onChange={e => setSlotType(e.target.checked ? 'visitor' : 'car')} className="accent-primary" />
+                     <Label htmlFor="visitorSlot" className="text-xs cursor-pointer">Mark as visitor parking slot</Label>
+                   </div>
                   <Button className="w-full" onClick={addSlot} disabled={!slotNumber.trim()}>Add Slot</Button>
                 </div>
               </SheetContent>
@@ -243,6 +256,7 @@ export default function VehicleParkingPage() {
                     </div>
                     <p className="text-xs text-muted-foreground">
                       {slot.vehicle_number || (slot.is_occupied ? 'Occupied' : 'Available')}
+                      {(slot as any).flat_number && ` · Flat ${(slot as any).flat_number}`}
                     </p>
                   </div>
                   <Badge variant={slot.is_occupied ? 'secondary' : 'default'} className="text-[10px]">
@@ -274,8 +288,8 @@ export default function VehicleParkingPage() {
                     </div>
                     {v.status === 'open' && canManage && (
                       <div className="flex gap-1">
-                        <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-destructive" onClick={() => resolveViolation(v.id, 'dismissed')}><X size={12} /></Button>
-                        <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-primary" onClick={() => resolveViolation(v.id, 'resolved')}><Check size={12} /></Button>
+                        <Button size="sm" variant="outline" className="h-7 text-xs text-destructive" onClick={() => resolveViolation(v.id, 'dismissed')}>Dismiss</Button>
+                        <Button size="sm" variant="outline" className="h-7 text-xs text-primary" onClick={() => resolveViolation(v.id, 'resolved')}>Resolve</Button>
                       </div>
                     )}
                   </div>
@@ -283,11 +297,15 @@ export default function VehicleParkingPage() {
               </Card>
             ))}
             {violations.length === 0 && (
-              <p className="text-center text-muted-foreground py-8 text-sm">No violations reported</p>
+              <div className="text-center text-muted-foreground py-8">
+                <p className="text-sm">No violations reported</p>
+                <p className="text-xs mt-1">Report unauthorized parking or blocking issues for committee review.</p>
+              </div>
             )}
           </TabsContent>
         </Tabs>
       </div>
+      </FeatureGate>
     </AppLayout>
   );
 }

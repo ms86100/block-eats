@@ -16,6 +16,7 @@ import { ArrowLeft, Search as SearchIcon, X, Globe, ShoppingBag } from 'lucide-r
 import { AppLayout } from '@/components/layout/AppLayout';
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 import { useSearchPlaceholder } from '@/hooks/useSearchPlaceholder';
+import { useSystemSettings } from '@/hooks/useSystemSettings';
 
 
 // ── Types ──────────────────────────────────────────────
@@ -44,7 +45,7 @@ interface ProductSearchResult {
 }
 
 // ── Helpers ────────────────────────────────────────────
-const FILTER_STORAGE_KEY = 'sociva_search_filters';
+const FILTER_STORAGE_KEY = 'app_search_filters';
 
 const loadSavedFilters = (): FilterState => {
   try {
@@ -72,6 +73,7 @@ export default function SearchPage() {
   const { items: cartItems, addItem, updateQuantity } = useCart();
   const [searchParams] = useSearchParams();
   const { configs: categoryConfigs, isLoading: categoriesLoading } = useCategoryConfigs();
+  const settings = useSystemSettings();
 
   // Build a lookup map: category slug -> { icon, displayName, supportsCart, etc. }
   const categoryMap = useMemo(() => {
@@ -101,26 +103,18 @@ export default function SearchPage() {
   const [isLoadingPopular, setIsLoadingPopular] = useState(true);
   const [hasSearched, setHasSearched] = useState(false);
 
-  // Cross-society browsing - load persisted preferences from DB
-  const [browseBeyond, setBrowseBeyondLocal] = useState(false);
-  const [searchRadius, setSearchRadiusLocal] = useState(5);
-  const [prefsLoaded, setPrefsLoaded] = useState(false);
+  // Cross-society browsing - initialize from auth context profile (already loaded)
+  const [browseBeyond, setBrowseBeyondLocal] = useState(profile?.browse_beyond_community ?? true);
+  const [searchRadius, setSearchRadiusLocal] = useState(profile?.search_radius_km ?? 10);
+  const prefsLoaded = true;
 
+  // Sync local state when profile finishes loading (profile may be null on first render)
   useEffect(() => {
-    if (!user) return;
-    supabase
-      .from('profiles')
-      .select('browse_beyond_community, search_radius_km')
-      .eq('id', user.id)
-      .single()
-      .then(({ data }) => {
-        if (data) {
-          setBrowseBeyondLocal((data as any).browse_beyond_community ?? false);
-          setSearchRadiusLocal((data as any).search_radius_km ?? 5);
-        }
-        setPrefsLoaded(true);
-      });
-  }, [user]);
+    if (profile) {
+      setBrowseBeyondLocal(profile.browse_beyond_community ?? true);
+      setSearchRadiusLocal(profile.search_radius_km ?? 10);
+    }
+  }, [profile]);
 
   const persistPreference = useCallback(
     async (field: string, value: any) => {
@@ -262,7 +256,7 @@ export default function SearchPage() {
     filters.categories.length > 0 ||
     filters.sortBy !== null ||
     filters.priceRange[0] > 0 ||
-    filters.priceRange[1] < 5000;
+    filters.priceRange[1] < settings.maxPriceFilter;
 
   // ── Determine if we're in "active search" mode ──
   const isSearchActive = debouncedQuery.length >= 1 || hasActiveFilters() || selectedCategory !== null;
@@ -507,7 +501,7 @@ export default function SearchPage() {
       if (effectiveCategories.length > 0 && term.length >= 1) {
         filtered = filtered.filter((p) => p.category && effectiveCategories.includes(p.category as any));
       }
-      if (filters.priceRange[0] > 0 || filters.priceRange[1] < 5000) {
+      if (filters.priceRange[0] > 0 || filters.priceRange[1] < settings.maxPriceFilter) {
         filtered = filtered.filter((p) => p.price >= filters.priceRange[0] && p.price <= filters.priceRange[1]);
       }
 
@@ -591,7 +585,7 @@ export default function SearchPage() {
         <div className="sticky top-0 z-40 bg-background safe-top">
           <div className="px-4 pt-3 pb-2">
             <div className="flex items-center gap-2">
-              <Link to="/" className="shrink-0 h-9 w-9 rounded-full bg-muted flex items-center justify-center">
+              <Link to="/" className="shrink-0 h-10 w-10 rounded-full bg-muted flex items-center justify-center">
                 <ArrowLeft size={18} className="text-foreground" />
               </Link>
               <div className="flex-1 relative">
@@ -621,7 +615,7 @@ export default function SearchPage() {
                 {/* Quick veg/non-veg toggles */}
                 <button
                   onClick={() => setFilters({ ...filters, isVeg: filters.isVeg === true ? null : true })}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap border transition-colors ${
+                  className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium whitespace-nowrap border transition-colors ${
                     filters.isVeg === true
                       ? 'border-accent bg-accent/10 text-accent'
                       : 'border-border bg-background text-foreground'
@@ -634,7 +628,7 @@ export default function SearchPage() {
                 </button>
                 <button
                   onClick={() => setFilters({ ...filters, isVeg: filters.isVeg === false ? null : false })}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap border transition-colors ${
+                  className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium whitespace-nowrap border transition-colors ${
                     filters.isVeg === false
                       ? 'border-destructive bg-destructive/10 text-destructive'
                       : 'border-border bg-background text-foreground'
@@ -655,7 +649,7 @@ export default function SearchPage() {
                   <button
                     key={value}
                     onClick={() => setFilters({ ...filters, sortBy: filters.sortBy === value ? null : value })}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap border transition-colors ${
+                    className={`px-3 py-2 rounded-lg text-xs font-medium whitespace-nowrap border transition-colors ${
                       filters.sortBy === value
                         ? 'border-primary bg-primary/10 text-primary'
                         : 'border-border bg-background text-foreground'
@@ -743,7 +737,7 @@ export default function SearchPage() {
               showCount={isSearchActive}
             />
           ) : isSearchActive ? (
-            <EmptyState />
+            <EmptyState browseBeyond={browseBeyond} onEnableBrowseBeyond={() => setBrowseBeyond(true)} />
           ) : (
             <EmptyMarketplace />
           )}
@@ -898,12 +892,23 @@ function ProductGridByCategory({
 }
 
 // ── Empty / Idle states ────────────────────────────────
-function EmptyState() {
+function EmptyState({ browseBeyond, onEnableBrowseBeyond }: { browseBeyond?: boolean; onEnableBrowseBeyond?: () => void } = {}) {
   return (
     <div className="text-center py-16">
       <SearchIcon className="mx-auto text-muted-foreground mb-3" size={28} />
       <p className="font-semibold text-sm text-foreground">No products found</p>
-      <p className="text-xs text-muted-foreground mt-1">Try a different term or tap a category above</p>
+      <p className="text-xs text-muted-foreground mt-1 max-w-[240px] mx-auto">
+        Try searching for something else, or browse by category above
+      </p>
+      {!browseBeyond && onEnableBrowseBeyond && (
+        <button
+          onClick={onEnableBrowseBeyond}
+          className="mt-3 text-xs text-primary font-medium flex items-center gap-1 mx-auto"
+        >
+          <Globe size={12} />
+          Enable nearby communities to see more
+        </button>
+      )}
     </div>
   );
 }

@@ -15,6 +15,16 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -26,13 +36,15 @@ import { VegBadge } from '@/components/ui/veg-badge';
 import { Badge } from '@/components/ui/badge';
 import { ProductImageUpload } from '@/components/ui/product-image-upload';
 import { useAuth } from '@/contexts/AuthContext';
-import { Product, ProductCategory, SellerProfile, ProductActionType, PRODUCT_ACTION_TYPES } from '@/types/database';
+import { Product, ProductCategory, SellerProfile, ProductActionType } from '@/types/database';
 import { useCategoryConfigs } from '@/hooks/useCategoryBehavior';
 import { ParentGroup } from '@/types/categories';
 import { SellerSwitcher } from '@/components/seller/SellerSwitcher';
 import { ArrowLeft, Plus, Edit, Trash2, Loader2, Star, Award, Bell, AlertTriangle, Store, ShieldAlert, Upload, Send, CheckCircle2, Clock, XCircle } from 'lucide-react';
 import { toast } from 'sonner';
+import { friendlyError } from '@/lib/utils';
 import { BulkProductUpload } from '@/components/seller/BulkProductUpload';
+import { useSubcategories } from '@/hooks/useSubcategories';
 
 export default function SellerProductsPage() {
   const { user, sellerProfiles, currentSellerId } = useAuth();
@@ -63,6 +75,11 @@ export default function SellerProductsPage() {
     image_url: null as string | null,
     action_type: 'add_to_cart' as ProductActionType,
     contact_phone: '',
+    stock_quantity: '' as string,
+    low_stock_threshold: '5',
+    subcategory_id: '' as string,
+    lead_time_hours: '' as string,
+    accepts_preorders: false,
   });
 
   // Get the active category config for dynamic form hints
@@ -88,6 +105,10 @@ export default function SellerProductsPage() {
     if (!primaryGroup || !groupedConfigs[primaryGroup]) return [];
     return groupedConfigs[primaryGroup];
   }, [primaryGroup, groupedConfigs]);
+
+  // Subcategories for the selected category
+  const activeCategoryConfigId = activeCategoryConfig?.id || null;
+  const { data: subcategories = [] } = useSubcategories(activeCategoryConfigId);
 
   useEffect(() => {
     if (user && currentSellerId) {
@@ -180,6 +201,11 @@ export default function SellerProductsPage() {
       image_url: null,
       action_type: 'add_to_cart',
       contact_phone: '',
+      stock_quantity: '',
+      low_stock_threshold: '5',
+      subcategory_id: '',
+      lead_time_hours: '',
+      accepts_preorders: false,
     });
     setEditingProduct(null);
   };
@@ -202,6 +228,11 @@ export default function SellerProductsPage() {
       image_url: product.image_url,
       action_type: (product as any).action_type || 'add_to_cart',
       contact_phone: (product as any).contact_phone || '',
+      stock_quantity: (product as any).stock_quantity?.toString() || '',
+      low_stock_threshold: (product as any).low_stock_threshold?.toString() || '5',
+      subcategory_id: (product as any).subcategory_id || '',
+      lead_time_hours: (product as any).lead_time_hours?.toString() || '',
+      accepts_preorders: (product as any).accepts_preorders || false,
     });
     setIsDialogOpen(true);
   };
@@ -243,6 +274,8 @@ export default function SellerProductsPage() {
       const prepTime = formData.prep_time_minutes ? parseInt(formData.prep_time_minutes) : null;
       const mrp = formData.mrp ? parseFloat(formData.mrp) : null;
       const discountPct = formData.discount_percentage ? parseFloat(formData.discount_percentage) : null;
+      const stockQty = formData.stock_quantity ? parseInt(formData.stock_quantity) : null;
+      const lowStockThreshold = formData.low_stock_threshold ? parseInt(formData.low_stock_threshold) : 5;
       const productData = {
         seller_id: sellerProfile.id,
         name: formData.name.trim(),
@@ -260,7 +293,12 @@ export default function SellerProductsPage() {
         image_url: formData.image_url,
         action_type: formData.action_type,
         contact_phone: formData.contact_phone.trim() || null,
-        ...(editingProduct ? {} : { approval_status: 'draft' }),
+        stock_quantity: (stockQty !== null && !isNaN(stockQty) && stockQty >= 0) ? stockQty : null,
+        low_stock_threshold: lowStockThreshold,
+        subcategory_id: formData.subcategory_id || null,
+        lead_time_hours: formData.lead_time_hours ? parseInt(formData.lead_time_hours) : null,
+        accepts_preorders: formData.accepts_preorders,
+        ...(editingProduct ? { approval_status: 'pending' } : { approval_status: 'draft' }),
       };
 
       if (editingProduct) {
@@ -283,27 +321,30 @@ export default function SellerProductsPage() {
       if (sellerProfile) fetchData(sellerProfile.id);
     } catch (error: any) {
       console.error('Error saving product:', error);
-      toast.error(error.message || 'Failed to save product');
+      toast.error(friendlyError(error));
     } finally {
       setIsSaving(false);
     }
   };
 
-  const handleDelete = async (product: Product) => {
-    if (!confirm('Are you sure you want to delete this product?')) return;
+  const [deleteTarget, setDeleteTarget] = useState<Product | null>(null);
 
+  const confirmDelete = async () => {
+    if (!deleteTarget) return;
     try {
       const { error } = await supabase
         .from('products')
         .delete()
-        .eq('id', product.id);
+        .eq('id', deleteTarget.id);
 
       if (error) throw error;
       toast.success('Product deleted');
       if (sellerProfile) fetchData(sellerProfile.id);
     } catch (error) {
       console.error('Error deleting product:', error);
-      toast.error('Failed to delete product');
+      toast.error(friendlyError(error));
+    } finally {
+      setDeleteTarget(null);
     }
   };
 
@@ -341,11 +382,13 @@ export default function SellerProductsPage() {
       <div className="p-4 safe-top">
         <div className="flex items-center justify-between mb-6">
           <Link to="/seller" className="flex items-center gap-2 text-muted-foreground">
-            <ArrowLeft size={20} />
+            <span className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-muted shrink-0">
+              <ArrowLeft size={18} />
+            </span>
             <span>Back</span>
           </Link>
           <div className="flex items-center gap-2">
-            <Button size="sm" variant="outline" onClick={() => setIsBulkOpen(true)}>
+            <Button variant="outline" onClick={() => setIsBulkOpen(true)}>
               <Upload size={16} className="mr-1" />
               Bulk Add
             </Button>
@@ -354,7 +397,7 @@ export default function SellerProductsPage() {
               if (!open) resetForm();
             }}>
               <DialogTrigger asChild>
-                <Button size="sm">
+                <Button>
                   <Plus size={16} className="mr-1" />
                   Add Product
                 </Button>
@@ -513,6 +556,60 @@ export default function SellerProductsPage() {
                   ) : null}
                 </div>
 
+                {/* Subcategory Picker (DB-driven) */}
+                {subcategories.length > 0 && (
+                  <div className="space-y-2">
+                    <Label>Subcategory</Label>
+                    <Select
+                      value={formData.subcategory_id || 'none'}
+                      onValueChange={(v) => setFormData({ ...formData, subcategory_id: v === 'none' ? '' : v })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select subcategory (optional)" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">None</SelectItem>
+                        {subcategories.map(sub => (
+                          <SelectItem key={sub.id} value={sub.id}>
+                            {sub.icon || '📂'} {sub.display_name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+
+                {/* Lead Time & Pre-order Config */}
+                <div className="p-3 bg-muted rounded-lg space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <span className="text-sm font-medium block">Lead Time</span>
+                      <span className="text-xs text-muted-foreground">How many hours in advance must buyers order?</span>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <Label className="text-xs">Hours in advance</Label>
+                      <Input
+                        type="number"
+                        min="0"
+                        placeholder="e.g. 2"
+                        value={formData.lead_time_hours}
+                        onChange={(e) => setFormData({ ...formData, lead_time_hours: e.target.value })}
+                      />
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between pt-2 border-t">
+                    <div>
+                      <span className="text-sm font-medium block">Accept Pre-orders</span>
+                      <span className="text-xs text-muted-foreground">Allow buyers to order for future dates</span>
+                    </div>
+                    <Switch
+                      checked={formData.accepts_preorders}
+                      onCheckedChange={(checked) => setFormData({ ...formData, accepts_preorders: checked })}
+                    />
+                  </div>
+                </div>
 
                 {showVegToggle && (
                   <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
@@ -574,6 +671,46 @@ export default function SellerProductsPage() {
                       setFormData({ ...formData, is_urgent: checked })
                     }
                   />
+                </div>
+
+                {/* Stock Quantity Tracking */}
+                <div className="p-3 bg-muted rounded-lg space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <span className="text-sm font-medium block">Track Stock Quantity</span>
+                      <span className="text-xs text-muted-foreground">Auto-marks unavailable when stock hits zero</span>
+                    </div>
+                    <Switch
+                      checked={formData.stock_quantity !== ''}
+                      onCheckedChange={(checked) =>
+                        setFormData({ ...formData, stock_quantity: checked ? '10' : '' })
+                      }
+                    />
+                  </div>
+                  {formData.stock_quantity !== '' && (
+                    <div className="grid grid-cols-2 gap-3 pt-2 border-t">
+                      <div className="space-y-1">
+                        <Label className="text-xs">Current Stock</Label>
+                        <Input
+                          type="number"
+                          min="0"
+                          placeholder="e.g. 50"
+                          value={formData.stock_quantity}
+                          onChange={(e) => setFormData({ ...formData, stock_quantity: e.target.value })}
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">Low Stock Alert</Label>
+                        <Input
+                          type="number"
+                          min="1"
+                          placeholder="e.g. 5"
+                          value={formData.low_stock_threshold}
+                          onChange={(e) => setFormData({ ...formData, low_stock_threshold: e.target.value })}
+                        />
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
@@ -786,7 +923,7 @@ export default function SellerProductsPage() {
                             size="sm"
                             variant="ghost"
                             className="text-destructive"
-                            onClick={() => handleDelete(product)}
+                            onClick={() => setDeleteTarget(product)}
                           >
                             <Trash2 size={14} />
                           </Button>
@@ -837,6 +974,24 @@ export default function SellerProductsPage() {
           </div>
         )}
       </div>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete "{deleteTarget?.name}"?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This product will be permanently removed. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Keep Product</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </AppLayout>
   );
 }

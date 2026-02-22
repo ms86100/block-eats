@@ -5,29 +5,37 @@ import { AppLayout } from '@/components/layout/AppLayout';
 import { Button } from '@/components/ui/button';
 import { VegBadge } from '@/components/ui/veg-badge';
 import { Textarea } from '@/components/ui/textarea';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { PaymentMethodSelector } from '@/components/payment/PaymentMethodSelector';
 import { RazorpayCheckout } from '@/components/payment/RazorpayCheckout';
 import { CouponInput } from '@/components/cart/CouponInput';
+import { FulfillmentSelector } from '@/components/delivery/FulfillmentSelector';
 import { useCart } from '@/hooks/useCart';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
-import { sendOrderStatusNotification } from '@/lib/notifications';
 import { PaymentMethod } from '@/types/database';
 import { toast } from 'sonner';
+import { friendlyError } from '@/lib/utils';
 import { useSubmitGuard } from '@/hooks/useSubmitGuard';
+import { useSystemSettings } from '@/hooks/useSystemSettings';
 
 export default function CartPage() {
   const navigate = useNavigate();
   const { user, profile, society } = useAuth();
-  const { items, totalAmount, sellerGroups, updateQuantity, removeItem, clearCart, refresh } = useCart();
+  const { items, totalAmount, sellerGroups, updateQuantity, removeItem, clearCart, refresh, addItem } = useCart();
   const [notes, setNotes] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cod');
   const [isPlacingOrder, setIsPlacingOrder] = useState(false);
   const [showRazorpayCheckout, setShowRazorpayCheckout] = useState(false);
   const [pendingOrderIds, setPendingOrderIds] = useState<string[]>([]);
   const [appliedCoupon, setAppliedCoupon] = useState<{ id: string; code: string; discountAmount: number } | null>(null);
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+  const [fulfillmentType, setFulfillmentType] = useState<'self_pickup' | 'delivery'>('self_pickup');
+  const [deliveryFee, setDeliveryFee] = useState(0);
+  const settings = useSystemSettings();
 
-  const finalAmount = appliedCoupon ? Math.max(0, totalAmount - appliedCoupon.discountAmount) : totalAmount;
+  const effectiveDeliveryFee = fulfillmentType === 'delivery' ? (totalAmount >= settings.freeDeliveryThreshold ? 0 : settings.baseDeliveryFee) : 0;
+  const finalAmount = (appliedCoupon ? Math.max(0, totalAmount - appliedCoupon.discountAmount) : totalAmount) + effectiveDeliveryFee;
 
   const firstSeller = sellerGroups[0]?.items[0]?.product?.seller;
   const acceptsCod = firstSeller?.accepts_cod ?? true;
@@ -51,7 +59,7 @@ export default function CartPage() {
 
     const { data, error } = await supabase.rpc('create_multi_vendor_orders', {
       _buyer_id: user.id,
-      _delivery_address: `Block ${profile.block}, Flat ${profile.flat_number}`,
+      _delivery_address: [profile.block, profile.flat_number].filter(Boolean).join(', '),
       _notes: notes || null,
       _payment_method: paymentMethod,
       _payment_status: paymentStatus,
@@ -61,6 +69,8 @@ export default function CartPage() {
       _cart_total: totalAmount,
       _has_urgent: hasUrgentItem,
       _seller_groups: sellerGroupsPayload,
+      _fulfillment_type: fulfillmentType,
+      _delivery_fee: effectiveDeliveryFee,
     });
 
     if (error) throw error;
@@ -68,35 +78,57 @@ export default function CartPage() {
     const result = data as { success: boolean; order_ids: string[]; order_count: number };
     if (!result?.success) throw new Error('Failed to create orders');
 
-    const createdOrderIds = result.order_ids;
-
-    for (const group of sellerGroups) {
-      const sellerProfile = group.items[0]?.product?.seller;
-      if (sellerProfile?.user_id) {
-        const orderId = createdOrderIds[sellerGroups.indexOf(group)];
-        if (orderId) {
-          sendOrderStatusNotification(
-            orderId, 'placed', user.id, group.sellerId,
-            sellerProfile.user_id,
-            sellerProfile.business_name || 'Seller',
-            profile.name
-          );
-        }
-      }
-    }
-
-    return createdOrderIds;
+    // Notifications are now handled by database triggers (enqueue_order_placed_notification)
+    return result.order_ids;
   };
 
   const handlePlaceOrderInner = async () => {
     if (!user || !profile || sellerGroups.length === 0) return;
 
+    // Validate minimum order amounts
+    for (const group of sellerGroups) {
+      const minOrder = (group.items[0]?.product?.seller as any)?.minimum_order_amount;
+      if (minOrder && group.subtotal < minOrder) {
+        toast.error(`${group.sellerName} requires a minimum order of ₹${minOrder}. Your current total is ₹${group.subtotal.toFixed(0)}.`);
+        return;
+      }
+    }
+
+    // Pre-checkout: validate product availability
+    setIsPlacingOrder(true);
+    try {
+      const productIds = items.map(i => i.product_id);
+      const { data: freshProducts, error: freshError } = await supabase
+        .from('products')
+        .select('id, is_available, approval_status, seller_id')
+        .in('id', productIds);
+
+      if (freshError) throw freshError;
+
+      const unavailable = items.filter(item => {
+        const fresh = freshProducts?.find(p => p.id === item.product_id);
+        return !fresh || !fresh.is_available || fresh.approval_status !== 'approved';
+      });
+
+      if (unavailable.length > 0) {
+        const names = unavailable.map(i => i.product?.name || 'Unknown').join(', ');
+        toast.error(`Some items are no longer available: ${names}. Please remove them and try again.`);
+        await refresh();
+        setIsPlacingOrder(false);
+        return;
+      }
+    } catch (err) {
+      console.error('Pre-checkout validation failed:', err);
+      // Continue with order if validation itself fails (non-blocking)
+    }
+
     if (paymentMethod === 'upi') {
       if (!acceptsUpi) {
         toast.error('UPI payment not available for this seller');
+        setIsPlacingOrder(false);
         return;
       }
-      setIsPlacingOrder(true);
+      // isPlacingOrder already set above
       try {
         const orderIds = await createOrdersForAllSellers('pending');
         if (orderIds.length === 0) throw new Error('Failed to create orders');
@@ -104,14 +136,14 @@ export default function CartPage() {
         setShowRazorpayCheckout(true);
       } catch (error: any) {
         console.error('Error creating orders:', error);
-        toast.error(error.message || 'Failed to create order');
+        toast.error(friendlyError(error));
       } finally {
         setIsPlacingOrder(false);
       }
       return;
     }
 
-    setIsPlacingOrder(true);
+    // isPlacingOrder already set above
     try {
       const orderIds = await createOrdersForAllSellers('pending');
       if (orderIds.length === 0) throw new Error('Failed to create orders');
@@ -126,7 +158,7 @@ export default function CartPage() {
       }
     } catch (error: any) {
       console.error('Error placing order:', error);
-      toast.error(error.message || 'Failed to place order');
+      toast.error(friendlyError(error));
     } finally {
       setIsPlacingOrder(false);
     }
@@ -134,27 +166,40 @@ export default function CartPage() {
 
   const handlePlaceOrder = useSubmitGuard(handlePlaceOrderInner);
 
-  const handleRazorpaySuccess = async (paymentId: string) => {
+  const handleRazorpaySuccess = async (_paymentId: string) => {
     setShowRazorpayCheckout(false);
 
-    for (const orderId of pendingOrderIds) {
-      await supabase.from('orders').update({ payment_status: 'paid', razorpay_payment_id: paymentId } as any).eq('id', orderId);
-      await supabase.from('payment_records').update({ payment_status: 'paid', transaction_reference: paymentId }).eq('order_id', orderId);
+    // Payment verification is handled server-side by the razorpay-webhook.
+    // Poll order payment_status until webhook confirms, or timeout after 15s.
+    const targetOrderId = pendingOrderIds[0];
+    if (targetOrderId) {
+      let confirmed = false;
+      for (let i = 0; i < 10; i++) {
+        await new Promise(r => setTimeout(r, 1500));
+        const { data } = await supabase.from('orders').select('payment_status').eq('id', targetOrderId).single();
+        if (data?.payment_status === 'paid') {
+          confirmed = true;
+          break;
+        }
+      }
+      if (!confirmed) {
+        toast.info('Payment is being verified. Your order will update shortly.');
+      } else {
+        toast.success('Payment successful! Order placed.');
+      }
     }
 
     await refresh();
-    toast.success('Payment successful! Order placed.');
     navigate(pendingOrderIds.length === 1 ? `/orders/${pendingOrderIds[0]}` : '/orders');
     setPendingOrderIds([]);
   };
 
-  const handleRazorpayFailed = () => {
+  const handleRazorpayFailed = async () => {
     setShowRazorpayCheckout(false);
-    for (const orderId of pendingOrderIds) {
-      supabase.from('orders').update({ status: 'cancelled', payment_status: 'failed' }).eq('id', orderId);
-    }
+    // Don't update payment_status client-side. The webhook handles failed payments too.
+    // Just navigate away and let the user know.
     setPendingOrderIds([]);
-    toast.error('Payment failed. Please try again.');
+    toast.error('Payment was not completed. Check your order status.');
   };
 
   const itemCount = items.reduce((sum, item) => sum + item.quantity, 0);
@@ -168,7 +213,7 @@ export default function CartPage() {
     return (
       <AppLayout showHeader={false}>
         <div className="p-4 safe-top">
-          <Link to="/" className="inline-flex items-center justify-center w-9 h-9 rounded-full bg-muted mb-6">
+          <Link to="/" className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-muted mb-6">
             <ArrowLeft size={18} />
           </Link>
           <div className="text-center py-16">
@@ -188,17 +233,31 @@ export default function CartPage() {
     <AppLayout showHeader={false} showNav={false}>
       <div className="pb-36">
         {/* Sticky Header */}
-        <div className="sticky top-0 z-30 bg-background border-b border-border px-4 py-3 safe-top flex items-center gap-3">
-          <Link to="/" className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-muted shrink-0">
-            <ArrowLeft size={16} />
+        <div className="sticky top-0 z-30 bg-background border-b border-border px-4 py-3.5 safe-top flex items-center gap-3">
+          <Link to="/" className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-muted shrink-0">
+            <ArrowLeft size={18} />
           </Link>
           <div className="flex-1 min-w-0">
             <h1 className="text-base font-bold">Checkout</h1>
             <p className="text-xs text-muted-foreground">Shipment of {itemCount} item{itemCount !== 1 ? 's' : ''}</p>
           </div>
-          <Button variant="ghost" size="sm" className="text-destructive text-xs h-7 px-2" onClick={clearCart}>
-            Clear
-          </Button>
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button variant="ghost" size="sm" className="text-destructive text-xs h-7 px-2">
+                Clear
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Clear cart?</AlertDialogTitle>
+                <AlertDialogDescription>This will remove all items from your cart. This action cannot be undone.</AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction onClick={clearCart} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Clear All</AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </div>
 
         {/* Delivery Time Card */}
@@ -224,6 +283,35 @@ export default function CartPage() {
             </div>
           </div>
         )}
+
+        {/* Fulfillment Conflict Warnings */}
+        {sellerGroups.map((group) => {
+          const modes = new Set(group.items.map(i => (i.product?.seller as any)?.fulfillment_mode).filter(Boolean));
+          const hasMixedFulfillment = group.items.some(i => {
+            const sellerMode = (i.product?.seller as any)?.fulfillment_mode;
+            return sellerMode && sellerMode !== 'both' && modes.size > 0;
+          });
+          const minOrder = (group.items[0]?.product?.seller as any)?.minimum_order_amount;
+          const belowMinimum = minOrder && group.subtotal < minOrder;
+          
+          if (!hasMixedFulfillment && !belowMinimum) return null;
+
+          return (
+            <div key={`warn-${group.sellerId}`} className="mx-4 mt-3 space-y-2">
+              {belowMinimum && (
+                <div className="bg-warning/10 border border-warning/30 rounded-xl p-3 flex items-start gap-3">
+                  <Store className="text-warning shrink-0 mt-0.5" size={16} />
+                  <div className="text-xs">
+                    <p className="font-medium text-warning-foreground">{group.sellerName}: Minimum order ₹{minOrder}</p>
+                    <p className="text-muted-foreground mt-0.5">
+                      Add ₹{(minOrder - group.subtotal).toFixed(0)} more to place this order
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })}
 
         {/* Cart Items by Seller */}
         <div className="mt-4 space-y-3 px-4">
@@ -274,7 +362,14 @@ export default function CartPage() {
                           <Plus size={14} className="text-accent-foreground" />
                         </button>
                       </div>
-                      <button className="h-8 w-8 flex items-center justify-center text-muted-foreground" onClick={() => removeItem(item.product_id)}>
+                      <button className="h-8 w-8 flex items-center justify-center text-muted-foreground" onClick={() => {
+                        const name = item.product?.name || 'Item';
+                        removeItem(item.product_id);
+                        toast(`${name} removed`, {
+                          action: { label: 'Undo', onClick: () => addItem(item.product as any) },
+                          duration: 4000,
+                        });
+                      }}>
                         <Trash2 size={15} />
                       </button>
                     </div>
@@ -297,8 +392,17 @@ export default function CartPage() {
           <PaymentMethodSelector acceptsCod={acceptsCod} acceptsUpi={acceptsUpi} selectedMethod={paymentMethod} onSelect={setPaymentMethod} />
         </div>
 
-        {/* Coupon */}
-        {sellerGroups.length === 1 && (
+        {/* Fulfillment Type */}
+        <div className="mt-5 px-4">
+          <FulfillmentSelector
+            value={fulfillmentType}
+            onChange={setFulfillmentType}
+            deliveryFee={settings.baseDeliveryFee}
+            freeDeliveryThreshold={settings.freeDeliveryThreshold}
+            orderValue={totalAmount}
+          />
+        </div>
+        {sellerGroups.length === 1 ? (
           <div className="mt-5 px-4">
             <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Apply Coupon</h3>
             <CouponInput
@@ -309,7 +413,13 @@ export default function CartPage() {
               appliedCoupon={appliedCoupon}
             />
           </div>
-        )}
+        ) : sellerGroups.length > 1 ? (
+          <div className="mt-5 px-4">
+            <p className="text-xs text-muted-foreground bg-muted rounded-lg px-3 py-2">
+              Coupons are not available for multi-seller carts. Place separate orders to use seller-specific coupons.
+            </p>
+          </div>
+        ) : null}
 
         {/* Bill Details */}
         <div className="mt-5 mx-4 bg-muted rounded-xl p-4">
@@ -329,7 +439,9 @@ export default function CartPage() {
             )}
             <div className="flex justify-between">
               <span className="text-muted-foreground">Delivery Fee</span>
-              <span className="text-primary font-medium">FREE</span>
+              <span className={`font-medium ${effectiveDeliveryFee === 0 ? 'text-primary' : ''}`}>
+                {fulfillmentType === 'delivery' ? (effectiveDeliveryFee === 0 ? 'FREE' : `₹${effectiveDeliveryFee}`) : 'Self Pickup'}
+              </span>
             </div>
             <div className="border-t border-border pt-2 mt-1 flex justify-between font-bold">
               <span>To Pay</span>
@@ -338,15 +450,27 @@ export default function CartPage() {
           </div>
         </div>
 
-        {/* Delivery Address */}
+        {/* Delivery / Pickup Address */}
         <div className="mt-4 mx-4 bg-card border border-border rounded-xl p-4 flex items-center gap-3">
           <MapPin size={16} className="text-primary shrink-0" />
           <div className="flex-1 min-w-0">
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Deliver to</p>
-            <p className="text-sm font-medium mt-0.5">
-              {profile?.name} — Block {profile?.block}, Flat {profile?.flat_number}
-            </p>
-            <p className="text-xs text-muted-foreground">{society?.name || 'Your Society'}</p>
+            {fulfillmentType === 'self_pickup' ? (
+              <>
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Pickup from</p>
+                <p className="text-sm font-medium mt-0.5">
+                  {sellerGroups[0]?.sellerName || 'Seller'}
+                </p>
+                <p className="text-xs text-muted-foreground">{society?.name || 'Your Society'}</p>
+              </>
+            ) : (
+              <>
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Deliver to</p>
+                <p className="text-sm font-medium mt-0.5">
+                  {profile?.name} — {[profile?.block, profile?.flat_number].filter(Boolean).join(', ')}
+                </p>
+                <p className="text-xs text-muted-foreground">{society?.name || 'Your Society'}</p>
+              </>
+            )}
           </div>
           <ChevronRight size={16} className="text-muted-foreground" />
         </div>
@@ -360,6 +484,10 @@ export default function CartPage() {
 
       {/* Sticky Place Order Footer */}
       <div className="fixed bottom-0 left-0 right-0 z-40 bg-background border-t border-border safe-bottom">
+        <p className="text-[10px] text-muted-foreground text-center pt-2 px-4">
+          Payments are processed by third-party providers and are not covered by Apple.{' '}
+          <Link to="/terms" className="underline">Refund & Cancellation Policy</Link>
+        </p>
         <div className="px-4 py-3 flex items-center gap-3">
           <div className="flex-1">
             <p className="text-xs text-muted-foreground">Total</p>
@@ -368,7 +496,7 @@ export default function CartPage() {
           <Button
             className="px-8 rounded-xl bg-accent text-accent-foreground hover:bg-accent/90 font-bold"
             size="lg"
-            onClick={handlePlaceOrder}
+            onClick={() => setShowConfirmDialog(true)}
             disabled={isPlacingOrder}
           >
             {isPlacingOrder ? 'Placing...' : 'Place Order'}
@@ -376,6 +504,48 @@ export default function CartPage() {
           </Button>
         </div>
       </div>
+
+      {/* Order Confirmation Dialog */}
+      <AlertDialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirm Your Order</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-3 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Items</span>
+                  <span className="font-medium">{itemCount} item{itemCount !== 1 ? 's' : ''}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Payment</span>
+                  <span className="font-medium">{paymentMethod === 'cod' ? 'Cash on Delivery' : 'UPI'}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">{fulfillmentType === 'self_pickup' ? 'Pickup from' : 'Deliver to'}</span>
+                  <span className="font-medium text-right">
+                    {fulfillmentType === 'self_pickup'
+                      ? sellerGroups[0]?.sellerName || 'Seller'
+                      : `${profile?.block}, ${profile?.flat_number}`}
+                  </span>
+                </div>
+                {sellerGroups.length > 1 && (
+                  <p className="text-xs text-muted-foreground">
+                    {sellerGroups.length} separate orders will be created.
+                  </p>
+                )}
+                <div className="flex justify-between border-t border-border pt-2 font-bold">
+                  <span>Total</span>
+                  <span>₹{finalAmount.toFixed(0)}</span>
+                </div>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Review Cart</AlertDialogCancel>
+            <AlertDialogAction onClick={handlePlaceOrder}>Confirm Order</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Razorpay Checkout */}
       {pendingOrderIds.length > 0 && (

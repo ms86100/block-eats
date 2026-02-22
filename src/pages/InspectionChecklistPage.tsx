@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { FeatureGate } from '@/components/ui/FeatureGate';
 import { supabase } from '@/integrations/supabase/client';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Card, CardContent } from '@/components/ui/card';
@@ -8,6 +9,7 @@ import { Progress } from '@/components/ui/progress';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
+import { ImageUpload } from '@/components/ui/image-upload';
 import {
   Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetTrigger
 } from '@/components/ui/sheet';
@@ -266,6 +268,7 @@ export default function InspectionChecklistPage() {
 
   return (
     <AppLayout headerTitle="Inspection Checklist" showLocation={false}>
+      <FeatureGate feature="inspection">
       <div className="p-4 space-y-4">
         {/* Progress Overview */}
         <Card className="border-primary/20">
@@ -369,12 +372,34 @@ export default function InspectionChecklistPage() {
                 </div>
 
                 {item.status === 'fail' && (
-                  <Textarea
-                    className="mt-2 text-xs h-16"
-                    placeholder="Describe the issue..."
-                    value={item.notes || ''}
-                    onChange={e => updateItemNotes(item.id, e.target.value)}
-                  />
+                  <div className="mt-2 space-y-2">
+                    <Textarea
+                      className="text-xs h-16"
+                      placeholder="Describe the issue..."
+                      value={item.notes || ''}
+                      onChange={e => updateItemNotes(item.id, e.target.value)}
+                    />
+                    <ImageUpload
+                      value={item.photo_urls?.[0] || null}
+                      onChange={async (url) => {
+                        if (!activeChecklist || !url) return;
+                        const newPhotos = [...(item.photo_urls || []), url];
+                        await supabase.from('inspection_items')
+                          .update({ photo_urls: newPhotos } as any)
+                          .eq('id', item.id);
+                        setItems(prev => prev.map(i => i.id === item.id ? { ...i, photo_urls: newPhotos } : i));
+                      }}
+                      folder="inspection"
+                      userId={user?.id || ''}
+                    />
+                    {item.photo_urls && item.photo_urls.length > 0 && (
+                      <div className="flex gap-1 flex-wrap">
+                        {item.photo_urls.map((url, i) => (
+                          <img key={i} src={url} alt={`Issue ${i + 1}`} className="w-12 h-12 rounded object-cover border border-border" />
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 )}
               </CardContent>
             </Card>
@@ -388,7 +413,68 @@ export default function InspectionChecklistPage() {
             Submit Inspection Report ({failedCount} issues found)
           </Button>
         )}
+
+        {/* Builder Acknowledgement */}
+        {activeChecklist.status === 'submitted' && (activeChecklist as any).builder_acknowledged_at && (
+          <Card className="border-success/30 bg-success/5">
+            <CardContent className="p-3">
+              <div className="flex items-center gap-2 text-success">
+                <CheckCircle size={16} />
+                <div>
+                  <p className="text-sm font-medium">Builder Acknowledged</p>
+                  <p className="text-[10px] text-muted-foreground">
+                    {new Date((activeChecklist as any).builder_acknowledged_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                  </p>
+                </div>
+              </div>
+              {(activeChecklist as any).builder_notes && (
+                <p className="text-xs mt-2 text-muted-foreground">{(activeChecklist as any).builder_notes}</p>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+        {activeChecklist.status === 'submitted' && !(activeChecklist as any).builder_acknowledged_at && (
+          <Card className="border-warning/30 bg-warning/5">
+            <CardContent className="p-3 text-center">
+              <p className="text-xs text-warning font-medium">⏳ Awaiting builder acknowledgement</p>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Convert failed items to snags */}
+        {activeChecklist.status === 'submitted' && failedCount > 0 && (
+          <Button
+            variant="destructive"
+            className="w-full"
+            onClick={async () => {
+              if (!user || !effectiveSocietyId) return;
+              const failedItems = items.filter(i => i.status === 'fail');
+              const snags = failedItems.map(item => ({
+                society_id: effectiveSocietyId,
+                flat_number: activeChecklist.flat_number,
+                reported_by: user.id,
+                category: item.category,
+                description: `${item.item_name}${item.notes ? ': ' + item.notes : ''}`,
+                photo_urls: item.photo_urls || [],
+                status: 'open',
+                sla_deadline: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+              }));
+              const { error } = await supabase.from('snag_tickets').insert(snags);
+              if (error) {
+                toast.error('Failed to create snag tickets');
+                console.error(error);
+              } else {
+                toast.success(`${failedItems.length} snag tickets created!`);
+              }
+            }}
+          >
+            <AlertTriangle size={16} className="mr-2" />
+            Convert {failedCount} Failed Items to Snag Tickets
+          </Button>
+        )}
       </div>
+      </FeatureGate>
     </AppLayout>
   );
 }

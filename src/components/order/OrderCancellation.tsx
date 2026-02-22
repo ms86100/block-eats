@@ -57,6 +57,7 @@ export function OrderCancellation({ orderId, orderStatus, onCancelled }: OrderCa
     }
 
     setIsSubmitting(true);
+    const previousStatus = orderStatus;
     try {
       const { error } = await supabase
         .from('orders')
@@ -68,8 +69,28 @@ export function OrderCancellation({ orderId, orderStatus, onCancelled }: OrderCa
 
       if (error) throw error;
 
-      toast.success('Order cancelled successfully');
       setIsOpen(false);
+
+      toast('Order cancelled', {
+        action: {
+          label: 'Undo',
+          onClick: async () => {
+            try {
+              const { error: undoError } = await supabase
+                .from('orders')
+                .update({ status: previousStatus as any, rejection_reason: null })
+                .eq('id', orderId);
+              if (undoError) throw undoError;
+              toast.success('Order restored');
+              onCancelled();
+            } catch {
+              toast.error('Could not undo cancellation');
+            }
+          },
+        },
+        duration: 5000,
+      });
+
       onCancelled();
     } catch (error) {
       console.error('Error cancelling order:', error);
@@ -87,7 +108,7 @@ export function OrderCancellation({ orderId, orderStatus, onCancelled }: OrderCa
           Cancel Order
         </Button>
       </DialogTrigger>
-      <DialogContent>
+      <DialogContent className="max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <AlertTriangle className="text-warning" size={20} />

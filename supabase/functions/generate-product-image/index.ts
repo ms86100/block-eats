@@ -1,5 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { checkRateLimit, rateLimitResponse } from "../_shared/rate-limiter.ts";
+import { withAuth } from "../_shared/auth.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -13,11 +15,20 @@ serve(async (req) => {
   }
 
   try {
-    const { productName, categoryName, description, userId } = await req.json();
+    // Phase 5: Centralized auth
+    const authResult = await withAuth(req, corsHeaders);
+    if (authResult instanceof Response) return authResult;
+    const { userId } = authResult;
 
-    if (!productName || !userId) {
+    // Phase 2: Rate limit — 10/min
+    const { allowed } = await checkRateLimit(`gen-image:${userId}`, 10, 60);
+    if (!allowed) return rateLimitResponse(corsHeaders);
+
+    const { productName, categoryName, description } = await req.json();
+
+    if (!productName) {
       return new Response(
-        JSON.stringify({ error: "productName and userId are required" }),
+        JSON.stringify({ error: "productName is required" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -74,7 +85,6 @@ serve(async (req) => {
       throw new Error("No image returned from AI");
     }
 
-    // Extract base64 data
     const base64Match = imageData.match(/^data:image\/(png|jpeg|jpg|webp);base64,(.+)$/);
     if (!base64Match) {
       throw new Error("Invalid image data format");
@@ -83,14 +93,12 @@ serve(async (req) => {
     const imageFormat = base64Match[1] === "jpg" ? "jpeg" : base64Match[1];
     const base64Data = base64Match[2];
 
-    // Decode base64 to binary
     const binaryString = atob(base64Data);
     const bytes = new Uint8Array(binaryString.length);
     for (let i = 0; i < binaryString.length; i++) {
       bytes[i] = binaryString.charCodeAt(i);
     }
 
-    // Upload to Supabase Storage
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
