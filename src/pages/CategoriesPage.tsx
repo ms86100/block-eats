@@ -7,10 +7,10 @@ import { useProductsByCategory } from '@/hooks/queries/useProductsByCategory';
 import { useNearbySocietySellers } from '@/hooks/queries/useStoreDiscovery';
 import { useAuth } from '@/contexts/AuthContext';
 import { Skeleton } from '@/components/ui/skeleton';
-
 import { motion } from 'framer-motion';
 import { Store, Sparkles, Clock } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useSearchPlaceholder } from '@/hooks/useSearchPlaceholder';
 
 export default function CategoriesPage() {
   const { profile } = useAuth();
@@ -92,13 +92,31 @@ export default function CategoriesPage() {
     return groups.filter(g => g.is_active && slugs.has(g.slug)).sort((a, b) => a.sort_order - b.sort_order);
   }, [groups, grouped]);
 
+  const searchPlaceholder = useSearchPlaceholder();
+
   return (
-    <AppLayout>
-      {/* Header */}
-      <div className="px-4 pt-3 pb-1">
-        <h1 className="text-lg font-bold text-foreground">Explore Categories</h1>
-        <p className="text-xs text-muted-foreground mb-1">Find what you love</p>
-        <div className="h-[2px] rounded-full bg-gradient-to-r from-primary via-primary/50 to-transparent" />
+    <AppLayout showHeader={false}>
+      {/* Custom header: app top bar content + title + search */}
+      <div className="sticky top-0 z-40 safe-top bg-background">
+        {/* Title + subtitle + accent line */}
+        <div className="px-4 pt-3 pb-1">
+          <h1 className="text-lg font-bold text-foreground">Explore Categories</h1>
+          <p className="text-xs text-muted-foreground mb-1">Find what you love</p>
+          <div className="h-[2px] rounded-full bg-gradient-to-r from-primary via-primary/50 to-transparent" />
+        </div>
+
+        {/* Search bar — same as Header */}
+        <div className="px-3 pb-2">
+          <Link to="/search" className="block">
+            <div className="flex items-center gap-2.5 bg-muted rounded-xl px-3 py-2.5">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-muted-foreground shrink-0">
+                <circle cx="11" cy="11" r="8"/>
+                <path d="m21 21-4.3-4.3"/>
+              </svg>
+              <span className="text-sm text-muted-foreground flex-1 transition-opacity duration-300">{searchPlaceholder}</span>
+            </div>
+          </Link>
+        </div>
       </div>
 
       {/* Parent Group Pills */}
