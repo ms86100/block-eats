@@ -1,37 +1,51 @@
 
 
-## Fix: Empty Builder Dropdown in "Assign Package to Builder"
+## Feature Audit and Preview Dashboard
 
-### Root Cause
+### Problem
+The admin manages features across 3 levels (Features, Packages, Assignments) but has no way to see the **end result** -- what a specific society actually gets after the 4-tier resolution runs. This makes it hard to verify or demo the system.
 
-The `FeatureManagement` component calls `fetchAll()` once on mount via `useEffect(() => { fetchAll(); }, [])`. If the authentication session hasn't fully initialized yet when this runs, the database query executes as an anonymous user. Since RLS requires admin role or builder membership, the query returns zero rows -- and never retries.
+### Solution: Add two new views
 
-This is the same class of bug as the search toggle issue: component initializes before auth is ready.
+---
 
-### Fix
+### 1. Package Comparison Matrix (Packages Tab)
+Add a visual comparison table below the existing package cards showing a side-by-side matrix of all packages vs all features, with green/red indicators. This instantly shows an admin "Basic gets 4 features, Pro gets 12, Enterprise gets all 18."
 
-Add the `user` from `useAuth()` as a dependency to the `useEffect`, so `fetchAll()` re-runs once the user session is available.
+### 2. Society Feature Audit (Assignments Tab)
+When an admin clicks on a builder assignment, show a **"Preview Society Features"** expandable section that:
+- Lists all societies under that builder
+- Lets admin pick a society
+- Calls `get_effective_society_features()` for that society
+- Shows the resolved feature list with color-coded sources:
+  - **Core** (always on, blue badge)
+  - **Package** (from assigned bundle, green/red)
+  - **Override** (society admin changed it, orange badge)
+  - **Default** (no builder, all enabled, gray)
 
-### Changes
+This gives the admin a "what does this society actually see?" answer in one click.
+
+---
+
+### Technical Changes
 
 **File: `src/components/admin/FeatureManagement.tsx`**
 
-1. Import `useAuth` from the auth context
-2. Get `user` from `useAuth()`
-3. Change the useEffect dependency from `[]` to `[user?.id]` so it re-fetches when the user session loads
+1. **Package Comparison Matrix** -- Add a "Compare Packages" button at the top of the Packages tab that toggles a comparison grid. The grid shows all features as rows and packages as columns, with check/cross icons and color coding.
 
-```typescript
-// Add import
-import { useAuth } from '@/contexts/AuthContext';
+2. **Society Feature Audit** -- In the Assignments tab, add an "Audit" button on each assignment card. Clicking it:
+   - Fetches societies for that builder via `builder_societies` joined with `societies`
+   - Lets admin select a society
+   - Calls `get_effective_society_features` RPC for the selected society
+   - Displays the resolved features in a clear list with source badges and enabled/disabled state
+   - Shows a summary line: "X of 18 features enabled"
 
-// Inside the component, add:
-const { user } = useAuth();
+3. No database changes needed -- all data is already available via existing tables and the `get_effective_society_features` RPC.
 
-// Change:
-useEffect(() => { fetchAll(); }, []);
-// To:
-useEffect(() => { fetchAll(); }, [user?.id]);
-```
+### What the admin experiences
+- Go to Admin > Features > Packages tab > click "Compare" > see a matrix showing exactly which features each tier includes
+- Go to Assignments tab > click "Audit" on Prestige Group > select "Prestige Tranquility" > see "4 of 18 features enabled" with exact breakdown by source
 
-This ensures the data is fetched (or re-fetched) once the user is authenticated, so RLS returns the correct results.
+### What helps the builder
+- The builder dashboard can also reference this same audit data, but the immediate win is the admin can verify and demo the system confidently before selling packages to builders
 
