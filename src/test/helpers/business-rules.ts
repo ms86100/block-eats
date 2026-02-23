@@ -363,3 +363,355 @@ export function decrementCountdown(remaining: number, step: number = 1): number 
 export function isPollingIntervalValid(intervalMs: number): boolean {
   return intervalMs >= 4000 && intervalMs <= 5000;
 }
+
+// ── Order Status Machine ────────────────────────────────────────────────────
+export const ALLOWED_ORDER_TRANSITIONS: Record<string, string[]> = {
+  placed: ['accepted', 'cancelled'],
+  accepted: ['preparing', 'cancelled'],
+  preparing: ['ready', 'cancelled'],
+  ready: ['picked_up', 'delivered', 'completed', 'cancelled'],
+  picked_up: ['delivered', 'completed'],
+  delivered: ['completed', 'returned'],
+  completed: [],
+  cancelled: [],
+  returned: [],
+  enquired: ['quoted', 'cancelled'],
+  quoted: ['accepted', 'scheduled', 'cancelled'],
+  scheduled: ['in_progress', 'cancelled'],
+  in_progress: ['completed', 'cancelled'],
+};
+
+export function isValidOrderTransition(from: string, to: string): boolean {
+  return (ALLOWED_ORDER_TRANSITIONS[from] || []).includes(to);
+}
+
+export const TERMINAL_ORDER_STATES = ['completed', 'cancelled', 'returned'];
+
+// ── Cart Computation ────────────────────────────────────────────────────────
+export function computeCartTotal(items: { unit_price: number; quantity: number }[]): number {
+  return items.reduce((sum, i) => sum + i.unit_price * i.quantity, 0);
+}
+
+export function computeItemCount(items: { quantity: number }[]): number {
+  return items.reduce((sum, i) => sum + i.quantity, 0);
+}
+
+export function computeMaxPrepTime(items: { prep_time_minutes?: number | null }[]): number {
+  const times = items.map(i => i.prep_time_minutes ?? 0);
+  return times.length > 0 ? Math.max(...times) : 0;
+}
+
+export function computeFinalAmount(subtotal: number, couponDiscount: number, deliveryFee: number): number {
+  return Math.max(0, subtotal - couponDiscount + deliveryFee);
+}
+
+// ── Seller Onboarding ───────────────────────────────────────────────────────
+export function isSellerProfileComplete(profile: {
+  business_name?: string; categories?: string[]; cover_image_url?: string | null;
+}): boolean {
+  return !!(profile.business_name?.trim() && profile.categories?.length && profile.cover_image_url);
+}
+
+export function getSellerOnboardingStep(profile: {
+  business_name?: string; categories?: string[]; cover_image_url?: string | null;
+}): number {
+  if (!profile.business_name?.trim()) return 1;
+  if (!profile.categories?.length) return 2;
+  if (!profile.cover_image_url) return 3;
+  return 4; // complete
+}
+
+export function canSubmitSellerApplication(profile: {
+  business_name?: string; categories?: string[]; cover_image_url?: string | null;
+}): boolean {
+  return isSellerProfileComplete(profile);
+}
+
+// ── Seller Badges ───────────────────────────────────────────────────────────
+export function getSellerBadges(profile: {
+  completed_order_count?: number; cancellation_rate?: number | null;
+}): string[] {
+  const badges: string[] = [];
+  const orders = profile.completed_order_count ?? 0;
+  if (orders === 0) badges.push('New Seller');
+  if (orders > 2 && (profile.cancellation_rate ?? 0) === 0) badges.push('0% Cancellation');
+  return badges;
+}
+
+// ── Payment Logic ───────────────────────────────────────────────────────────
+export function isPaymentMethodAvailable(method: 'cod' | 'upi', seller: { accepts_cod: boolean; accepts_upi: boolean }): boolean {
+  return method === 'cod' ? seller.accepts_cod : seller.accepts_upi;
+}
+
+export function computePlatformFee(amount: number, feePercent: number): { fee: number; net: number } {
+  const fee = Math.round(amount * feePercent) / 100;
+  return { fee, net: amount - fee };
+}
+
+// ── Delivery Assignment ─────────────────────────────────────────────────────
+export function shouldAutoAssignDelivery(order: { fulfillment_type?: string; delivery_address?: string | null }): boolean {
+  return order.fulfillment_type === 'delivery' && !!order.delivery_address;
+}
+
+export function isDeliveryCodeValid(code: string): boolean {
+  return /^\d{4,6}$/.test(code);
+}
+
+// ── Subscription Logic ──────────────────────────────────────────────────────
+export function isSubscriptionActive(sub: { status: string; expires_at?: string | null }, now: Date = new Date()): boolean {
+  if (sub.status !== 'active') return false;
+  if (sub.expires_at && new Date(sub.expires_at) < now) return false;
+  return true;
+}
+
+export function getNextRenewalDate(startDate: string, intervalDays: number): Date {
+  const d = new Date(startDate);
+  d.setDate(d.getDate() + intervalDays);
+  return d;
+}
+
+// ── Status Label Mapping ────────────────────────────────────────────────────
+const ORDER_STATUS_LABEL_MAP: Record<string, string> = {
+  placed: 'Order Placed', accepted: 'Accepted', preparing: 'Preparing',
+  ready: 'Ready', picked_up: 'Picked Up', delivered: 'Delivered',
+  completed: 'Completed', cancelled: 'Cancelled', enquired: 'Enquiry Sent',
+  quoted: 'Quote Received', scheduled: 'Scheduled', in_progress: 'In Progress',
+  returned: 'Returned',
+};
+
+export function getOrderStatusLabel(status: string): string {
+  return ORDER_STATUS_LABEL_MAP[status] || 'Unknown';
+}
+
+const PAYMENT_STATUS_LABEL_MAP: Record<string, string> = {
+  pending: 'Pending', paid: 'Paid', failed: 'Failed', refunded: 'Refunded',
+};
+
+export function getPaymentStatusLabel(status: string): string {
+  return PAYMENT_STATUS_LABEL_MAP[status] || 'Unknown';
+}
+
+const DELIVERY_STATUS_LABEL_MAP: Record<string, string> = {
+  pending: 'Pending', assigned: 'Assigned', picked_up: 'Picked Up',
+  in_transit: 'In Transit', delivered: 'Delivered', failed: 'Failed',
+};
+
+export function getDeliveryStatusLabel(status: string): string {
+  return DELIVERY_STATUS_LABEL_MAP[status] || 'Unknown';
+}
+
+// ── Landing Page ────────────────────────────────────────────────────────────
+export function parseLandingSlides(json: string): { title: string; image: string }[] {
+  try {
+    const parsed = JSON.parse(json);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((s: any) => s && typeof s.title === 'string' && typeof s.image === 'string');
+  } catch {
+    return [];
+  }
+}
+
+export function computePlatformStats(societies: number, sellers: number, categories: number): { label: string; value: number }[] {
+  return [
+    { label: 'Societies', value: societies },
+    { label: 'Sellers', value: sellers },
+    { label: 'Categories', value: categories },
+  ];
+}
+
+// ── Society Dashboard ───────────────────────────────────────────────────────
+export function computeAvgResponseHours(
+  items: { created_at: string; acknowledged_at: string | null }[]
+): number {
+  const withAck = items.filter(i => i.acknowledged_at);
+  if (withAck.length === 0) return 0;
+  const totalHours = withAck.reduce((s, i) => {
+    const diff = new Date(i.acknowledged_at!).getTime() - new Date(i.created_at).getTime();
+    return s + diff / (1000 * 60 * 60);
+  }, 0);
+  return Math.round((totalHours / withAck.length) * 10) / 10;
+}
+
+export interface DashboardSection {
+  label: string;
+  feature?: string;
+  adminOnly?: boolean;
+  keywords?: string[];
+}
+
+export function filterDashboardSections(
+  sections: DashboardSection[],
+  isFeatureEnabled: (f: string) => boolean,
+  isAdmin: boolean,
+  isSocietyAdmin: boolean
+): DashboardSection[] {
+  return sections.filter(s => {
+    if (s.adminOnly && !isAdmin && !isSocietyAdmin) return false;
+    if (s.feature && !isFeatureEnabled(s.feature)) return false;
+    return true;
+  });
+}
+
+// ── Seller Visibility ───────────────────────────────────────────────────────
+export function computeSellerVisibilityScore(profile: {
+  business_name?: string; cover_image_url?: string | null;
+  description?: string | null; categories?: string[];
+  operating_days?: string[]; accepts_cod?: boolean; accepts_upi?: boolean;
+}): number {
+  let score = 0;
+  if (profile.business_name?.trim()) score += 20;
+  if (profile.cover_image_url) score += 20;
+  if (profile.description?.trim()) score += 15;
+  if (profile.categories?.length) score += 15;
+  if (profile.operating_days?.length) score += 15;
+  if (profile.accepts_cod || profile.accepts_upi) score += 15;
+  return score;
+}
+
+// ── Builder Logic ───────────────────────────────────────────────────────────
+export function canAccessBuilderDashboard(roles: string[]): boolean {
+  return roles.includes('admin') || roles.includes('builder_member');
+}
+
+export function computeBuilderSocietyStats(societies: {
+  pending_users: number; active_sellers: number; open_disputes: number; open_snags: number;
+}[]): { totalPending: number; totalSellers: number; totalDisputes: number; totalSnags: number } {
+  return societies.reduce((acc, s) => ({
+    totalPending: acc.totalPending + s.pending_users,
+    totalSellers: acc.totalSellers + s.active_sellers,
+    totalDisputes: acc.totalDisputes + s.open_disputes,
+    totalSnags: acc.totalSnags + s.open_snags,
+  }), { totalPending: 0, totalSellers: 0, totalDisputes: 0, totalSnags: 0 });
+}
+
+// ── Order Type Classification ───────────────────────────────────────────────
+export function classifyOrderType(actionType: string): string {
+  const map: Record<string, string> = {
+    add_to_cart: 'purchase', buy_now: 'purchase',
+    book: 'booking', request_service: 'booking', schedule_visit: 'booking',
+    request_quote: 'enquiry', contact_seller: 'enquiry', make_offer: 'enquiry',
+  };
+  return map[actionType] || 'purchase';
+}
+
+// ── Reorder Eligibility ─────────────────────────────────────────────────────
+export function canReorder(orderStatus: string): boolean {
+  return orderStatus === 'completed' || orderStatus === 'delivered';
+}
+
+// ── Product Approval ────────────────────────────────────────────────────────
+export const PRODUCT_APPROVAL_STATES = ['draft', 'pending', 'approved', 'rejected'] as const;
+
+export function isProductVisible(approvalStatus: string, isAvailable: boolean): boolean {
+  return approvalStatus === 'approved' && isAvailable;
+}
+
+// ── Fulfillment Mode ────────────────────────────────────────────────────────
+export const VALID_FULFILLMENT_MODES = ['self_pickup', 'delivery', 'both'] as const;
+
+export function isValidFulfillmentMode(mode: string): boolean {
+  return (VALID_FULFILLMENT_MODES as readonly string[]).includes(mode);
+}
+
+// ── Worker Job Statuses ─────────────────────────────────────────────────────
+export const JOB_STATUSES = ['open', 'accepted', 'completed', 'cancelled', 'expired'] as const;
+export const URGENCY_LEVELS = ['flexible', 'normal', 'urgent'] as const;
+
+export function isValidJobStatus(status: string): boolean {
+  return (JOB_STATUSES as readonly string[]).includes(status);
+}
+
+export function isValidUrgency(urgency: string): boolean {
+  return (URGENCY_LEVELS as readonly string[]).includes(urgency);
+}
+
+export function isValidRating(rating: number): boolean {
+  return Number.isInteger(rating) && rating >= 1 && rating <= 5;
+}
+
+// ── Worker Status ───────────────────────────────────────────────────────────
+export const WORKER_STATUSES = ['active', 'suspended', 'blacklisted', 'under_review'] as const;
+export const ENTRY_FREQUENCIES = ['daily', 'occasional', 'per_visit'] as const;
+
+export function isValidWorkerStatus(status: string): boolean {
+  return (WORKER_STATUSES as readonly string[]).includes(status);
+}
+
+export function isValidEntryFrequency(freq: string): boolean {
+  return (ENTRY_FREQUENCIES as readonly string[]).includes(freq);
+}
+
+// ── Minimum Order Amount ────────────────────────────────────────────────────
+export function meetsMinimumOrder(orderAmount: number, minAmount: number | null): boolean {
+  if (minAmount === null || minAmount <= 0) return true;
+  return orderAmount >= minAmount;
+}
+
+// ── Urgent Item Detection ───────────────────────────────────────────────────
+export function hasUrgentItems(items: { is_urgent?: boolean }[]): boolean {
+  return items.some(i => i.is_urgent === true);
+}
+
+// ── Trust Score ─────────────────────────────────────────────────────────────
+export function computeTrustScore(seller: {
+  rating: number; total_reviews: number; completed_order_count?: number;
+  cancellation_rate?: number | null; verification_status: string;
+}): number {
+  let score = 0;
+  if (seller.verification_status === 'approved') score += 30;
+  score += Math.min(seller.rating * 5, 25);        // max 25
+  score += Math.min(seller.total_reviews, 20);      // max 20
+  score += Math.min((seller.completed_order_count ?? 0) / 5, 15); // max 15
+  if ((seller.cancellation_rate ?? 100) < 5) score += 10;
+  return Math.min(Math.round(score), 100);
+}
+
+export function getTrustBadge(score: number): 'gold' | 'silver' | 'bronze' | 'none' {
+  if (score >= 80) return 'gold';
+  if (score >= 60) return 'silver';
+  if (score >= 40) return 'bronze';
+  return 'none';
+}
+
+// ── Cross-Society Detection ─────────────────────────────────────────────────
+export function isCrossSocietyOrder(sellerSocietyId: string | null, buyerSocietyId: string | null): boolean {
+  if (!sellerSocietyId || !buyerSocietyId) return false;
+  return sellerSocietyId !== buyerSocietyId;
+}
+
+// ── Budget Threshold ────────────────────────────────────────────────────────
+export function isOverBudget(spent: number, budget: number): boolean {
+  return budget > 0 && spent > budget;
+}
+
+// ── QA Ratio ────────────────────────────────────────────────────────────────
+export function computeQAAnsweredRatio(questions: { answer?: string | null }[]): number {
+  if (questions.length === 0) return 0;
+  const answered = questions.filter(q => q.answer?.trim()).length;
+  return Math.round((answered / questions.length) * 100);
+}
+
+// ── Security Mode Tabs ──────────────────────────────────────────────────────
+export function getGuardTabs(securityMode: string): string[] {
+  const base = ['QR Scan', 'Manual Entry', 'Delivery', 'Gate Log'];
+  if (securityMode !== 'basic') base.splice(1, 0, 'Resident OTP', 'Visitor OTP');
+  return base;
+}
+
+// ── Dispute Categories ──────────────────────────────────────────────────────
+export const DISPUTE_CATEGORIES = ['maintenance', 'noise', 'parking', 'safety', 'cleanliness', 'billing', 'other'] as const;
+
+export function isValidDisputeCategory(cat: string): boolean {
+  return (DISPUTE_CATEGORIES as readonly string[]).includes(cat);
+}
+
+// ── Maintenance Due Status ──────────────────────────────────────────────────
+export const MAINTENANCE_DUE_TRANSITIONS: Record<string, string[]> = {
+  pending: ['paid', 'overdue'],
+  overdue: ['paid'],
+  paid: [],
+};
+
+export function isValidMaintenanceDueTransition(from: string, to: string): boolean {
+  return (MAINTENANCE_DUE_TRANSITIONS[from] || []).includes(to);
+}
