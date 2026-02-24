@@ -13,6 +13,8 @@ import { Plus, Trash2, Loader2, Package, Percent, CheckCircle2 } from 'lucide-re
 import { toast } from 'sonner';
 import { useCategoryConfigs } from '@/hooks/useCategoryBehavior';
 import { friendlyError } from '@/lib/utils';
+import { AttributeBlockBuilder } from '@/components/seller/AttributeBlockBuilder';
+import { type BlockData } from '@/hooks/useAttributeBlocks';
 
 interface DraftProduct {
   id?: string;
@@ -43,6 +45,7 @@ export function DraftProductManager({
   const { user } = useAuth();
   const [isAdding, setIsAdding] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [attributeBlocks, setAttributeBlocks] = useState<BlockData[]>([]);
   const { configs } = useCategoryConfigs();
   const [newProduct, setNewProduct] = useState<DraftProduct>({
     name: '',
@@ -110,6 +113,7 @@ export function DraftProductManager({
           image_url: newProduct.image_url.trim() || null,
           is_available: true,
           prep_time_minutes: newProduct.prep_time_minutes || null,
+          specifications: attributeBlocks.length > 0 ? { blocks: attributeBlocks } : null,
         } as any)
         .select()
         .single();
@@ -129,6 +133,7 @@ export function DraftProductManager({
         prep_time_minutes: null,
       });
       setIsAdding(false);
+      setAttributeBlocks([]);
       toast.success('Product added');
     } catch (error: any) {
       console.error('Error adding product:', error);
@@ -372,6 +377,14 @@ export function DraftProductManager({
                 <span className="text-sm">Vegetarian</span>
               </label>
             )}
+
+            {/* Attribute Block Builder */}
+            <AttributeBlockBuilder
+              category={newProduct.category || null}
+              value={attributeBlocks}
+              onChange={setAttributeBlocks}
+            />
+
             {showDurationField && (
               <div className="space-y-2">
                 <Label htmlFor="prod-prep" className="text-xs">{activeConfig?.formHints.durationLabel || 'Prep Time (min)'}</Label>

@@ -7,6 +7,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Check, X, Loader2, Package } from 'lucide-react';
 import { toast } from 'sonner';
 import { logAudit } from '@/lib/audit';
+import { ProductAttributeBlocks } from '@/components/product/ProductAttributeBlocks';
 
 interface PendingProduct {
   id: string;
@@ -16,8 +17,8 @@ interface PendingProduct {
   description: string | null;
   image_url: string | null;
   is_veg: boolean;
+  specifications: Record<string, any> | null;
   approval_status: string;
-  created_at: string;
   seller: {
     business_name: string;
     society_id: string;
@@ -39,7 +40,7 @@ export function AdminProductApprovals() {
     setIsLoading(true);
     const { data } = await supabase
       .from('products')
-      .select('id, name, price, category, description, image_url, is_veg, approval_status, created_at, seller:seller_profiles!products_seller_id_fkey(business_name, society_id)')
+      .select('id, name, price, category, description, image_url, is_veg, approval_status, created_at, specifications, seller:seller_profiles!products_seller_id_fkey(business_name, society_id)')
       .eq('approval_status', 'pending')
       .order('created_at', { ascending: true });
     setProducts((data as any) || []);
@@ -104,6 +105,12 @@ export function AdminProductApprovals() {
                   )}
                   {product.description && (
                     <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{product.description}</p>
+                  )}
+                  {product.specifications && (
+                    <div className="mt-2 p-2 bg-muted/50 rounded-md">
+                      <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide mb-1">Attributes</p>
+                      <ProductAttributeBlocks specifications={product.specifications} />
+                    </div>
                   )}
                 </div>
               </div>
