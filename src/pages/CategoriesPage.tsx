@@ -108,7 +108,7 @@ export default function CategoriesPage() {
         {/* Search bar — same as Header */}
         <div className="px-3 pb-2">
           <Link to="/search" className="block">
-            <div className="flex items-center gap-2.5 bg-muted rounded-xl px-3 py-2.5">
+            <div className="flex items-center gap-2.5 bg-secondary rounded-2xl px-4 py-3">
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-muted-foreground shrink-0">
                 <circle cx="11" cy="11" r="8"/>
                 <path d="m21 21-4.3-4.3"/>
