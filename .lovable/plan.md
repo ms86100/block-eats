@@ -1,193 +1,236 @@
 
-# Orders & Payments Module — Deep Audit Plan
 
-## Scope
+# End-to-End Payment & Order Tracking System — Complete Audit Trail
 
-5 pages, 8 components, 1 RPC function, 7 tables, 2 DB triggers, 1 edge function.
-
-**Pages**: Cart, Orders, Order Detail, Favorites, Subscriptions
-
-**Components**: ReorderButton, OrderCancellation, UrgentOrderTimer, OrderRejectionDialog, OrderItemCard, CouponInput, PaymentMethodSelector, RazorpayCheckout, ReviewForm, FulfillmentSelector, DeliveryStatusCard, OrderHelpSheet, OrderChat, FeedbackSheet
+This plan designs the full purchase-to-delivery audit trail, adding the missing pieces to your already-solid infrastructure so that every transaction step is traceable, verifiable, and suitable for financial reconciliation and internal audits.
 
 ---
 
-## Phase 1: Discovered Issues
+## What Already Exists (No Changes Needed)
 
-### O1 -- CRITICAL: Review RLS blocks reviews on "delivered" orders
+Your current system already covers most of the lifecycle. Here is what is in place and working correctly:
 
-The `reviews` INSERT RLS policy enforces `orders.status = 'completed'`. However, the UI (`OrderDetailPage` line 160) shows the "Write Review" CTA when `order.status === 'completed'` -- this part works. But the `canReorder` check on line 162 includes `delivered`, and crucially, the `canReview` check on line 160 only checks `completed`. So reviews on `delivered` orders are NOT attempted from the UI. **However**, the separate `ReorderButton` appears for both `completed` and `delivered` -- this is correct behavior.
-
-**Re-analysis**: After re-reading the code, `canReview` (line 160) is `isBuyerView && order.status === 'completed' && !hasReview`. This ONLY checks `completed`. So the CTA does NOT appear for `delivered`. But the order lifecycle has `delivered` as a non-terminal state (`delivered -> completed` is allowed). If a seller marks an order as `delivered` but never marks it `completed`, the buyer can NEVER leave a review. This is a business logic gap.
-
-**Fix**: Update the RLS policy to also allow `orders.status = 'delivered'` and update `canReview` in `OrderDetailPage` to include `delivered`.
-
-### O2 -- CRITICAL: Order cancellation "Undo" always fails
-
-`OrderCancellation` (line 77-84) attempts to undo a cancellation by reverting `status` to `previousStatus`. The `validate_order_status_transition` trigger defines `cancelled` as a terminal state with `_allowed := ARRAY[]::text[]`. This means the undo UPDATE will always raise: `Invalid order status transition: cancelled -> placed`. The user sees "Order cancelled" toast with an Undo action that silently fails (the error is caught and shows "Could not undo cancellation").
-
-**Fix**: Remove the Undo action from the cancellation toast, since the DB enforces cancellation as terminal. Alternatively, add a brief grace window in the trigger (within 5 seconds of cancellation), but this adds complexity.
-
-### O3 -- MEDIUM: Delivery fee inconsistency in multi-vendor orders
-
-In `create_multi_vendor_orders` RPC, the delivery fee is added to `total_amount` only for the first order (`_final_amount + _delivery_fee`), then `_delivery_fee := 0` for subsequent orders. However, the `payment_records.amount` is set to `_final_amount` (without delivery fee) for ALL orders. This means:
-- Order 1: `total_amount = subtotal + delivery_fee`, `payment.amount = subtotal` (mismatch)
-- Order 2+: `total_amount = subtotal`, `payment.amount = subtotal` (match)
-
-The seller earnings page reads from `payment_records`, so the delivery fee revenue is unattributed.
-
-**Fix**: The payment record for order 1 should include delivery fee in the amount, or delivery fee should be tracked separately. Document only -- no auto-fix since this involves financial logic.
-
-### O4 -- MEDIUM: Coupon applied only for single-seller carts
-
-When `sellerGroups.length > 1`, the UI shows "Coupons are not available for multi-seller carts" but the RPC still processes `_coupon_id` and `_coupon_discount` parameters if passed. If a user somehow bypasses the UI restriction, a coupon could be applied to a multi-seller cart. The redemption is only recorded for the first order.
-
-**Status**: Low risk since the UI prevents it. Document only.
-
-### O5 -- LOW: Order cancellation undo UX misleads users
-
-Related to O2. The 5-second undo toast creates a false expectation. When clicked, the user sees "Could not undo cancellation" with no explanation. Users may think this is a bug.
-
-**Fix**: Part of O2 fix -- remove the undo action entirely.
-
-### O6 -- LOW: Favorites filtered by effectiveSocietyId
-
-`FavoritesPage` line 41 filters favorites by `effectiveSocietyId`. If an admin uses "view as" another society, their personal favorites from their home society disappear. This is likely unintended for personal data.
-
-**Fix**: Use `profile?.society_id` instead of `effectiveSocietyId` for favorites filtering.
-
-### O7 -- INFO: Order items status has no DB-level transition validation
-
-`OrderItemCard` allows sellers to change item status via a dropdown with forward-only transitions enforced in the UI (line 112: `isDisabled = statusIndex <= currentIndex`), but also allows jumping to `cancelled` (line 119). There is no database trigger validating item status transitions, unlike the order-level `validate_order_status_transition`. A direct DB update could set any status.
-
-**Status**: Not a user-facing issue since the UI prevents backward transitions. Document only.
+| Layer | Tables / Logic | Status |
+|-------|---------------|--------|
+| Product listing | `products`, `seller_profiles`, `category_config` | Complete |
+| Cart & checkout | `cart_items`, `create_multi_vendor_orders` RPC | Complete |
+| Order creation | `orders`, `order_items`, `idempotency_key` | Complete |
+| Order status transitions | `validate_order_status_transition` trigger | Complete |
+| Payment initiation | `create-razorpay-order` edge function | Complete |
+| Payment confirmation | `razorpay-webhook`, HMAC verification | Complete |
+| Payment records | `payment_records` with dedup via unique `razorpay_payment_id` | Complete |
+| Amount freeze | `freeze_order_amount_after_payment` trigger | Complete |
+| Delivery assignment | `trg_auto_assign_delivery`, `delivery_assignments` | Complete |
+| Delivery OTP & lockout | `manage-delivery` edge function, `otp_attempt_count` | Complete |
+| Delivery tracking | `delivery_tracking_logs` with source attribution | Complete |
+| Failure attribution | `failure_owner` with DB validation trigger | Complete |
+| Seller stats | `recompute_seller_stats`, `trg_update_seller_stats_on_order` | Complete |
+| Notifications | `enqueue_order_status_notification` trigger | Complete |
+| Audit log | `audit_log` table | Complete |
 
 ---
 
-## Phase 2: Test Suite
+## What Is Missing (New Additions)
 
-Create `src/test/orders-payments.test.ts` with approximately 70-80 test cases covering:
+Three gaps prevent full audit-proof traceability from purchase to seller payout:
 
-**Cart Management**
-- Add item requires authenticated user
-- Add item optimistic update + server sync
-- Update quantity to 0 triggers removal
-- Remove item with undo toast
-- Clear cart confirmation dialog
-- Cart persists across page navigation
-- society_id auto-set via trigger
+### Gap 1: Seller Settlement Ledger
 
-**Checkout Flow**
-- Minimum order amount per seller enforced
-- Pre-checkout product availability validation
-- Unavailable items flagged and cart refreshed
-- Confirmation dialog shows correct summary
-- Multi-seller cart creates separate orders
-- Submit guard prevents double-click
-- Delivery fee calculation: free above threshold
-- Delivery fee applied only to first order in multi-vendor
+There is no table to record when a seller's earnings from an order are released, held, or disputed. Without this, you cannot answer: "Was the seller paid for this order, when, and how much?"
 
-**Order Creation (RPC)**
-- `create_multi_vendor_orders` validates buyer profile exists
-- Proportional coupon discount calculation
-- Platform fee computation from system_settings
-- Cross-society distance calculation
-- Urgent orders get `auto_cancel_at = now() + 3min`
-- Cart cleared atomically after order creation
-- Idempotency key generated per order
-- Payment record created with platform fee
+### Gap 2: Order Audit Timeline View
 
-**Payment**
-- COD default selection when UPI unavailable
-- UPI blocked when seller has no `upi_id`
-- Razorpay checkout: success polls payment_status
-- Razorpay checkout: failure does not update client-side
-- Payment status webhook polling (15s timeout)
+While individual tables hold timestamps, there is no single queryable view that reconstructs the full lifecycle of a transaction (order created, payment initiated, payment confirmed, delivery assigned, delivered, seller settled) for audit purposes.
 
-**Order Status Transitions**
-- Valid: placed->accepted->preparing->ready->picked_up->delivered->completed
-- Valid: enquired->quoted->accepted->scheduled->in_progress->completed
-- Invalid: cancelled->anything (terminal)
-- Invalid: completed->anything (terminal)
-- Invalid: placed->preparing (skip not allowed)
-- Seller: Accept, Prepare, Ready, Complete flow
-- Seller: Reject with reason required
-- Delivery orders at "ready": seller action bar shows "Awaiting delivery"
+### Gap 3: Payment-Delivery Linkage for Reconciliation
 
-**Cancellation**
-- Buyer can cancel when status is placed or accepted
-- Buyer cannot cancel when preparing or later
-- Cancellation reason required
-- "Other" reason requires text input
-- Undo action fails due to terminal state constraint (O2)
-
-**Urgent Orders**
-- Timer countdown from auto_cancel_at
-- Timer shows warning states (60s, 30s)
-- Timeout triggers refetch + toast
-- Sound hook activated for seller view
-
-**Coupons**
-- Code uppercased and trimmed
-- Society-scoped to seller + buyer society
-- Expiry date check (past = rejected)
-- Start date check (future = rejected)
-- Usage limit enforced
-- Per-user limit enforced via coupon_redemptions count
-- Minimum order amount enforced
-- Percentage discount with max cap
-- Flat discount capped at order total
-- Multi-seller cart blocks coupon input
-
-**Reviews**
-- Review CTA only for completed orders (NOT delivered -- O1)
-- Rating required (1-5 stars)
-- Duplicate review blocked by DB constraint
-- Comment optional, max 500 chars
-- Category-specific dimension ratings loaded from DB
-- Review RLS: buyer_id = auth.uid() AND order completed
-
-**Favorites**
-- Add favorite requires auth
-- Remove favorite with instant UI update
-- Favorites filtered by society (O6)
-- Only approved, available sellers shown
-
-**Reorder**
-- Checks product availability before adding to cart
-- Warns about existing cart items (confirm dialog)
-- Clears existing cart on confirmation
-- Skips unavailable items with count toast
-- Navigates to /cart on success
-
-**Order Detail**
-- Realtime subscription for order updates
-- Chat available when order not completed/cancelled
-- Unread message count badge
-- Copy order ID to clipboard
-- Feedback prompt with localStorage flag
-- Delivery status card for delivery orders
-- Bill summary shows discount and delivery fee
+The `payment_records` table and `delivery_assignments` table both reference `order_id`, but there is no enforced checkpoint that prevents seller settlement before delivery confirmation. This is a financial controls gap.
 
 ---
 
-## Phase 3: Auto-Fixes
+## Implementation Plan
 
-### Fix O1 (Critical) -- Review eligibility for delivered orders
-1. Update `OrderDetailPage` line 160: change `canReview` to include `delivered`
-2. Add migration: UPDATE reviews INSERT policy to allow `orders.status IN ('completed', 'delivered')`
+### 1. New Table: `seller_settlements`
 
-### Fix O2 (Critical) -- Remove broken cancellation undo
-In `OrderCancellation.tsx`, remove the `action` property from the cancellation toast (lines 75-91). Replace with a simple `toast.success('Order cancelled')`.
+Tracks when money is released to a seller for a completed order.
 
-### Fix O6 (Low) -- Favorites society filtering
-In `FavoritesPage.tsx` line 41, change `effectiveSocietyId` to `profile?.society_id` to show the user's own favorites regardless of admin view-as state.
+| Column | Type | Purpose |
+|--------|------|---------|
+| `id` | uuid PK | Row identifier |
+| `order_id` | uuid FK -> orders | Which order this settlement is for |
+| `seller_id` | uuid FK -> seller_profiles | Which seller receives funds |
+| `society_id` | uuid FK -> societies | Society scope |
+| `gross_amount` | numeric | Order total before platform fee |
+| `platform_fee` | numeric | Platform's cut |
+| `delivery_fee_share` | numeric | Delivery fee portion (if any) |
+| `net_amount` | numeric | Actual payout to seller |
+| `settlement_status` | text | `pending`, `eligible`, `processing`, `settled`, `on_hold`, `disputed` |
+| `eligible_at` | timestamptz | When settlement became eligible (delivery confirmed + cooldown) |
+| `settled_at` | timestamptz | When payout was actually processed |
+| `hold_reason` | text | Why settlement is on hold (dispute, return window, etc.) |
+| `razorpay_transfer_id` | text | Razorpay Route transfer reference |
+| `created_at` | timestamptz | Record creation |
+| `updated_at` | timestamptz | Last update |
+
+**Validation trigger**: `validate_settlement_status` enforces allowed values.
+
+**Settlement eligibility trigger**: `trg_mark_settlement_eligible` fires on `orders.status` change to `delivered` or `completed`, creating a settlement record with status `eligible` and `eligible_at = now() + cooldown_period` (configurable via `system_settings`).
+
+**Guard rule**: Settlement cannot move to `settled` unless `delivery_assignments.status = 'delivered'` for that order (enforced by trigger).
+
+### 2. New Database View: `transaction_audit_trail`
+
+A read-only view that joins all relevant tables into a single audit row per order, providing complete lifecycle visibility.
+
+```text
+CREATE VIEW transaction_audit_trail AS
+SELECT
+  o.id AS order_id,
+  o.created_at AS order_placed_at,
+  o.status AS order_status,
+  o.total_amount,
+  o.discount_amount,
+  o.delivery_fee,
+  o.fulfillment_type,
+  o.payment_status,
+  o.razorpay_order_id,
+  o.razorpay_payment_id,
+
+  -- Buyer info
+  bp.name AS buyer_name,
+  bp.flat_number AS buyer_flat,
+
+  -- Seller info
+  sp.business_name AS seller_name,
+  sp.id AS seller_id,
+
+  -- Items summary
+  (SELECT count(*) FROM order_items oi WHERE oi.order_id = o.id) AS item_count,
+  (SELECT sum(oi.quantity * oi.unit_price) FROM order_items oi WHERE oi.order_id = o.id) AS items_subtotal,
+
+  -- Payment timeline
+  pr.payment_mode,
+  pr.payment_collection,
+  pr.payment_status AS payment_record_status,
+  pr.razorpay_payment_id AS payment_reference,
+  pr.platform_fee,
+  pr.created_at AS payment_initiated_at,
+
+  -- Delivery timeline
+  da.status AS delivery_status,
+  da.assigned_at AS delivery_assigned_at,
+  da.pickup_at AS delivery_picked_up_at,
+  da.at_gate_at AS delivery_at_gate_at,
+  da.delivered_at AS delivery_completed_at,
+  da.failure_owner,
+  da.failed_reason,
+  da.rider_name,
+  da.otp_attempt_count,
+
+  -- Settlement
+  ss.settlement_status,
+  ss.net_amount AS seller_payout,
+  ss.eligible_at AS settlement_eligible_at,
+  ss.settled_at AS settlement_paid_at,
+  ss.hold_reason AS settlement_hold_reason
+
+FROM orders o
+LEFT JOIN profiles bp ON bp.id = o.buyer_id
+LEFT JOIN seller_profiles sp ON sp.id = o.seller_id
+LEFT JOIN payment_records pr ON pr.order_id = o.id
+LEFT JOIN delivery_assignments da ON da.order_id = o.id
+LEFT JOIN seller_settlements ss ON ss.order_id = o.id;
+```
+
+This gives auditors a single query to trace any order end-to-end.
+
+### 3. Settlement Eligibility Trigger
+
+A new trigger on the `orders` table that automatically creates a `seller_settlements` record when an order reaches a terminal success state.
+
+```text
+-- On orders.status -> 'delivered' or 'completed':
+-- 1. Look up payment_records for this order
+-- 2. Create seller_settlements row with status = 'pending'
+-- 3. Calculate net_amount = amount - platform_fee
+-- 4. Set eligible_at = now() + settlement_cooldown (from system_settings, default 48h)
+```
+
+**Settlement cannot be marked `settled` if:**
+- `delivery_assignments.status` is NOT `delivered` for that order
+- `payment_records.payment_status` is NOT `paid` for that order
+
+This is enforced by a `validate_settlement_release` trigger.
+
+### 4. System Settings for Settlement Configuration
+
+New entries in `system_settings`:
+
+| Key | Default | Purpose |
+|-----|---------|---------|
+| `settlement_cooldown_hours` | `48` | Hours after delivery before settlement is eligible |
+| `auto_settle_enabled` | `false` | Whether to auto-process settlements (future cron) |
+
+### 5. RLS Policies for `seller_settlements`
+
+- **Sellers**: Can SELECT their own settlements (`seller_id` matches their seller profile's `id`)
+- **Admins / Society Admins**: Can SELECT all settlements in their scope
+- **No direct INSERT/UPDATE/DELETE** from client -- all mutations happen via triggers or edge functions
+
+### 6. Edge Function: `process-settlements` (Stub)
+
+A new edge function that can be called by a cron job or admin action to process eligible settlements:
+
+1. Query `seller_settlements` where `status = 'eligible'` and `eligible_at <= now()`
+2. Verify delivery status is `delivered`
+3. Verify payment status is `paid`
+4. If seller has `razorpay_account_id`, initiate Razorpay Route transfer
+5. Update settlement status to `processing` then `settled`
+6. Log to `audit_log`
+
+This function will be created as a stub with the core logic, ready for production activation.
 
 ---
 
-## Phase 4: Deliverables
+## Files to Create / Modify
 
-1. `.lovable/orders-payments-audit.md` -- Feature and Rule Inventory with all 7 issues
-2. `src/test/orders-payments.test.ts` -- Full test suite (~75 tests)
-3. Code fixes for O1, O2, O6
-4. RLS migration for O1 (reviews)
-5. Re-run all tests to verify no regressions
+| File | Change |
+|------|--------|
+| New migration SQL | `seller_settlements` table, `transaction_audit_trail` view, settlement triggers, RLS policies, system_settings seed |
+| `supabase/functions/process-settlements/index.ts` | New edge function for settlement processing |
+| `src/integrations/supabase/types.ts` | Auto-updated after migration |
+
+---
+
+## What This Does NOT Change
+
+- No UI changes
+- No changes to existing order flow, payment flow, or delivery flow
+- No changes to existing RLS policies on orders, payment_records, or delivery_assignments
+- No changes to existing edge functions
+- Existing triggers remain untouched
+
+---
+
+## Technical Details
+
+### Settlement Status Machine
+
+```text
+pending -> eligible -> processing -> settled
+pending -> on_hold -> eligible (after hold resolved)
+pending -> disputed -> on_hold | eligible
+```
+
+### Validation Checkpoints (Audit Gates)
+
+1. **Order placed**: `orders.created_at` + `order_items` rows exist
+2. **Payment initiated**: `orders.razorpay_order_id` is set, `freeze_order_amount_after_payment` active
+3. **Payment confirmed**: `payment_records.payment_status = 'paid'`, `razorpay_payment_id` unique
+4. **Delivery assigned**: `delivery_assignments` row exists with `assigned_at`
+5. **Delivery completed**: `delivery_assignments.status = 'delivered'`, `delivered_at` set
+6. **Settlement eligible**: `seller_settlements.status = 'eligible'`, cooldown passed
+7. **Settlement released**: `seller_settlements.status = 'settled'`, `settled_at` set
+
+Each checkpoint is DB-enforced -- no frontend can skip a gate.
+

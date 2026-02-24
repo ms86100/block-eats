@@ -856,6 +856,13 @@ export type Database = {
             referencedRelation: "orders"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "chat_messages_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "transaction_audit_trail"
+            referencedColumns: ["order_id"]
+          },
         ]
       }
       collective_escalations: {
@@ -1013,6 +1020,13 @@ export type Database = {
             referencedRelation: "orders"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "coupon_redemptions_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "transaction_audit_trail"
+            referencedColumns: ["order_id"]
+          },
         ]
       }
       coupons: {
@@ -1079,6 +1093,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "coupons_seller_id_fkey"
+            columns: ["seller_id"]
+            isOneToOne: false
+            referencedRelation: "transaction_audit_trail"
+            referencedColumns: ["seller_id"]
+          },
+          {
             foreignKeyName: "coupons_society_id_fkey"
             columns: ["society_id"]
             isOneToOne: false
@@ -1089,6 +1110,8 @@ export type Database = {
       }
       delivery_assignments: {
         Row: {
+          assigned_at: string | null
+          at_gate_at: string | null
           attempt_count: number
           created_at: string
           delivered_at: string | null
@@ -1096,10 +1119,13 @@ export type Database = {
           delivery_fee: number
           external_tracking_id: string | null
           failed_reason: string | null
+          failure_owner: string | null
           gate_entry_id: string | null
           id: string
           idempotency_key: string
+          max_otp_attempts: number
           order_id: string
+          otp_attempt_count: number
           otp_expires_at: string | null
           otp_hash: string | null
           partner_id: string | null
@@ -1114,6 +1140,8 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          assigned_at?: string | null
+          at_gate_at?: string | null
           attempt_count?: number
           created_at?: string
           delivered_at?: string | null
@@ -1121,10 +1149,13 @@ export type Database = {
           delivery_fee?: number
           external_tracking_id?: string | null
           failed_reason?: string | null
+          failure_owner?: string | null
           gate_entry_id?: string | null
           id?: string
           idempotency_key: string
+          max_otp_attempts?: number
           order_id: string
+          otp_attempt_count?: number
           otp_expires_at?: string | null
           otp_hash?: string | null
           partner_id?: string | null
@@ -1139,6 +1170,8 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          assigned_at?: string | null
+          at_gate_at?: string | null
           attempt_count?: number
           created_at?: string
           delivered_at?: string | null
@@ -1146,10 +1179,13 @@ export type Database = {
           delivery_fee?: number
           external_tracking_id?: string | null
           failed_reason?: string | null
+          failure_owner?: string | null
           gate_entry_id?: string | null
           id?: string
           idempotency_key?: string
+          max_otp_attempts?: number
           order_id?: string
+          otp_attempt_count?: number
           otp_expires_at?: string | null
           otp_hash?: string | null
           partner_id?: string | null
@@ -1170,6 +1206,13 @@ export type Database = {
             isOneToOne: true
             referencedRelation: "orders"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "delivery_assignments_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: true
+            referencedRelation: "transaction_audit_trail"
+            referencedColumns: ["order_id"]
           },
           {
             foreignKeyName: "delivery_assignments_partner_id_fkey"
@@ -1741,6 +1784,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "seller_profiles"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "favorites_seller_id_fkey"
+            columns: ["seller_id"]
+            isOneToOne: false
+            referencedRelation: "transaction_audit_trail"
+            referencedColumns: ["seller_id"]
           },
           {
             foreignKeyName: "favorites_society_id_fkey"
@@ -2508,6 +2558,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "order_items_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "transaction_audit_trail"
+            referencedColumns: ["order_id"]
+          },
+          {
             foreignKeyName: "order_items_product_id_fkey"
             columns: ["product_id"]
             isOneToOne: false
@@ -2680,6 +2737,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "seller_profiles"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "orders_seller_id_fkey"
+            columns: ["seller_id"]
+            isOneToOne: false
+            referencedRelation: "transaction_audit_trail"
+            referencedColumns: ["seller_id"]
           },
           {
             foreignKeyName: "orders_seller_society_id_fkey"
@@ -3153,9 +3217,12 @@ export type Database = {
           idempotency_key: string | null
           net_amount: number | null
           order_id: string
+          payment_collection: string
           payment_method: string
+          payment_mode: string
           payment_status: string
           platform_fee: number | null
+          razorpay_payment_id: string | null
           seller_id: string | null
           society_id: string | null
           transaction_reference: string | null
@@ -3169,9 +3236,12 @@ export type Database = {
           idempotency_key?: string | null
           net_amount?: number | null
           order_id: string
+          payment_collection?: string
           payment_method?: string
+          payment_mode?: string
           payment_status?: string
           platform_fee?: number | null
+          razorpay_payment_id?: string | null
           seller_id?: string | null
           society_id?: string | null
           transaction_reference?: string | null
@@ -3185,9 +3255,12 @@ export type Database = {
           idempotency_key?: string | null
           net_amount?: number | null
           order_id?: string
+          payment_collection?: string
           payment_method?: string
+          payment_mode?: string
           payment_status?: string
           platform_fee?: number | null
+          razorpay_payment_id?: string | null
           seller_id?: string | null
           society_id?: string | null
           transaction_reference?: string | null
@@ -3209,11 +3282,25 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "payment_records_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "transaction_audit_trail"
+            referencedColumns: ["order_id"]
+          },
+          {
             foreignKeyName: "payment_records_seller_id_fkey"
             columns: ["seller_id"]
             isOneToOne: false
             referencedRelation: "seller_profiles"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payment_records_seller_id_fkey"
+            columns: ["seller_id"]
+            isOneToOne: false
+            referencedRelation: "transaction_audit_trail"
+            referencedColumns: ["seller_id"]
           },
           {
             foreignKeyName: "payment_records_society_id_fkey"
@@ -3451,6 +3538,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "seller_profiles"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "products_seller_id_fkey"
+            columns: ["seller_id"]
+            isOneToOne: false
+            referencedRelation: "transaction_audit_trail"
+            referencedColumns: ["seller_id"]
           },
           {
             foreignKeyName: "products_subcategory_id_fkey"
@@ -3814,6 +3908,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "reports_reported_seller_id_fkey"
+            columns: ["reported_seller_id"]
+            isOneToOne: false
+            referencedRelation: "transaction_audit_trail"
+            referencedColumns: ["seller_id"]
+          },
+          {
             foreignKeyName: "reports_reported_user_id_fkey"
             columns: ["reported_user_id"]
             isOneToOne: false
@@ -3949,11 +4050,25 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "reviews_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: true
+            referencedRelation: "transaction_audit_trail"
+            referencedColumns: ["order_id"]
+          },
+          {
             foreignKeyName: "reviews_seller_id_fkey"
             columns: ["seller_id"]
             isOneToOne: false
             referencedRelation: "seller_profiles"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reviews_seller_id_fkey"
+            columns: ["seller_id"]
+            isOneToOne: false
+            referencedRelation: "transaction_audit_trail"
+            referencedColumns: ["seller_id"]
           },
           {
             foreignKeyName: "reviews_society_id_fkey"
@@ -4067,6 +4182,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "seller_profiles"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "seller_licenses_seller_id_fkey"
+            columns: ["seller_id"]
+            isOneToOne: false
+            referencedRelation: "transaction_audit_trail"
+            referencedColumns: ["seller_id"]
           },
         ]
       }
@@ -4219,6 +4341,96 @@ export type Database = {
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      seller_settlements: {
+        Row: {
+          created_at: string
+          delivery_fee_share: number
+          eligible_at: string | null
+          gross_amount: number
+          hold_reason: string | null
+          id: string
+          net_amount: number
+          order_id: string
+          platform_fee: number
+          razorpay_transfer_id: string | null
+          seller_id: string
+          settled_at: string | null
+          settlement_status: string
+          society_id: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string
+          delivery_fee_share?: number
+          eligible_at?: string | null
+          gross_amount?: number
+          hold_reason?: string | null
+          id?: string
+          net_amount?: number
+          order_id: string
+          platform_fee?: number
+          razorpay_transfer_id?: string | null
+          seller_id: string
+          settled_at?: string | null
+          settlement_status?: string
+          society_id: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string
+          delivery_fee_share?: number
+          eligible_at?: string | null
+          gross_amount?: number
+          hold_reason?: string | null
+          id?: string
+          net_amount?: number
+          order_id?: string
+          platform_fee?: number
+          razorpay_transfer_id?: string | null
+          seller_id?: string
+          settled_at?: string | null
+          settlement_status?: string
+          society_id?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "seller_settlements_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: true
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "seller_settlements_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: true
+            referencedRelation: "transaction_audit_trail"
+            referencedColumns: ["order_id"]
+          },
+          {
+            foreignKeyName: "seller_settlements_seller_id_fkey"
+            columns: ["seller_id"]
+            isOneToOne: false
+            referencedRelation: "seller_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "seller_settlements_seller_id_fkey"
+            columns: ["seller_id"]
+            isOneToOne: false
+            referencedRelation: "transaction_audit_trail"
+            referencedColumns: ["seller_id"]
+          },
+          {
+            foreignKeyName: "seller_settlements_society_id_fkey"
+            columns: ["society_id"]
+            isOneToOne: false
+            referencedRelation: "societies"
             referencedColumns: ["id"]
           },
         ]
@@ -5192,6 +5404,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "subscription_deliveries_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "transaction_audit_trail"
+            referencedColumns: ["order_id"]
+          },
+          {
             foreignKeyName: "subscription_deliveries_subscription_id_fkey"
             columns: ["subscription_id"]
             isOneToOne: false
@@ -5265,6 +5484,13 @@ export type Database = {
             referencedRelation: "seller_profiles"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "subscriptions_seller_id_fkey"
+            columns: ["seller_id"]
+            isOneToOne: false
+            referencedRelation: "transaction_audit_trail"
+            referencedColumns: ["seller_id"]
+          },
         ]
       }
       supported_languages: {
@@ -5324,6 +5550,60 @@ export type Database = {
           key?: string
           updated_at?: string
           value?: string
+        }
+        Relationships: []
+      }
+      test_results: {
+        Row: {
+          created_at: string
+          duration_ms: number | null
+          error_code: string | null
+          error_message: string | null
+          executed_at: string
+          file_path: string | null
+          http_status_code: number | null
+          id: string
+          input_data: Json | null
+          module_name: string
+          outcome: string
+          page_or_api_url: string | null
+          response_payload: Json | null
+          run_id: string
+          test_name: string
+        }
+        Insert: {
+          created_at?: string
+          duration_ms?: number | null
+          error_code?: string | null
+          error_message?: string | null
+          executed_at?: string
+          file_path?: string | null
+          http_status_code?: number | null
+          id?: string
+          input_data?: Json | null
+          module_name: string
+          outcome?: string
+          page_or_api_url?: string | null
+          response_payload?: Json | null
+          run_id: string
+          test_name: string
+        }
+        Update: {
+          created_at?: string
+          duration_ms?: number | null
+          error_code?: string | null
+          error_message?: string | null
+          executed_at?: string
+          file_path?: string | null
+          http_status_code?: number | null
+          id?: string
+          input_data?: Json | null
+          module_name?: string
+          outcome?: string
+          page_or_api_url?: string | null
+          response_payload?: Json | null
+          run_id?: string
+          test_name?: string
         }
         Relationships: []
       }
@@ -6111,7 +6391,47 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      transaction_audit_trail: {
+        Row: {
+          buyer_flat: string | null
+          buyer_name: string | null
+          delivery_assigned_at: string | null
+          delivery_at_gate_at: string | null
+          delivery_completed_at: string | null
+          delivery_fee: number | null
+          delivery_picked_up_at: string | null
+          delivery_status: string | null
+          discount_amount: number | null
+          failed_reason: string | null
+          failure_owner: string | null
+          fulfillment_type: string | null
+          item_count: number | null
+          items_subtotal: number | null
+          order_id: string | null
+          order_placed_at: string | null
+          order_status: Database["public"]["Enums"]["order_status"] | null
+          otp_attempt_count: number | null
+          payment_collection: string | null
+          payment_initiated_at: string | null
+          payment_mode: string | null
+          payment_record_status: string | null
+          payment_reference: string | null
+          payment_status: string | null
+          platform_fee: number | null
+          razorpay_order_id: string | null
+          razorpay_payment_id: string | null
+          rider_name: string | null
+          seller_id: string | null
+          seller_name: string | null
+          seller_payout: number | null
+          settlement_eligible_at: string | null
+          settlement_hold_reason: string | null
+          settlement_paid_at: string | null
+          settlement_status: string | null
+          total_amount: number | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       accept_worker_job: {
