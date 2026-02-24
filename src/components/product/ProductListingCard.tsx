@@ -202,9 +202,10 @@ function ProductListingCardInner({
       ref={cardRef}
       onClick={handleCardClick}
       className={cn(
-        'bg-card rounded-xl cursor-pointer flex flex-col h-full relative shadow-card',
+        'bg-card rounded-xl cursor-pointer flex flex-col h-full relative',
+        'shadow-card dark:border dark:border-[hsl(0_0%_100%/0.05)]',
         'transition-all duration-200',
-        'active:scale-[0.97] hover:scale-[1.02]',
+        'active:scale-[0.98] hover:scale-[1.02]',
         isOutOfStock && 'opacity-50 grayscale-[40%]',
         className
       )}
@@ -284,7 +285,7 @@ function ProductListingCardInner({
             ) : (
               <button
                 onClick={handleAdd}
-                className="bg-card text-primary font-bold text-[11px] px-5 py-1.5 rounded-md shadow-md border border-primary/30 hover:bg-primary hover:text-primary-foreground transition-all duration-100 uppercase tracking-wide active:scale-95"
+                className="bg-primary text-primary-foreground font-bold text-[11px] px-5 py-1.5 rounded-lg shadow-[0_2px_8px_hsl(145_83%_36%/0.3)] hover:opacity-90 transition-all duration-100 uppercase tracking-wide active:scale-95"
               >
                 {actionConfig.shortLabel}
               </button>
@@ -294,27 +295,27 @@ function ProductListingCardInner({
       </div>
 
       {/* ━━━ CONTENT ━━━ */}
-      <div className="px-2 pb-2 pt-4 flex flex-col flex-1">
+      <div className="px-2.5 pb-2.5 pt-4 flex flex-col flex-1">
         {variantText && (
-          <span className="inline-flex items-center justify-center border border-border rounded-full text-[8px] font-medium px-1.5 py-px mb-0.5 w-fit text-muted-foreground">
+          <span className="inline-flex items-center justify-center border border-border rounded-full text-[9px] font-medium px-1.5 py-px mb-0.5 w-fit text-muted-foreground">
             {variantText}
           </span>
         )}
 
-        <h4 className="font-medium text-[11px] leading-snug line-clamp-2 text-foreground mb-0.5">
+        <h4 className="font-semibold text-[13px] leading-snug line-clamp-2 text-foreground mb-0.5">
           {product.name}
         </h4>
 
         {product.seller_name && (
-          <p className="text-[9px] text-muted-foreground leading-tight line-clamp-1 mb-0.5">
+          <p className="text-[10px] text-muted-foreground leading-tight line-clamp-1 mb-0.5">
             by {product.seller_name}
           </p>
         )}
 
         {deliveryText && (
           <div className="flex items-center gap-1 mb-0.5">
-            <Clock size={8} className="text-warning" />
-            <span className="text-[8px] font-bold text-muted-foreground uppercase tracking-wide leading-none">
+            <Clock size={9} className="text-warning" />
+            <span className="text-[9px] font-bold text-muted-foreground uppercase tracking-wide leading-none">
               {deliveryText}
             </span>
           </div>
@@ -322,38 +323,38 @@ function ProductListingCardInner({
 
         {product.lead_time_hours != null && product.lead_time_hours > 0 && (
           <div className="flex items-center gap-1 mb-0.5">
-            <Clock size={8} className="text-primary" />
-            <span className="text-[8px] font-medium text-muted-foreground leading-none">
+            <Clock size={9} className="text-primary" />
+            <span className="text-[9px] font-medium text-muted-foreground leading-none">
               Order {product.lead_time_hours}h ahead
             </span>
           </div>
         )}
         {product.accepts_preorders && (
-          <span className="inline-block bg-accent/20 text-accent-foreground text-[7px] font-bold px-1.5 py-0.5 rounded w-fit mb-0.5">
+          <span className="inline-block bg-accent/20 text-accent-foreground text-[8px] font-bold px-1.5 py-0.5 rounded w-fit mb-0.5">
             Pre-order
           </span>
         )}
         <div className="flex-1 min-h-0.5" />
 
         {hasDiscount && discountPct > 0 && (
-          <span className="text-[9px] font-bold text-info leading-none mb-0.5">
+          <span className="text-[10px] font-bold text-info leading-none mb-0.5">
             {discountPct}{mc.labels.discountSuffix}
           </span>
         )}
 
-        <div className="flex items-end gap-1 mt-auto">
-          <span className="font-bold text-xs text-foreground leading-none">
+        <div className="flex items-end gap-1.5 mt-auto">
+          <span className="font-bold text-[15px] text-foreground leading-none">
             {mc.currencySymbol}{product.price.toLocaleString()}
           </span>
           {hasDiscount && (
-            <span className="text-[9px] text-muted-foreground line-through leading-none">
+            <span className="text-[10px] text-muted-foreground line-through leading-none">
               MRP {mc.currencySymbol}{product.mrp?.toLocaleString()}
             </span>
           )}
         </div>
 
         {product.price_per_unit && (
-          <span className="text-[8px] text-muted-foreground leading-none mt-0.5">
+          <span className="text-[9px] text-muted-foreground leading-none mt-0.5">
             {product.price_per_unit}
           </span>
         )}
