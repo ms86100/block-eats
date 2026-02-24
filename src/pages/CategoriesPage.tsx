@@ -13,7 +13,7 @@ import { cn } from '@/lib/utils';
 import { useSearchPlaceholder } from '@/hooks/useSearchPlaceholder';
 
 export default function CategoriesPage() {
-  const { profile } = useAuth();
+  const { profile, isLoading: authLoading, effectiveSocietyId } = useAuth();
   const { configs, isLoading: configsLoading } = useCategoryConfigs();
   const { groups, isLoading: groupsLoading } = useParentGroups();
   const { data: productCategories = [], isLoading: productsLoading } = useProductsByCategory();
@@ -53,7 +53,7 @@ export default function CategoriesPage() {
     return s;
   }, [productCategories, nearbyBands, browseBeyond]);
 
-  const isLoading = configsLoading || groupsLoading || productsLoading || (browseBeyond && nearbyLoading);
+  const isLoading = authLoading || !effectiveSocietyId || configsLoading || groupsLoading || productsLoading || (browseBeyond && nearbyLoading);
 
   const grouped = useMemo(() => {
     const q = searchQuery.toLowerCase().trim();
