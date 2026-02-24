@@ -202,16 +202,16 @@ function ProductListingCardInner({
       ref={cardRef}
       onClick={handleCardClick}
       className={cn(
-        'bg-card rounded-lg border border-border/30 cursor-pointer flex flex-col h-full relative',
-        'transition-all duration-100',
-        'active:scale-[0.97]',
+        'bg-card rounded-2xl border border-border cursor-pointer flex flex-col h-full relative',
+        'transition-all duration-200',
+        'active:scale-[0.97] hover:scale-[1.02]',
         isOutOfStock && 'opacity-50 grayscale-[40%]',
         className
       )}
     >
       {/* ━━━ IMAGE ━━━ */}
       <div className="relative p-1.5 pb-0">
-        <div className="relative aspect-[4/3] rounded-md overflow-hidden bg-muted/20">
+        <div className="relative aspect-[4/3] rounded-xl overflow-hidden bg-muted">
           {product.image_url ? (
             <img
               src={product.image_url}
@@ -284,7 +284,7 @@ function ProductListingCardInner({
             ) : (
               <button
                 onClick={handleAdd}
-                className="border border-accent text-accent bg-card font-bold text-[10px] px-4 py-0.5 rounded-md shadow-sm hover:bg-accent hover:text-accent-foreground transition-all duration-100 uppercase tracking-wide active:scale-90"
+                className="bg-primary text-primary-foreground font-bold text-[10px] px-5 py-1 rounded-lg shadow-md hover:opacity-90 transition-all duration-100 uppercase tracking-wide active:scale-90"
               >
                 {actionConfig.shortLabel}
               </button>
@@ -301,7 +301,7 @@ function ProductListingCardInner({
           </span>
         )}
 
-        <h4 className="font-medium text-[10px] leading-tight line-clamp-2 text-foreground mb-0.5">
+        <h4 className="font-semibold text-[11px] leading-tight line-clamp-2 text-foreground mb-0.5">
           {product.name}
         </h4>
 
@@ -336,13 +336,13 @@ function ProductListingCardInner({
         <div className="flex-1 min-h-0.5" />
 
         {hasDiscount && discountPct > 0 && (
-          <span className="text-[8px] font-bold text-primary leading-none mb-0.5">
+          <span className="text-[8px] font-bold text-warning leading-none mb-0.5">
             {discountPct}{mc.labels.discountSuffix}
           </span>
         )}
 
         <div className="flex items-end gap-0.5 mt-auto">
-          <span className="font-bold text-xs text-foreground leading-none">
+          <span className="font-bold text-sm text-foreground leading-none">
             {mc.currencySymbol}{product.price.toLocaleString()}
           </span>
           {hasDiscount && (

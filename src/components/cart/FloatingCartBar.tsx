@@ -34,7 +34,7 @@ export function FloatingCartBar({ className }: FloatingCartBarProps) {
       >
         <Link to="/cart">
           <motion.div
-            className="rounded-xl bg-primary px-3 py-3.5 flex items-center justify-between shadow-lg"
+            className="rounded-2xl bg-gradient-to-r from-primary to-accent px-3 py-3.5 flex items-center justify-between shadow-elevated"
             whileTap={{ scale: 0.97 }}
           >
             <div className="flex items-center gap-2">
@@ -42,7 +42,7 @@ export function FloatingCartBar({ className }: FloatingCartBarProps) {
               {thumbnails.length > 0 && (
                 <div className="flex -space-x-2">
                   {thumbnails.map((url, i) => (
-                    <div key={i} className="w-7 h-7 rounded-md border-2 border-primary overflow-hidden bg-card">
+                    <div key={i} className="w-7 h-7 rounded-full border-2 border-primary-foreground/20 overflow-hidden bg-card">
                       <img src={url} alt="" className="w-full h-full object-cover" />
                     </div>
                   ))}
@@ -54,7 +54,7 @@ export function FloatingCartBar({ className }: FloatingCartBarProps) {
                 </p>
               </div>
             </div>
-            <div className="flex items-center gap-0.5 text-primary-foreground font-bold text-xs">
+              <div className="flex items-center gap-0.5 text-primary-foreground font-bold text-sm">
               View Cart
               <ChevronRight size={14} />
             </div>

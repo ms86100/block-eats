@@ -118,7 +118,7 @@ function DistanceBandSection({ band }: { band: DistanceBand }) {
 // ── Society Card inside a distance band ──
 function SocietyCard({ society }: { society: SocietyGroup }) {
   return (
-    <div className="mx-4 rounded-xl border border-border/40 bg-card overflow-hidden">
+    <div className="mx-4 rounded-2xl border border-border bg-card overflow-hidden">
       <div className="px-3 py-2 bg-muted/30 flex items-center justify-between">
         <span className="text-xs font-semibold text-foreground">{society.societyName}</span>
         <span className="text-[10px] text-muted-foreground">{society.distanceKm} km</span>
@@ -169,12 +169,12 @@ function CategorySellerRow({
               onClick={() => navigate(`/seller/${seller.id}`)}
               className={cn(
                 'shrink-0 rounded-2xl overflow-hidden cursor-pointer',
-                'bg-card border border-border/30',
+                'bg-card border border-border',
                 'transition-all duration-200 hover:shadow-md hover:scale-[1.03] active:scale-95',
                 compact ? 'w-20' : 'w-24'
               )}
             >
-              <div className={cn('flex items-center justify-center bg-muted/50', compact ? 'h-12 p-1.5' : 'h-16 p-2')}>
+              <div className={cn('flex items-center justify-center bg-muted', compact ? 'h-12 p-1.5' : 'h-16 p-2')}>
                 {seller.profile_image_url ? (
                   <img
                     src={seller.profile_image_url}

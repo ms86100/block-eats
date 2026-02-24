@@ -45,7 +45,7 @@ export function SocietyQuickLinks() {
       <div className="grid grid-cols-3 gap-2">
         {visibleLinks.slice(0, 6).map(({ icon: Icon, label, to, color }) => (
           <Link key={to} to={to}>
-            <div className="bg-card border border-border/40 rounded-xl p-2.5 flex flex-col items-center gap-1.5 active:scale-[0.97] transition-transform">
+            <div className="bg-card border border-border rounded-2xl p-2.5 flex flex-col items-center gap-1.5 active:scale-[0.97] transition-transform">
               <div className={`w-9 h-9 rounded-full flex items-center justify-center ${color}`}>
                 <Icon size={16} />
               </div>

@@ -64,7 +64,7 @@ export function CommunityTeaser() {
       <div className="space-y-2">
         {helpCount > 0 && (
           <Link to="/community">
-            <div className="bg-warning/10 border border-warning/20 rounded-xl px-3 py-2.5 flex items-center gap-2.5">
+            <div className="bg-warning/10 border border-warning/20 rounded-2xl px-3 py-2.5 flex items-center gap-2.5">
               <Heart size={16} className="text-warning shrink-0" />
               <p className="text-xs font-medium text-foreground">
                 {helpCount} neighbor{helpCount !== 1 ? 's' : ''} need{helpCount === 1 ? 's' : ''} help
@@ -76,7 +76,7 @@ export function CommunityTeaser() {
         
         {posts.map((post) => (
           <Link key={post.id} to="/community">
-            <div className="bg-card border border-border/40 rounded-xl px-3 py-2.5 flex items-center gap-2.5">
+            <div className="bg-card border border-border rounded-2xl px-3 py-2.5 flex items-center gap-2.5">
               <div className="flex-1 min-w-0">
                 <p className="text-xs font-medium text-foreground line-clamp-1">{post.title}</p>
                 <p className="text-[10px] text-muted-foreground mt-0.5">

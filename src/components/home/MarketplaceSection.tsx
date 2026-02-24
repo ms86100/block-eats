@@ -190,7 +190,7 @@ function ProductListings({
   }
 
   return (
-    <div className="space-y-5 mt-4">
+    <div className="space-y-7 mt-4">
       {categories.map(cat => (
         <div key={cat.category}>
           <div className="flex items-center justify-between px-4 mb-2">
@@ -208,7 +208,7 @@ function ProductListings({
           <div className="relative">
             <div className="flex gap-2.5 overflow-x-auto scrollbar-hide px-4 pb-1">
               {cat.products.slice(0, 8).map(product => (
-                <div key={product.id} className="w-[140px] shrink-0">
+                <div key={product.id} className="w-[150px] shrink-0">
                 <ProductListingCard
                   product={product}
                   onTap={onProductTap}

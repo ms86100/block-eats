@@ -50,8 +50,8 @@ function CategoryImageGridInner({ parentGroup, title, activeCategories }: Catego
           >
             <div
               className={cn(
-                'w-full aspect-square rounded-2xl overflow-hidden',
-                'bg-muted border border-border/30',
+                'w-full aspect-square rounded-xl overflow-hidden',
+                'bg-muted border border-border',
                 'transition-all duration-200 group-hover:scale-[1.03] group-active:scale-95',
                 'flex items-center justify-center'
               )}
@@ -67,7 +67,7 @@ function CategoryImageGridInner({ parentGroup, title, activeCategories }: Catego
                 <span className="text-3xl">{cat.icon}</span>
               )}
             </div>
-            <span className="text-[10px] font-medium text-center leading-tight text-foreground line-clamp-2 mt-1.5 px-0.5">
+            <span className="text-[11px] font-semibold text-center leading-tight text-foreground line-clamp-2 mt-1.5 px-0.5">
               {cat.displayName}
             </span>
           </Link>

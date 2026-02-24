@@ -143,13 +143,13 @@ function HeaderInner({
             )}
 
             <div className="flex items-center gap-1.5 mt-1">
-              <ThemeToggle className="h-8 w-8 rounded-full bg-muted text-foreground hover:bg-muted/80" />
+              <ThemeToggle className="h-8 w-8 rounded-full bg-secondary text-foreground border border-border hover:bg-muted" />
               {isBuilderMember && (
                 <Link to="/builder">
                   <Button 
                     variant="ghost" 
                     size="icon" 
-                    className="h-8 w-8 rounded-full bg-muted text-foreground hover:bg-muted/80"
+                    className="h-8 w-8 rounded-full bg-secondary text-foreground border border-border hover:bg-muted"
                   >
                     <Building2 size={16} />
                   </Button>
@@ -161,7 +161,7 @@ function HeaderInner({
                     <Button 
                       variant="ghost" 
                       size="icon" 
-                      className="relative h-8 w-8 rounded-full bg-muted text-foreground hover:bg-muted/80"
+                      className="relative h-8 w-8 rounded-full bg-secondary text-foreground border border-border hover:bg-muted"
                     >
                       <Bell size={16} />
                       {unreadCount > 0 && (
@@ -184,7 +184,7 @@ function HeaderInner({
           {/* Search bar — only on home/marketplace, not on titled society pages */}
           {!title && (
             <Link to="/search" className="block mt-2">
-              <div className="flex items-center gap-2.5 bg-muted rounded-xl px-3 py-2.5">
+              <div className="flex items-center gap-2.5 bg-secondary rounded-2xl px-4 py-3">
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-muted-foreground shrink-0">
                   <circle cx="11" cy="11" r="8"/>
                   <path d="m21 21-4.3-4.3"/>
