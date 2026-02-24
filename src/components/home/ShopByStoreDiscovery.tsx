@@ -106,7 +106,7 @@ function DistanceBandSection({ band }: { band: DistanceBand }) {
           )}
         />
       </CollapsibleTrigger>
-      <CollapsibleContent className="space-y-2 mt-2">
+      <CollapsibleContent className="space-y-2.5 mt-2">
         {band.societies.map(society => (
           <SocietyCard key={society.societyName} society={society} />
         ))}
@@ -123,7 +123,7 @@ function SocietyCard({ society }: { society: SocietyGroup }) {
         <span className="text-xs font-bold text-foreground">{society.societyName}</span>
         <span className="text-[10px] font-semibold text-muted-foreground bg-muted px-2 py-0.5 rounded-full">{society.distanceKm} km</span>
       </div>
-      <div className="p-3 space-y-3">
+      <div className="p-2 space-y-1.5">
         {Object.entries(society.sellersByGroup).map(([group, sellers]) => (
           <CategorySellerRow
             key={group}
@@ -202,7 +202,7 @@ function CategorySellerRow({
             </div>
           ))}
         </div>
-        <div className="absolute right-0 top-0 bottom-1 w-6 pointer-events-none bg-gradient-to-l from-background to-transparent" />
+        <div className="absolute right-0 top-0 bottom-1 w-6 pointer-events-none bg-gradient-to-l from-card to-transparent" />
       </div>
     </div>
   );
