@@ -30,8 +30,6 @@ import { format } from 'date-fns';
 import { Textarea } from '@/components/ui/textarea';
 import { ApiKeySettings } from '@/components/admin/ApiKeySettings';
 import { AppNavigator } from '@/components/admin/AppNavigator';
-import { CategoryManager } from '@/components/admin/CategoryManager';
-import { SubcategoryManager } from '@/components/admin/SubcategoryManager';
 import { SellerApplicationReview } from '@/components/admin/SellerApplicationReview';
 import { AdminDisputesTab } from '@/components/admin/AdminDisputesTab';
 import { EmergencyBroadcastSheet } from '@/components/admin/EmergencyBroadcastSheet';
@@ -40,7 +38,7 @@ import { SocietySwitcher } from '@/components/admin/SocietySwitcher';
 import { FeatureManagement } from '@/components/admin/FeatureManagement';
 import { AdminProductApprovals } from '@/components/admin/AdminProductApprovals';
 import { PlatformSettingsManager } from '@/components/admin/PlatformSettingsManager';
-import { AdminAttributeBlockManager } from '@/components/admin/AdminAttributeBlockManager';
+import { AdminCatalogManager } from '@/components/admin/AdminCatalogManager';
 interface Report {
   id: string;
   reporter_id: string;
@@ -337,15 +335,14 @@ export default function AdminPage() {
             <TabsTrigger value="users" className="text-[10px]">Users</TabsTrigger>
             <TabsTrigger value="societies" className="text-[10px]">Societies</TabsTrigger>
             <TabsTrigger value="disputes" className="text-[10px]">Disputes</TabsTrigger>
-            <TabsTrigger value="categories" className="text-[10px]">Categories</TabsTrigger>
+            <TabsTrigger value="catalog" className="text-[10px]">Catalog</TabsTrigger>
           </TabsList>
-          <TabsList className="w-full grid grid-cols-8 mt-1">
+          <TabsList className="w-full grid grid-cols-7 mt-1">
             <TabsTrigger value="reports" className="text-[10px]">Reports</TabsTrigger>
             <TabsTrigger value="payments" className="text-[10px]">Payments</TabsTrigger>
             <TabsTrigger value="reviews" className="text-[10px]">Reviews</TabsTrigger>
             <TabsTrigger value="featured" className="text-[10px]">Featured</TabsTrigger>
             <TabsTrigger value="features" className="text-[10px]">Features</TabsTrigger>
-            <TabsTrigger value="attributes" className="text-[10px]">Attributes</TabsTrigger>
             <TabsTrigger value="settings" className="text-[10px]">Settings</TabsTrigger>
             <TabsTrigger value="navigator" className="text-[10px]">Navigate</TabsTrigger>
           </TabsList>
@@ -610,13 +607,8 @@ export default function AdminPage() {
           </TabsContent>
 
 
-          <TabsContent value="attributes" className="mt-4">
-            <AdminAttributeBlockManager />
-          </TabsContent>
-
-          <TabsContent value="categories" className="space-y-4 mt-4">
-            <CategoryManager />
-            <SubcategoryManager />
+          <TabsContent value="catalog" className="mt-4">
+            <AdminCatalogManager />
           </TabsContent>
 
           <TabsContent value="settings" className="space-y-4 mt-4">

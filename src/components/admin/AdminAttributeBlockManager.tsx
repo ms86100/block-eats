@@ -357,20 +357,27 @@ export function AdminAttributeBlockManager() {
 
               {/* Category Assignment */}
               <div className="space-y-2">
-                <Label className="text-xs">Attach to Categories * ({selectedCategories.length} selected)</Label>
+              <Label className="text-xs">Attach to Categories * ({selectedCategories.length} selected)</Label>
                 <Card>
-                  <CardContent className="p-2 max-h-40 overflow-y-auto">
-                    <div className="grid grid-cols-1 gap-1.5">
-                      {categories.map((c: any) => (
-                        <label key={c.category} className="flex items-center gap-2 text-xs cursor-pointer py-1">
-                          <Checkbox
-                            checked={selectedCategories.includes(c.category)}
-                            onCheckedChange={() => toggleCategory(c.category)}
-                          />
-                          <span>{c.icon} {c.display_name}</span>
-                        </label>
-                      ))}
-                    </div>
+                  <CardContent className="p-2 max-h-48 overflow-y-auto">
+                    {categories.length === 0 ? (
+                      <p className="text-xs text-muted-foreground py-2">Loading categories…</p>
+                    ) : (
+                      <div className="grid grid-cols-1 gap-1">
+                        {categories.map((c: any) => (
+                          <label key={c.category} className="flex items-center gap-2 text-xs cursor-pointer py-1.5 px-1 rounded hover:bg-muted/50 transition-colors">
+                            <Checkbox
+                              checked={selectedCategories.includes(c.category)}
+                              onCheckedChange={() => toggleCategory(c.category)}
+                            />
+                            <span className="flex items-center gap-1.5">
+                              {c.icon && <span>{c.icon}</span>}
+                              <span className="font-medium">{c.display_name || c.category}</span>
+                            </span>
+                          </label>
+                        ))}
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
               </div>
