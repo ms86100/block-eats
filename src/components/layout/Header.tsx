@@ -48,20 +48,30 @@ export function Header({
     if (!user) return;
     fetchUnread();
 
-    const channel = supabase
-      .channel('notification-badge')
-      .on('postgres_changes', {
-        event: 'INSERT',
-        schema: 'public',
-        table: 'user_notifications',
-        filter: `user_id=eq.${user.id}`,
-      }, () => {
-        setUnreadCount(prev => prev + 1);
-      })
-      .subscribe();
+    // Debounce realtime subscription to avoid re-subscribing on rapid remounts
+    const timer = setTimeout(() => {
+      const channel = supabase
+        .channel(`notification-badge-${user.id}`)
+        .on('postgres_changes', {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'user_notifications',
+          filter: `user_id=eq.${user.id}`,
+        }, () => {
+          setUnreadCount(prev => prev + 1);
+        })
+        .subscribe();
 
-    return () => { supabase.removeChannel(channel); };
-  }, [user]);
+      // Store cleanup ref
+      (window as any).__notifChannel = channel;
+    }, 1000);
+
+    return () => {
+      clearTimeout(timer);
+      const ch = (window as any).__notifChannel;
+      if (ch) supabase.removeChannel(ch);
+    };
+  }, [user?.id]);
 
   const fetchUnread = async () => {
     if (!user) return;

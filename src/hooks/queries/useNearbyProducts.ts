@@ -66,7 +66,7 @@ export function useNearbyProducts() {
       return products;
     },
     enabled: !!effectiveSocietyId && browseBeyond,
-    staleTime: jitteredStaleTime(5 * 60 * 1000),
+    staleTime: jitteredStaleTime(10 * 60 * 1000),
   });
 }
 

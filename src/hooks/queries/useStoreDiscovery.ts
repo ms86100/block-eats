@@ -76,7 +76,7 @@ export function useLocalSellers() {
       return grouped;
     },
     enabled: !!isApproved && !!effectiveSocietyId,
-    staleTime: jitteredStaleTime(60_000),
+    staleTime: jitteredStaleTime(5 * 60_000),
   });
 }
 
@@ -138,6 +138,6 @@ export function useNearbySocietySellers(radiusKm: number = 5, enabled: boolean =
       return bands;
     },
     enabled: !!isApproved && !!effectiveSocietyId && enabled,
-    staleTime: jitteredStaleTime(60_000),
+    staleTime: jitteredStaleTime(5 * 60_000),
   });
 }
