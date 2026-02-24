@@ -63,21 +63,35 @@ export function ProductDetailSheet({
   const [similarProducts, setSimilarProducts] = useState<any[]>([]);
   const { formatPrice } = useCurrency();
 
-  // Fetch similar products from same category
+  const [loadedSpecs, setLoadedSpecs] = useState<Record<string, any> | null>(null);
+
+  // Fetch specifications + similar products when sheet opens
   useEffect(() => {
     if (!product || !open) return;
-    const fetchSimilar = async () => {
-      const { data } = await supabase
-        .from('products')
-        .select('id, name, price, image_url, is_veg, seller_id, seller:seller_profiles!products_seller_id_fkey(business_name)')
-        .eq('category', product.category as string)
-        .eq('is_available', true)
-        .eq('approval_status', 'approved')
-        .neq('id', product.product_id)
-        .limit(6);
-      setSimilarProducts(data || []);
+    setLoadedSpecs(null);
+
+    const fetchData = async () => {
+      // Fetch specs and similar in parallel
+      const [specsRes, similarRes] = await Promise.all([
+        supabase
+          .from('products')
+          .select('specifications')
+          .eq('id', product.product_id)
+          .maybeSingle(),
+        supabase
+          .from('products')
+          .select('id, name, price, image_url, is_veg, seller_id, seller:seller_profiles!products_seller_id_fkey(business_name)')
+          .eq('category', product.category as string)
+          .eq('is_available', true)
+          .eq('approval_status', 'approved')
+          .neq('id', product.product_id)
+          .limit(6),
+      ]);
+
+      setLoadedSpecs(specsRes.data?.specifications as Record<string, any> | null);
+      setSimilarProducts(similarRes.data || []);
     };
-    fetchSimilar();
+    fetchData();
   }, [product?.product_id, open]);
 
   if (!product) return null;
@@ -239,7 +253,7 @@ export function ProductDetailSheet({
                 )}
 
                 {/* Dynamic Attribute Blocks */}
-                <ProductAttributeBlocks specifications={product.specifications} />
+                <ProductAttributeBlocks specifications={loadedSpecs ?? product.specifications} />
 
                 {/* Trust Snapshot */}
                 {trustSnapshot && (trustSnapshot.completed_orders > 0 || trustSnapshot.avg_response_min > 0) && (
