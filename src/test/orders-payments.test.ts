@@ -737,12 +737,13 @@ describe('Orders & Payments — Real DB Integration', () => {
   let seedData: { society_id: string; society_2_id: string };
 
   beforeAll(async () => {
+    // Ensure test users exist FIRST (they may have been deleted by reset-and-seed)
+    seedData = await ensureTestUsersSeeded();
     [sellerClient, buyerClient, adminClient] = await Promise.all([
       createAuthenticatedClient('seller'),
       createAuthenticatedClient('buyer'),
       createAuthenticatedClient('admin'),
     ]);
-    seedData = await ensureTestUsersSeeded();
   }, 30000);
 
   describe('1. Order Status Transition — DB Trigger Enforcement', () => {
