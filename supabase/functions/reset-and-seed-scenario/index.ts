@@ -448,6 +448,13 @@ Deno.serve(async (req) => {
     }));
 
     // ─── PHASE 3: Create societies ──────────────────────────────
+    // Null out admin society references so we can delete old societies
+    for (const aid of adminUserIds) {
+      await sb.from("profiles").update({ society_id: null }).eq("id", aid);
+    }
+    // Delete any leftover societies from partial runs
+    await sb.from("societies").delete().neq("id", "00000000-0000-0000-0000-000000000000");
+
     const { data: societyRows, error: socErr } = await sb
       .from("societies")
       .insert(SOCIETIES)
@@ -457,6 +464,11 @@ Deno.serve(async (req) => {
     const societyIds = societyRows!.map((s: any) => s.id);
 
     results.push(makeResult("seed", "create_societies", "passed", { count: societyIds.length, societies: societyRows }));
+
+    // Reassign admin to first society
+    for (const aid of adminUserIds) {
+      await sb.from("profiles").update({ society_id: societyIds[0] }).eq("id", aid);
+    }
 
     // ─── PHASE 4: Create auth users + profiles ─────────────────
     const allUserDefs = [...SELLERS, ...BUYERS];
@@ -535,6 +547,28 @@ Deno.serve(async (req) => {
       count: Object.keys(sellerProfileMap).length,
     }));
 
+    // ─── PHASE 5b: Create seller licenses for food sellers ──────
+    // The check_seller_license trigger requires FSSAI for food group
+    const foodGroupId = "7df7f8c6-3988-4ba4-9fcd-6bc7281464ac";
+    const foodSellers = SELLERS.filter(s => s.primary_group === "food");
+    for (const fs of foodSellers) {
+      const sellerId = sellerProfileMap[fs.email];
+      const { error: licErr } = await sb.from("seller_licenses").insert({
+        seller_id: sellerId,
+        group_id: foodGroupId,
+        license_type: "FSSAI Certificate",
+        license_number: `FSSAI-SEED-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        document_url: "https://placeholder.sociva.com/fssai-seed-doc.pdf",
+        status: "approved",
+        reviewed_at: new Date().toISOString(),
+      });
+      if (licErr) console.warn(`License for ${fs.email}:`, licErr.message);
+    }
+
+    results.push(makeResult("seed", "create_food_licenses", "passed", {
+      count: foodSellers.length,
+    }));
+
     // ─── PHASE 6: Create products with specifications ───────────
     let totalProducts = 0;
     let productsWithSpecs = 0;
@@ -565,7 +599,6 @@ Deno.serve(async (req) => {
           service_duration_minutes: p.service_duration_minutes || null,
           brand: p.brand || null,
           specifications: p.specifications || null,
-          discount_percentage: p.mrp ? Math.round(((p.mrp - p.price) / p.mrp) * 100) : null,
         });
 
         if (prodErr) {
