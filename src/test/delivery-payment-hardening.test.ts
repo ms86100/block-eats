@@ -406,12 +406,13 @@ describe('Delivery & Payment Hardening — Real DB Integration', () => {
   let seedData: { society_id: string; society_2_id: string };
 
   beforeAll(async () => {
+    // Ensure test users exist FIRST (they may have been deleted by reset-and-seed)
+    seedData = await ensureTestUsersSeeded();
     [adminClient, sellerClient, buyerClient] = await Promise.all([
       createAuthenticatedClient('admin'),
       createAuthenticatedClient('seller'),
       createAuthenticatedClient('buyer'),
     ]);
-    seedData = await ensureTestUsersSeeded();
   }, 30000);
 
   // ─── DB-DA: Delivery Assignment DB Trigger Tests ────────────────────────────

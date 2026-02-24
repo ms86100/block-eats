@@ -48,6 +48,10 @@ const blockBSlug = testSlug("integ_block_b");
 // ═══════════════════════════════════════════════════════════════════════
 
 beforeAll(async () => {
+  // Ensure test users exist FIRST (they may have been deleted by reset-and-seed)
+  const seedData = await ensureTestUsersSeeded();
+  sellerSocietyId = seedData.society_id;
+
   [adminClient, sellerClient, buyerClient] = await Promise.all([
     createAuthenticatedClient("admin"),
     createAuthenticatedClient("seller"),
@@ -60,8 +64,7 @@ beforeAll(async () => {
     getCurrentUserId(buyerClient),
   ]);
 
-  const seedData = await ensureTestUsersSeeded();
-  sellerSocietyId = seedData.society_id;
+  // sellerSocietyId already set above from seedData
 
   // Pre-cleanup: remove leftover data from previous failed runs
   // Match by block_type prefix pattern

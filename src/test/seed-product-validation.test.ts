@@ -27,6 +27,21 @@ describe("Seed Product Validation", () => {
       auth: { autoRefreshToken: false, persistSession: false, detectSessionInUrl: false },
     });
 
+    // Check if seed data already exists to avoid destructive re-seeding
+    const { data: existingProducts } = await client
+      .from("products")
+      .select("id, name")
+      .eq("approval_status", "approved")
+      .eq("is_available", true)
+      .ilike("name", "%Butter Chicken%")
+      .limit(1);
+
+    if (existingProducts && existingProducts.length > 0) {
+      // Data already seeded — skip re-seeding
+      seedResult = { success: true };
+      return;
+    }
+
     // Trigger the seed function
     const res = await fetch(`${SUPABASE_URL}/functions/v1/reset-and-seed-scenario`, {
       method: "POST",
