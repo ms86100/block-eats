@@ -147,8 +147,8 @@
     --nav-active: 25 95% 60%;
     --nav-active-foreground: 0 0% 100%;
 
-    /* Product image warm beige bg #FFF8E7 */
-    --product-image-bg: 42 100% 95%;
+    /* Product image — slightly lighter dark */
+    --product-image-bg: 0 0% 18%;
 
     /* Dark mode tints — subtle */
     --tint-food: 0 0% 12%;
