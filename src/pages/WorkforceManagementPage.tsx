@@ -20,6 +20,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { logAudit } from '@/lib/audit';
 import { UserPlus, Users, Shield, AlertTriangle, Settings } from 'lucide-react';
+import { ModuleSearchBar } from '@/components/search/ModuleSearchBar';
 
 export default function WorkforceManagementPage() {
   const { user, profile, effectiveSocietyId, isSocietyAdmin, isAdmin } = useAuth();
@@ -110,6 +111,7 @@ export default function WorkforceManagementPage() {
     <AppLayout headerTitle="Workforce" showLocation={false}>
       <FeatureGate feature="workforce_management">
         <div className="p-4 space-y-4 pb-24">
+          <ModuleSearchBar context="workforce" value="" onChange={() => {}} />
           {/* Summary Stats */}
           <div className="grid grid-cols-3 gap-3">
             <Card><CardContent className="p-3 text-center">

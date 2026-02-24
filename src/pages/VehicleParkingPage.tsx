@@ -16,6 +16,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Car, Bike, AlertTriangle, Plus, ParkingSquare, Check, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { friendlyError } from '@/lib/utils';
+import { ModuleSearchBar } from '@/components/search/ModuleSearchBar';
 
 interface ParkingSlot {
   id: string;
@@ -159,6 +160,7 @@ export default function VehicleParkingPage() {
     <AppLayout headerTitle="Vehicle Parking" showLocation={false}>
       <FeatureGate feature="vehicle_parking">
       <div className="p-4 space-y-4">
+        <ModuleSearchBar context="parking" value="" onChange={() => {}} />
         {/* Stats */}
         <div className="grid grid-cols-3 gap-3">
           <Card><CardContent className="p-3 text-center">

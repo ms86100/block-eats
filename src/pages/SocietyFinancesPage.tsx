@@ -18,6 +18,7 @@ import { BudgetManager } from '@/components/finances/BudgetManager';
 import { ExpenseFlagManager } from '@/components/finances/ExpenseFlagManager';
 import { Loader2, Plus, TrendingUp, TrendingDown, Wallet, Download, Flag, Target } from 'lucide-react';
 import { exportFinances } from '@/lib/csv-export';
+import { ModuleSearchBar } from '@/components/search/ModuleSearchBar';
 
 interface Expense {
   id: string;
@@ -50,6 +51,7 @@ export default function SocietyFinancesPage() {
   const [flagExpenseId, setFlagExpenseId] = useState<string | null>(null);
   const [flagReason, setFlagReason] = useState('');
   const [flagging, setFlagging] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
 
   const fetchData = useCallback(async () => {
     const sid = effectiveSocietyId;
@@ -98,6 +100,7 @@ export default function SocietyFinancesPage() {
     <AppLayout headerTitle="Society Finances" showLocation={false}>
       <FeatureGate feature="finances">
       <div className="p-4 space-y-4">
+        <ModuleSearchBar context="finances" value={searchQuery} onChange={setSearchQuery} />
         {loading ? (
           <div className="flex justify-center py-12"><Loader2 className="animate-spin text-muted-foreground" /></div>
         ) : (

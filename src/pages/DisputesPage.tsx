@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Button } from '@/components/ui/button';
 import { FeatureGate } from '@/components/ui/FeatureGate';
@@ -10,6 +10,7 @@ import { DisputeDetailSheet } from '@/components/disputes/DisputeDetailSheet';
 import { Plus, ShieldAlert } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { ModuleSearchBar } from '@/components/search/ModuleSearchBar';
 
 interface Ticket {
   id: string;
@@ -34,6 +35,7 @@ export default function DisputesPage() {
   const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null);
   const [tab, setTab] = useState('open');
   const [viewMode, setViewMode] = useState<'my' | 'all'>('my');
+  const [searchQuery, setSearchQuery] = useState('');
 
   const fetchTickets = useCallback(async () => {
     if (!user) return;
@@ -58,7 +60,18 @@ export default function DisputesPage() {
 
   const openTickets = tickets.filter(t => !['resolved', 'closed'].includes(t.status));
   const closedTickets = tickets.filter(t => ['resolved', 'closed'].includes(t.status));
-  const display = tab === 'open' ? openTickets : closedTickets;
+
+  const filterBySearch = (list: Ticket[]) => {
+    const q = searchQuery.toLowerCase().trim();
+    if (!q) return list;
+    return list.filter(t =>
+      t.description.toLowerCase().includes(q) ||
+      t.category.toLowerCase().includes(q) ||
+      t.status.toLowerCase().includes(q)
+    );
+  };
+
+  const display = filterBySearch(tab === 'open' ? openTickets : closedTickets);
 
   return (
     <AppLayout headerTitle="My Concerns" showLocation={false}>
@@ -70,6 +83,7 @@ export default function DisputesPage() {
             <Button size="sm" variant={viewMode === 'all' ? 'default' : 'outline'} onClick={() => setViewMode('all')} className="text-xs">All Society</Button>
           </div>
         )}
+        <ModuleSearchBar context="disputes" value={searchQuery} onChange={setSearchQuery} />
         <Tabs value={tab} onValueChange={setTab}>
           <TabsList className="w-full grid grid-cols-2">
             <TabsTrigger value="open">Open ({openTickets.length})</TabsTrigger>

@@ -27,6 +27,7 @@ import {
 import { Switch } from '@/components/ui/switch';
 import { exportVisitorLog } from '@/lib/csv-export';
 import { useQuery } from '@tanstack/react-query';
+import { ModuleSearchBar } from '@/components/search/ModuleSearchBar';
 
 type VisitorStatus = 'expected' | 'checked_in' | 'checked_out' | 'cancelled' | 'expired';
 
@@ -84,6 +85,7 @@ export default function VisitorManagementPage() {
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('today');
   const { loadingId, withLoading } = useActionLoading();
+  const [searchQuery, setSearchQuery] = useState('');
 
   // Fetch visitor types from DB
   const { data: visitorTypes = FALLBACK_VISITOR_TYPES } = useQuery({
@@ -237,6 +239,7 @@ export default function VisitorManagementPage() {
     <AppLayout headerTitle="Visitor Management" showLocation={false}>
       <FeatureGate feature="visitor_management">
       <div className="p-4 space-y-4">
+        <ModuleSearchBar context="visitors" value={searchQuery} onChange={setSearchQuery} />
         {/* Summary Card */}
         <Card className="border-primary/20 bg-primary/5">
           <CardContent className="p-4 flex items-center justify-between">

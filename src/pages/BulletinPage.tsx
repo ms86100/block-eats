@@ -17,6 +17,7 @@ import { escapeIlike } from '@/lib/query-utils';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from '@/hooks/use-toast';
 import { Plus, Search, Loader2, Send, MessageCircle } from 'lucide-react';
+import { useSearchPlaceholder } from '@/hooks/useSearchPlaceholder';
 
 export default function BulletinPage() {
   const { user, profile, effectiveSocietyId } = useAuth();
@@ -27,6 +28,7 @@ export default function BulletinPage() {
   const [helpRequests, setHelpRequests] = useState<HelpRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const bulletinPlaceholder = useSearchPlaceholder('bulletin');
   const [showCreate, setShowCreate] = useState(false);
   const [showCreateHelp, setShowCreateHelp] = useState(false);
   const [selectedPost, setSelectedPost] = useState<BulletinPost | null>(null);
@@ -185,7 +187,7 @@ export default function BulletinPage() {
             <div className="px-4">
               <div className="relative">
                 <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                <Input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search posts..." className="pl-9 h-9 text-sm" />
+                <Input value={search} onChange={e => setSearch(e.target.value)} placeholder={bulletinPlaceholder} className="pl-9 h-9 text-sm" />
               </div>
             </div>
             <CategoryFilter selected={category} onSelect={setCategory} />

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { FeatureGate } from '@/components/ui/FeatureGate';
@@ -10,6 +10,7 @@ import { SnagTicketCard } from '@/components/snags/SnagTicketCard';
 import { CreateSnagSheet } from '@/components/snags/CreateSnagSheet';
 import { SnagDetailSheet } from '@/components/snags/SnagDetailSheet';
 import { Wrench, Users, AlertTriangle } from 'lucide-react';
+import { ModuleSearchBar } from '@/components/search/ModuleSearchBar';
 interface SnagTicket {
   id: string;
   flat_number: string;
@@ -49,6 +50,7 @@ export default function SnagListPage() {
   const [escalations, setEscalations] = useState<CollectiveEscalation[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedTicket, setSelectedTicket] = useState<SnagTicket | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
 
   const fetchTickets = async () => {
     if (!effectiveSocietyId) return;
@@ -79,6 +81,7 @@ export default function SnagListPage() {
     <AppLayout headerTitle="Snag Reports" showLocation={false}>
       <FeatureGate feature="snag_management">
       <div className="p-4 space-y-4">
+        <ModuleSearchBar context="construction" value={searchQuery} onChange={setSearchQuery} />
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Wrench size={18} className="text-primary" />
@@ -121,9 +124,18 @@ export default function SnagListPage() {
           </div>
         ) : (
           <div className="space-y-3">
-            {tickets.map((t) => (
-              <SnagTicketCard key={t.id} ticket={t} onClick={() => setSelectedTicket(t)} />
-            ))}
+            {tickets
+              .filter(t => {
+                if (!searchQuery.trim()) return true;
+                const q = searchQuery.toLowerCase();
+                return t.description.toLowerCase().includes(q) ||
+                  t.category.toLowerCase().includes(q) ||
+                  t.flat_number.toLowerCase().includes(q) ||
+                  t.status.toLowerCase().includes(q);
+              })
+              .map((t) => (
+                <SnagTicketCard key={t.id} ticket={t} onClick={() => setSelectedTicket(t)} />
+              ))}
           </div>
         )}
 
