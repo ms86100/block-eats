@@ -11,6 +11,7 @@ import { MARKETPLACE_FALLBACKS, type MarketplaceConfig } from '@/hooks/useMarket
 import type { BadgeConfigRow } from '@/hooks/useBadgeConfig';
 import type { CategoryConfig } from '@/types/categories';
 import { cn } from '@/lib/utils';
+import { useCurrency } from '@/hooks/useCurrency';
 
 /* ━━━ Types ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
@@ -89,6 +90,7 @@ function ProductListingCardInner({
 }: ProductListingCardProps) {
   const { items, addItem, updateQuantity } = useCart();
   const { impact, selectionChanged } = useHaptics();
+  const { formatPrice } = useCurrency();
 
   const mc = marketplaceConfig || MARKETPLACE_FALLBACKS;
 
@@ -336,11 +338,11 @@ function ProductListingCardInner({
         {/* Price — prominent, 14-16px */}
         <div className="flex items-end gap-1.5 mt-auto">
           <span className="font-semibold text-[13px] text-foreground leading-none tracking-tight">
-            {mc.currencySymbol}{product.price.toLocaleString()}
+            {formatPrice(product.price)}
           </span>
           {hasDiscount && (
             <span className="text-[10px] text-muted-foreground line-through leading-none">
-              MRP {mc.currencySymbol}{product.mrp?.toLocaleString()}
+              MRP {formatPrice(product.mrp!)}
             </span>
           )}
         </div>

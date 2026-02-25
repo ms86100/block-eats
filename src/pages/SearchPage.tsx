@@ -36,7 +36,7 @@ export default function SearchPage() {
 
   return (
     <AppLayout showHeader={false}>
-      <div className="pb-32">
+      <div className="pb-24">
         {/* Sticky search header */}
         <div className="sticky top-0 z-40 bg-background safe-top">
           <div className="px-4 pt-3 pb-2">

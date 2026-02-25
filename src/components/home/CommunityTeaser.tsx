@@ -51,7 +51,7 @@ export function CommunityTeaser() {
   // C4: Show empty state instead of disappearing
   if (posts.length === 0 && helpCount === 0) {
     return (
-      <div className="px-4 mt-6">
+      <div className="px-4 mt-6 mb-4">
         <div className="flex items-center justify-between mb-3">
           <h3 className="font-extrabold text-[15px] text-foreground tracking-tight flex items-center gap-1.5">
             <MessageCircle size={15} className="text-primary" />
@@ -70,7 +70,7 @@ export function CommunityTeaser() {
   }
 
   return (
-    <div className="px-4 mt-6">
+    <div className="px-4 mt-6 mb-4">
       <div className="flex items-center justify-between mb-3">
         <h3 className="font-extrabold text-[15px] text-foreground tracking-tight flex items-center gap-1.5">
           <MessageCircle size={15} className="text-primary" />
