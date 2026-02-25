@@ -158,13 +158,16 @@ export default function BuilderDashboardPage() {
 
         {/* Builder Feature Plan + Announcement */}
         {managedBuilderIds.length > 0 && (
-          <div className="flex items-center justify-between">
+          <>
+            <div className="flex items-center justify-between">
+              <h3 className="font-semibold text-sm text-muted-foreground">Feature Plan</h3>
+              <BuilderAnnouncementSheet
+                societies={societies.map(s => ({ id: s.id, name: s.name }))}
+                builderId={managedBuilderIds[0]}
+              />
+            </div>
             <BuilderFeaturePlan builderId={managedBuilderIds[0]} />
-            <BuilderAnnouncementSheet
-              societies={societies.map(s => ({ id: s.id, name: s.name }))}
-              builderId={managedBuilderIds[0]}
-            />
-          </div>
+          </>
         )}
 
         {/* Action Center - Consolidated snags & disputes */}

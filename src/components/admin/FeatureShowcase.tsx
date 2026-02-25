@@ -4,7 +4,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sh
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Check, ExternalLink } from 'lucide-react';
+import { Check, ExternalLink, Lock } from 'lucide-react';
 import { getFeatureIcon } from '@/lib/feature-showcase-data';
 import { useNavigate } from 'react-router-dom';
 
@@ -12,9 +12,10 @@ interface FeatureShowcaseProps {
   featureKey: string | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  isLocked?: boolean;
 }
 
-export function FeatureShowcase({ featureKey, open, onOpenChange }: FeatureShowcaseProps) {
+export function FeatureShowcase({ featureKey, open, onOpenChange, isLocked }: FeatureShowcaseProps) {
   const navigate = useNavigate();
 
   const { data, isLoading } = useQuery({
@@ -94,7 +95,12 @@ export function FeatureShowcase({ featureKey, open, onOpenChange }: FeatureShowc
                 <Badge variant="outline" className="text-[10px] capitalize">{data.category}</Badge>
               )}
 
-              {data.route && (
+              {isLocked ? (
+                <p className="text-xs text-muted-foreground text-center bg-muted rounded-lg p-3">
+                  <Lock size={14} className="inline mr-1 -mt-0.5" />
+                  This feature is not included in your current plan. Contact your platform admin to upgrade.
+                </p>
+              ) : data.route ? (
                 <Button
                   className="w-full gap-2"
                   onClick={() => {
@@ -105,7 +111,7 @@ export function FeatureShowcase({ featureKey, open, onOpenChange }: FeatureShowc
                   <ExternalLink size={14} />
                   Try this feature
                 </Button>
-              )}
+              ) : null}
             </div>
           </>
         ) : (

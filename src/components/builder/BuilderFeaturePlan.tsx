@@ -27,6 +27,7 @@ interface PackageFeature {
 
 export function BuilderFeaturePlan({ builderId }: BuilderFeaturePlanProps) {
   const [showcaseKey, setShowcaseKey] = useState<string | null>(null);
+  const [showcaseLocked, setShowcaseLocked] = useState(false);
   const navigate = useNavigate();
 
   const { data, isLoading } = useQuery({
@@ -166,7 +167,7 @@ export function BuilderFeaturePlan({ builderId }: BuilderFeaturePlanProps) {
                 >
                   <Card
                     className="border-0 shadow-sm hover:shadow-md transition-shadow cursor-pointer group relative overflow-hidden"
-                    onClick={() => setShowcaseKey(f.feature_key)}
+                    onClick={() => { setShowcaseKey(f.feature_key); setShowcaseLocked(false); }}
                   >
                     <CardContent className="p-3.5">
                       <div className="flex items-start justify-between mb-2">
@@ -226,7 +227,7 @@ export function BuilderFeaturePlan({ builderId }: BuilderFeaturePlanProps) {
                 >
                   <Card
                     className="border-0 shadow-sm opacity-60 hover:opacity-80 transition-opacity cursor-pointer"
-                    onClick={() => setShowcaseKey(f.feature_key)}
+                    onClick={() => { setShowcaseKey(f.feature_key); setShowcaseLocked(true); }}
                   >
                     <CardContent className="p-3.5">
                       <div className="flex items-start justify-between mb-2">
@@ -256,6 +257,7 @@ export function BuilderFeaturePlan({ builderId }: BuilderFeaturePlanProps) {
         featureKey={showcaseKey}
         open={!!showcaseKey}
         onOpenChange={(open) => !open && setShowcaseKey(null)}
+        isLocked={showcaseLocked}
       />
     </>
   );
