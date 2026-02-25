@@ -118,10 +118,10 @@ export default function CategoryPage() {
   return (
     <AppLayout showHeader={false}>
       {/* Sticky Header */}
-      <div className="sticky top-0 z-30 bg-secondary border-b border-border safe-top">
+      <div className="sticky top-0 z-30 bg-background border-b border-border safe-top">
         <div className="px-3 pt-1 pb-2">
           <div className="flex items-center gap-2 mb-2">
-            <Link to="/" className="w-10 h-10 rounded-full bg-secondary flex items-center justify-center shrink-0 shadow-sm">
+            <Link to="/" className="w-10 h-10 rounded-full bg-muted flex items-center justify-center shrink-0">
               <ArrowLeft size={18} className="text-foreground" />
             </Link>
             <h1 className="text-lg font-semibold flex items-center gap-1.5 flex-1 truncate text-foreground">
@@ -148,13 +148,13 @@ export default function CategoryPage() {
         </div>
 
         {/* Filter/Sort bar */}
-        <div className="flex gap-2 px-3 pb-2 overflow-x-auto scrollbar-hide">
+         <div className="flex gap-2 px-3 pb-2 overflow-x-auto scrollbar-hide snap-x snap-mandatory">
           {SORT_OPTIONS.map((opt) => (
             <button
               key={opt.key}
               onClick={() => setSortBy(opt.key)}
               className={cn(
-                'px-4 py-1.5 rounded-full text-[11px] font-medium whitespace-nowrap transition-colors',
+                'px-4 py-1.5 rounded-full text-[11px] font-medium whitespace-nowrap transition-colors snap-start',
                 sortBy === opt.key
                   ? 'bg-foreground text-background'
                   : 'bg-secondary text-muted-foreground'
@@ -167,7 +167,7 @@ export default function CategoryPage() {
 
         {/* Subcategory filter chips */}
         {subcategories.length > 0 && (
-          <div className="flex gap-2 px-3 pb-2 overflow-x-auto scrollbar-hide">
+          <div className="flex gap-2 px-3 pb-2 overflow-x-auto scrollbar-hide snap-x snap-mandatory">
             <button
               onClick={() => setSelectedSubcategory('all')}
               className={cn(

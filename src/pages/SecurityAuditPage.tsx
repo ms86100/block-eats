@@ -115,28 +115,28 @@ export default function SecurityAuditPage() {
             <Card>
               <CardContent className="p-3 text-center">
                 <Users size={18} className="mx-auto text-primary mb-1" />
-                <p className="text-2xl font-bold">{metrics.totalToday}</p>
+                <p className="text-2xl font-bold tabular-nums">{metrics.totalToday}</p>
                 <p className="text-[10px] text-muted-foreground">Entries Today</p>
               </CardContent>
             </Card>
             <Card>
               <CardContent className="p-3 text-center">
                 <AlertTriangle size={18} className="mx-auto text-warning mb-1" />
-                <p className="text-2xl font-bold">{metrics.manualPercent}%</p>
+                <p className="text-2xl font-bold tabular-nums">{metrics.manualPercent}%</p>
                 <p className="text-[10px] text-muted-foreground">Manual Entries</p>
               </CardContent>
             </Card>
             <Card>
               <CardContent className="p-3 text-center">
                 <XCircle size={18} className="mx-auto text-destructive mb-1" />
-                <p className="text-2xl font-bold">{metrics.deniedPercent}%</p>
+                <p className="text-2xl font-bold tabular-nums">{metrics.deniedPercent}%</p>
                 <p className="text-[10px] text-muted-foreground">Denied</p>
               </CardContent>
             </Card>
             <Card>
               <CardContent className="p-3 text-center">
                 <Clock size={18} className="mx-auto text-info mb-1" />
-                <p className="text-2xl font-bold">
+                <p className="text-2xl font-bold tabular-nums">
                   {metrics.avgConfirmationMs
                     ? `${(metrics.avgConfirmationMs / 1000).toFixed(1)}s`
                     : '—'}
@@ -246,7 +246,7 @@ export default function SecurityAuditPage() {
         {/* Entries List */}
         {isLoading ? (
           <div className="space-y-2">
-            {[1, 2, 3].map(i => <Skeleton key={i} className="h-16 w-full" />)}
+            {[1, 2, 3].map(i => <Skeleton key={i} className="h-16 w-full rounded-xl" />)}
           </div>
         ) : entries.length === 0 ? (
           <p className="text-center text-muted-foreground py-12 text-sm">No gate entries found</p>

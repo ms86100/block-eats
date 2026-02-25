@@ -337,7 +337,7 @@ function ProductListingCardInner({
 
         {/* Price — prominent, 14-16px */}
         <div className="flex items-end gap-1.5 mt-auto">
-          <span className="font-semibold text-[13px] text-foreground leading-none tracking-tight">
+          <span className="font-semibold text-[13px] text-foreground leading-none tracking-tight tabular-nums">
             {formatPrice(product.price)}
           </span>
           {hasDiscount && (

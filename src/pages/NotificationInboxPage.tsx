@@ -45,10 +45,10 @@ export default function NotificationInboxPage() {
         ) : (
           <div className="space-y-2">
             {notifications.map(n => (
-              <button
+               <button
                 key={n.id}
                 onClick={() => handleTap(n)}
-                className={`w-full text-left rounded-xl p-3 transition-colors border ${
+                className={`w-full text-left rounded-xl p-3 transition-colors border min-h-[44px] ${
                   n.is_read 
                     ? 'bg-card border-border' 
                     : 'bg-primary/5 border-primary/20'

@@ -186,7 +186,7 @@ export default function ParcelManagementPage() {
               </div>
               <div>
                 <p className="font-semibold">{canLogParcels ? 'All Parcels' : 'My Parcels'}</p>
-                <p className="text-2xl font-bold text-primary">{parcels.length}</p>
+                <p className="text-2xl font-bold text-primary tabular-nums">{parcels.length}</p>
               </div>
             </div>
             <Sheet open={isAddOpen} onOpenChange={setIsAddOpen}>

@@ -113,21 +113,21 @@ export default function SocietyFinancesPage() {
                 <CardContent className="p-3 text-center">
                   <TrendingUp size={16} className="mx-auto text-success mb-1" />
                   <p className="text-xs text-muted-foreground">Collected</p>
-                  <p className="text-sm font-bold">{formatPrice(totalIncome)}</p>
+                  <p className="text-sm font-bold tabular-nums">{formatPrice(totalIncome)}</p>
                 </CardContent>
               </Card>
               <Card>
                 <CardContent className="p-3 text-center">
                   <TrendingDown size={16} className="mx-auto text-destructive mb-1" />
                   <p className="text-xs text-muted-foreground">Spent</p>
-                  <p className="text-sm font-bold">{formatPrice(totalExpenses)}</p>
+                  <p className="text-sm font-bold tabular-nums">{formatPrice(totalExpenses)}</p>
                 </CardContent>
               </Card>
               <Card>
                 <CardContent className="p-3 text-center">
                   <Wallet size={16} className="mx-auto text-primary mb-1" />
                   <p className="text-xs text-muted-foreground">Balance</p>
-                  <p className={`text-sm font-bold ${balance >= 0 ? 'text-success' : 'text-destructive'}`}>
+                  <p className={`text-sm font-bold tabular-nums ${balance >= 0 ? 'text-success' : 'text-destructive'}`}>
                     {formatPrice(balance)}
                   </p>
                 </CardContent>
@@ -186,7 +186,7 @@ export default function SocietyFinancesPage() {
 
       {/* Admin FABs */}
       {(isAdmin || isSocietyAdmin) && (
-        <div className="fixed bottom-24 right-4 z-40 flex flex-col gap-2">
+        <div className="fixed bottom-[calc(6rem+env(safe-area-inset-bottom))] right-4 z-40 flex flex-col gap-2">
           {(expenses.length > 0 || income.length > 0) && (
             <Button size="sm" variant="outline" className="rounded-full shadow-lg gap-1" onClick={() => exportFinances(expenses, income)}>
               <Download size={14} /> Export

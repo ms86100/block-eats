@@ -126,8 +126,8 @@ export default function TrustDirectoryPage() {
                     <p className="text-xs text-muted-foreground">{skill.user?.name} · {skill.user?.block}-{skill.user?.flat_number}</p>
                   </div>
                   <div className="flex items-center gap-1">
-                    <Star size={12} className="text-accent fill-accent" />
-                    <span className="text-xs font-medium">{skill.trust_score}</span>
+                    <Star size={12} className="text-rating-star fill-rating-star" />
+                    <span className="text-xs font-medium tabular-nums">{skill.trust_score}</span>
                   </div>
                 </div>
                 {skill.description && <p className="text-xs text-muted-foreground">{skill.description}</p>}

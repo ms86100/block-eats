@@ -77,9 +77,9 @@ export default function InspectionChecklistPage() {
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex-1"><p className="text-sm font-medium">{item.item_name}</p>{item.notes && <p className="text-xs text-muted-foreground mt-0.5">{item.notes}</p>}</div>
                   <div className="flex gap-1">
-                    <button onClick={() => ic.updateItemStatus(item.id, 'pass')} className={`p-1.5 rounded-lg transition-colors ${item.status === 'pass' ? 'bg-success/20 text-success' : 'bg-muted text-muted-foreground'}`}><CheckCircle size={18} /></button>
-                    <button onClick={() => ic.updateItemStatus(item.id, 'fail')} className={`p-1.5 rounded-lg transition-colors ${item.status === 'fail' ? 'bg-destructive/20 text-destructive' : 'bg-muted text-muted-foreground'}`}><XCircle size={18} /></button>
-                    <button onClick={() => ic.updateItemStatus(item.id, 'na')} className={`p-1.5 rounded-lg transition-colors ${item.status === 'na' ? 'bg-muted text-foreground' : 'bg-muted text-muted-foreground'}`}><MinusCircle size={18} /></button>
+                    <button onClick={() => ic.updateItemStatus(item.id, 'pass')} className={`p-2 rounded-lg transition-colors min-w-[40px] min-h-[40px] flex items-center justify-center ${item.status === 'pass' ? 'bg-success/20 text-success' : 'bg-muted text-muted-foreground'}`}><CheckCircle size={18} /></button>
+                    <button onClick={() => ic.updateItemStatus(item.id, 'fail')} className={`p-2 rounded-lg transition-colors min-w-[40px] min-h-[40px] flex items-center justify-center ${item.status === 'fail' ? 'bg-destructive/20 text-destructive' : 'bg-muted text-muted-foreground'}`}><XCircle size={18} /></button>
+                    <button onClick={() => ic.updateItemStatus(item.id, 'na')} className={`p-2 rounded-lg transition-colors min-w-[40px] min-h-[40px] flex items-center justify-center ${item.status === 'na' ? 'bg-muted text-foreground' : 'bg-muted text-muted-foreground'}`}><MinusCircle size={18} /></button>
                   </div>
                 </div>
                 {item.status === 'fail' && (

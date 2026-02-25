@@ -101,17 +101,14 @@ export default function SellerEarningsPage() {
   return (
     <AppLayout showHeader={false}>
       <div className="p-4 safe-top">
-        <Link to="/seller" className="flex items-center gap-2 text-muted-foreground mb-6">
-          <span className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-muted shrink-0">
-            <ArrowLeft size={18} />
-          </span>
-          <span>Back to Dashboard</span>
+        <Link to="/seller" className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-muted shrink-0 mb-4">
+          <ArrowLeft size={18} className="text-foreground" />
         </Link>
 
         <h1 className="text-xl font-bold mb-4">Earnings & Payouts</h1>
 
         {/* Earnings Overview */}
-        <div className="bg-gradient-to-r from-success/10 to-success/5 rounded-xl p-4 mb-6">
+        <div className="bg-gradient-to-r from-success/10 to-success/5 rounded-2xl p-4 mb-6">
           <div className="flex items-center gap-2 mb-3">
             <TrendingUp className="text-success" size={20} />
             <h3 className="font-semibold">Earnings Overview</h3>
@@ -119,19 +116,19 @@ export default function SellerEarningsPage() {
           <div className="grid grid-cols-2 gap-3">
             <div className="bg-background/50 rounded-lg p-3 text-center">
               <p className="text-xs text-muted-foreground">Today</p>
-              <p className="text-xl font-bold text-success">{formatPrice(stats.today)}</p>
+              <p className="text-xl font-bold text-success tabular-nums">{formatPrice(stats.today)}</p>
             </div>
             <div className="bg-background/50 rounded-lg p-3 text-center">
               <p className="text-xs text-muted-foreground">This Week</p>
-              <p className="text-xl font-bold text-success">{formatPrice(stats.thisWeek)}</p>
+              <p className="text-xl font-bold text-success tabular-nums">{formatPrice(stats.thisWeek)}</p>
             </div>
             <div className="bg-background/50 rounded-lg p-3 text-center">
               <p className="text-xs text-muted-foreground">This Month</p>
-              <p className="text-xl font-bold text-success">{formatPrice(stats.thisMonth)}</p>
+              <p className="text-xl font-bold text-success tabular-nums">{formatPrice(stats.thisMonth)}</p>
             </div>
             <div className="bg-background/50 rounded-lg p-3 text-center">
               <p className="text-xs text-muted-foreground">All Time</p>
-              <p className="text-xl font-bold text-success">{formatPrice(stats.allTime)}</p>
+              <p className="text-xl font-bold text-success tabular-nums">{formatPrice(stats.allTime)}</p>
             </div>
           </div>
         </div>
@@ -147,7 +144,7 @@ export default function SellerEarningsPage() {
                 <p className="font-semibold">Pending Collection</p>
                 <p className="text-sm text-muted-foreground">COD payments to collect</p>
               </div>
-              <p className="text-xl font-bold text-warning">{formatPrice(stats.pendingPayout)}</p>
+              <p className="text-xl font-bold text-warning tabular-nums">{formatPrice(stats.pendingPayout)}</p>
             </CardContent>
           </Card>
         )}
@@ -183,7 +180,7 @@ export default function SellerEarningsPage() {
                           </div>
                         </div>
                         <div className="text-right">
-                          <p className="font-semibold">{formatPrice(payment.amount)}</p>
+                          <p className="font-semibold tabular-nums">{formatPrice(payment.amount)}</p>
                           <span className={`text-[10px] px-2 py-0.5 rounded-full ${statusInfo.color}`}>
                             {statusInfo.label}
                           </span>

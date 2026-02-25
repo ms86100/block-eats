@@ -198,11 +198,11 @@ export default function CategoriesPage() {
 
       {/* Parent Group Pills */}
       {!isLoading && activeParentGroups.length > 0 && (
-        <div className="flex gap-1.5 px-4 pb-2 overflow-x-auto scrollbar-hide">
+        <div className="flex gap-1.5 px-4 pb-2 overflow-x-auto scrollbar-hide snap-x snap-mandatory">
           <button
             onClick={() => handlePillClick('all')}
             className={cn(
-              'px-3 py-1.5 rounded-full text-[11px] font-semibold whitespace-nowrap transition-all border',
+              'px-3 py-1.5 rounded-full text-[11px] font-semibold whitespace-nowrap transition-all border snap-start min-w-[auto]',
               activeGroup === 'all'
                 ? 'bg-primary text-primary-foreground border-primary scale-105'
                 : 'bg-card text-muted-foreground border-border active:scale-[0.97]'
@@ -215,7 +215,7 @@ export default function CategoriesPage() {
               key={g.slug}
               onClick={() => handlePillClick(g.slug)}
               className={cn(
-                'px-3 py-1.5 rounded-full text-[11px] font-semibold whitespace-nowrap transition-all border',
+                'px-3 py-1.5 rounded-full text-[11px] font-semibold whitespace-nowrap transition-all border snap-start min-w-[auto]',
                 activeGroup === g.slug
                   ? 'bg-primary text-primary-foreground border-primary scale-105'
                   : 'bg-card text-muted-foreground border-border active:scale-[0.97]'
@@ -328,7 +328,7 @@ export default function CategoriesPage() {
                             />
 
                             {/* Gradient overlay */}
-                            <div className="absolute inset-0 bg-gradient-to-t from-black/65 via-black/15 to-transparent" />
+                            <div className="absolute inset-0 bg-gradient-to-t from-foreground/65 via-foreground/15 to-transparent" />
 
                             {/* Count badge — top right */}
                             {meta.count > 0 && (
@@ -340,13 +340,13 @@ export default function CategoriesPage() {
                             {/* Bestseller star — top left */}
                             {meta.hasBestseller && (
                               <div className="absolute top-1.5 left-1.5 w-6 h-6 rounded-full bg-warning/90 flex items-center justify-center shadow-sm">
-                                <Star size={12} className="text-white fill-white" />
+                                <Star size={12} className="text-primary-foreground fill-primary-foreground" />
                               </div>
                             )}
 
                             {/* Category name overlay */}
                             <div className="absolute bottom-0 left-0 right-0 p-2.5">
-                              <span className="text-sm font-bold text-white leading-tight line-clamp-2 drop-shadow-md">
+                              <span className="text-sm font-bold text-primary-foreground leading-tight line-clamp-2 drop-shadow-md">
                                 {cat.displayName}
                               </span>
                             </div>

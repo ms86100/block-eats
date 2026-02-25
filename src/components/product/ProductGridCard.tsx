@@ -148,7 +148,7 @@ export function ProductGridCard({ product, behavior, onTap, className, viewOnly 
         <div className="flex-1 min-h-0.5" />
 
         <div className="flex items-end gap-1 mt-auto">
-          <span className="font-semibold text-[13px] text-foreground leading-none">{formatPrice(product.price)}</span>
+          <span className="font-semibold text-[13px] text-foreground leading-none tabular-nums">{formatPrice(product.price)}</span>
         </div>
       </div>
     </div>

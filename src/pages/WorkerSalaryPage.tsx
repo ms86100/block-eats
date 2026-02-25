@@ -117,7 +117,7 @@ export default function WorkerSalaryPage() {
 
   if (loading) return (
     <AppLayout headerTitle="Worker Salary" showLocation={false}>
-      <div className="p-4 space-y-3">{[1, 2, 3].map(i => <Skeleton key={i} className="h-20 w-full" />)}</div>
+      <div className="p-4 space-y-3">{[1, 2, 3].map(i => <Skeleton key={i} className="h-20 w-full rounded-xl" />)}</div>
     </AppLayout>
   );
 
@@ -170,7 +170,7 @@ export default function WorkerSalaryPage() {
                   <p className="font-medium text-sm">{s.workerInfo?.displayName || 'Unknown'}</p>
                   <div className="flex items-center gap-2 text-xs text-muted-foreground">
                     <span>{s.month}</span>
-                    <span>{formatPrice(s.amount)}</span>
+                    <span className="tabular-nums">{formatPrice(s.amount)}</span>
                   </div>
                 </div>
                 {s.status === 'paid' ? (

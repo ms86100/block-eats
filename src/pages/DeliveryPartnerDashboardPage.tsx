@@ -207,8 +207,8 @@ export default function DeliveryPartnerDashboardPage() {
                 <div>
                   <p className="font-semibold">{partnerProfile.name}</p>
                   <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                    <Package size={12} /> {partnerProfile.total_deliveries} deliveries
-                    {partnerProfile.rating > 0 && <span>· ⭐ {partnerProfile.rating}</span>}
+                    <Package size={12} /> <span className="tabular-nums">{partnerProfile.total_deliveries}</span> deliveries
+                    {partnerProfile.rating > 0 && <span className="tabular-nums">· ⭐ {partnerProfile.rating}</span>}
                   </div>
                 </div>
               </div>
@@ -237,8 +237,8 @@ export default function DeliveryPartnerDashboardPage() {
                   <p className="text-xs text-muted-foreground">
                     📍 {d.order?.buyer?.block}-{d.order?.buyer?.flat_number}
                   </p>
-                  <p className="text-xs text-muted-foreground">
-                    💰 Delivery fee: {formatPrice(d.delivery_fee)}
+                      <p className="text-xs text-muted-foreground tabular-nums">
+                        💰 Delivery fee: {formatPrice(d.delivery_fee)}
                   </p>
                   <Button
                     size="sm"
@@ -289,7 +289,7 @@ export default function DeliveryPartnerDashboardPage() {
                             <Phone size={12} /> {delivery.order.buyer.phone}
                           </p>
                         )}
-                        <p className="flex items-center gap-1">
+                      <p className="flex items-center gap-1 tabular-nums">
                           <Clock size={12} /> {format(new Date(delivery.created_at), 'dd MMM, hh:mm a')}
                         </p>
                         {delivery.delivery_code && delivery.status !== 'delivered' && (
@@ -299,8 +299,8 @@ export default function DeliveryPartnerDashboardPage() {
                         )}
                       </div>
                       <div className="flex items-center justify-between text-xs">
-                        <span>{formatPrice(delivery.order?.total_amount || 0)}</span>
-                        <span className="text-success font-medium">Fee: {formatPrice(delivery.delivery_fee)}</span>
+                        <span className="tabular-nums">{formatPrice(delivery.order?.total_amount || 0)}</span>
+                        <span className="text-success font-medium tabular-nums">Fee: {formatPrice(delivery.delivery_fee)}</span>
                       </div>
 
                       {/* Action Buttons */}

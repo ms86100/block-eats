@@ -88,7 +88,7 @@ export default function AuthorizedPersonsPage() {
 
   if (loading) return (
     <AppLayout headerTitle="Authorized Persons" showLocation={false}>
-      <div className="p-4 space-y-3">{[1, 2, 3].map(i => <Skeleton key={i} className="h-20 w-full" />)}</div>
+      <div className="p-4 space-y-3">{[1, 2, 3].map(i => <Skeleton key={i} className="h-20 w-full rounded-xl" />)}</div>
     </AppLayout>
   );
 

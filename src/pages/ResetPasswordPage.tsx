@@ -80,7 +80,7 @@ export default function ResetPasswordPage() {
 
   if (isCheckingSession) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
+      <div className="min-h-[100dvh] flex items-center justify-center bg-background">
         <div className="animate-pulse text-primary text-xl font-bold">Verifying reset link...</div>
       </div>
     );
@@ -88,7 +88,7 @@ export default function ResetPasswordPage() {
 
   if (!isRecoverySession && !isSuccess) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-background p-6">
+      <div className="min-h-[100dvh] flex flex-col items-center justify-center bg-background p-6">
         <div className="w-full max-w-sm text-center space-y-4">
           <div className="mx-auto w-14 h-14 rounded-2xl bg-destructive/10 flex items-center justify-center">
             <Key className="text-destructive" size={26} />
@@ -106,7 +106,7 @@ export default function ResetPasswordPage() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-b from-background to-secondary/20 p-6">
+    <div className="min-h-[100dvh] flex flex-col items-center justify-center bg-gradient-to-b from-background to-secondary/20 p-6">
       <div className="w-full max-w-sm">
         <div className="bg-card rounded-2xl border border-border shadow-lg p-6 space-y-6">
           {isSuccess ? (

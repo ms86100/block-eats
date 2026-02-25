@@ -84,14 +84,14 @@ export default function WorkerAttendancePage() {
           <Card className="border-success/20 bg-success/5">
             <CardContent className="p-3 text-center">
               <CheckCircle2 className="mx-auto text-success mb-1" size={18} />
-              <p className="text-lg font-bold">{presentCount}</p>
+              <p className="text-lg font-bold tabular-nums">{presentCount}</p>
               <p className="text-[10px] text-muted-foreground">Present</p>
             </CardContent>
           </Card>
           <Card className="border-destructive/20 bg-destructive/5">
             <CardContent className="p-3 text-center">
               <XCircle className="mx-auto text-destructive mb-1" size={18} />
-              <p className="text-lg font-bold">{absentCount}</p>
+              <p className="text-lg font-bold tabular-nums">{absentCount}</p>
               <p className="text-[10px] text-muted-foreground">Absent</p>
             </CardContent>
           </Card>

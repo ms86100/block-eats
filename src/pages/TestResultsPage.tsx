@@ -93,7 +93,7 @@ export default function TestResultsPage() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-background p-4 space-y-4">
+      <div className="min-h-[100dvh] bg-background p-4 space-y-4">
         <Skeleton className="h-10 w-48" />
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           {[1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-24 rounded-xl" />)}
@@ -104,7 +104,7 @@ export default function TestResultsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-[100dvh] bg-background">
       {/* Header */}
       <div className="sticky top-0 z-10 bg-background border-b px-4 py-3 flex items-center gap-3">
         <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
@@ -125,19 +125,19 @@ export default function TestResultsPage() {
                 <BarChart3 className="h-5 w-5 text-primary" />
               </div>
               <div>
-                <p className="text-2xl font-bold">{stats.total}</p>
+                <p className="text-2xl font-bold tabular-nums">{stats.total}</p>
                 <p className="text-xs text-muted-foreground">Total Tests</p>
               </div>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="p-4 flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-green-500/10">
-                <CheckCircle2 className="h-5 w-5 text-green-600" />
+              <div className="p-2 rounded-lg bg-success/10">
+                <CheckCircle2 className="h-5 w-5 text-success" />
               </div>
               <div>
-                <p className="text-2xl font-bold text-green-600">{stats.passed}</p>
-                <p className="text-xs text-muted-foreground">{stats.passRate}% Pass Rate</p>
+                <p className="text-2xl font-bold text-success tabular-nums">{stats.passed}</p>
+                <p className="text-xs text-muted-foreground tabular-nums">{stats.passRate}% Pass Rate</p>
               </div>
             </CardContent>
           </Card>
@@ -147,18 +147,18 @@ export default function TestResultsPage() {
                 <XCircle className="h-5 w-5 text-destructive" />
               </div>
               <div>
-                <p className="text-2xl font-bold text-destructive">{stats.failed}</p>
+                <p className="text-2xl font-bold text-destructive tabular-nums">{stats.failed}</p>
                 <p className="text-xs text-muted-foreground">Failed</p>
               </div>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="p-4 flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-amber-500/10">
-                <Clock className="h-5 w-5 text-amber-600" />
+              <div className="p-2 rounded-lg bg-warning/10">
+                <Clock className="h-5 w-5 text-warning" />
               </div>
               <div>
-                <p className="text-2xl font-bold">{stats.avgDuration.toFixed(0)}<span className="text-sm font-normal text-muted-foreground">ms</span></p>
+                <p className="text-2xl font-bold tabular-nums">{stats.avgDuration.toFixed(0)}<span className="text-sm font-normal text-muted-foreground">ms</span></p>
                 <p className="text-xs text-muted-foreground">Avg Duration</p>
               </div>
             </CardContent>
@@ -251,7 +251,7 @@ export default function TestResultsPage() {
                       >
                         <TableCell>
                           {r.outcome === "passed" ? (
-                            <CheckCircle2 className="h-4 w-4 text-green-600" />
+                            <CheckCircle2 className="h-4 w-4 text-success" />
                           ) : (
                             <XCircle className="h-4 w-4 text-destructive" />
                           )}
@@ -310,7 +310,7 @@ export default function TestResultsPage() {
               <SheetHeader>
                 <SheetTitle className="flex items-center gap-2 text-base">
                   {selectedResult.outcome === "passed" ? (
-                    <CheckCircle2 className="h-5 w-5 text-green-600 shrink-0" />
+                    <CheckCircle2 className="h-5 w-5 text-success shrink-0" />
                   ) : (
                     <XCircle className="h-5 w-5 text-destructive shrink-0" />
                   )}
