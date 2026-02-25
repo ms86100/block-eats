@@ -1,45 +1,47 @@
 
 
-## Problem Analysis
+## Problem
 
-Two distinct issues identified from the code and screenshot:
+When editing a product, the `handleSave` function sets `approval_status: 'pending'`. This triggers the `check_seller_license()` database trigger, which validates that sellers in license-mandatory groups (like Food/FSSAI) have an approved license before allowing any non-draft product write.
 
-### Issue 1: Broken Builder Dashboard Layout
-In `BuilderDashboardPage.tsx` (lines 160-168), `BuilderFeaturePlan` is placed inside a `flex items-center justify-between` div alongside `BuilderAnnouncementSheet`. However, `BuilderFeaturePlan` returns a React fragment (`<>...</>`) containing multiple top-level elements (plan summary card, active features grid, locked features grid, and the showcase sheet). Placing all of these inside a horizontal flex container causes the layout to break — the feature plan cards and the announcement button fight for horizontal space instead of stacking vertically.
+The trigger logic (line from DB function):
+```sql
+IF NEW.approval_status = 'draft' THEN RETURN NEW; END IF;
+-- ... checks for approved license, raises exception if missing
+```
 
-### Issue 2: "Try this feature" button shown for locked features
-In `FeatureShowcase.tsx` (lines 97-108), the "Try this feature" button is always shown when a feature has a `route`, regardless of whether the feature is enabled or locked. When a builder clicks a locked/grayed-out feature card, the showcase sheet opens and shows the same "Try this feature" button, which then navigates to a page that shows "Feature Not Available." The showcase should only display feature information (description, audience, capabilities) for locked features — no navigation button.
+So editing a product that was previously `approved` resets it to `pending`, which re-triggers the license gate. If the seller doesn't have an approved FSSAI license in the `seller_licenses` table, the update is blocked.
 
----
+## Root Cause
 
-## Plan
+In `useSellerProducts.ts` line ~165:
+```typescript
+...(editingProduct ? { approval_status: 'pending' } : { approval_status: 'draft' }),
+```
 
-### Fix 1: BuilderDashboardPage layout
-- Move `BuilderFeaturePlan` out of the shared flex container with `BuilderAnnouncementSheet`
-- Place `BuilderAnnouncementSheet` separately (e.g., inline with the section header or as its own row)
-- Let `BuilderFeaturePlan` occupy its own full-width block in the vertical flow
+Every edit forces `approval_status` back to `pending`, which hits the license check. This is by design for re-review, but the license check should not block edits if the seller was already operating (their products were previously approved).
 
-### Fix 2: Pass `isLocked` context to FeatureShowcase
-- In `BuilderFeaturePlan.tsx`, when setting the showcase key, also track whether the clicked feature is enabled or disabled
-- Add an `isLocked` (or `isEnabled`) prop to `FeatureShowcase`
-- In `FeatureShowcase.tsx`, conditionally hide the "Try this feature" button when `isLocked` is true
-- For locked features, optionally show an "Upgrade your plan" or "Contact admin" hint instead
+## Fix
 
-### Detailed Changes
+**Preserve the existing `approval_status` on edit if the product was already approved**, or keep it as `pending` for re-review but ensure the license check allows transitions from already-approved products.
 
-**`src/pages/BuilderDashboardPage.tsx`** (lines 159-168):
-- Separate `BuilderFeaturePlan` and `BuilderAnnouncementSheet` into distinct layout blocks
-- Render `BuilderAnnouncementSheet` alongside a section title (e.g., "Feature Plan") in a flex row
-- Render `BuilderFeaturePlan` below that as its own full-width section
+The cleanest fix is in the **database trigger** `check_seller_license`: allow updates where the product's **current** (OLD) `approval_status` is already `'approved'` — meaning the seller previously passed the license gate. This way:
+- New products still require license approval
+- Edits to approved products go to `pending` for content re-review but aren't blocked by the license gate
 
-**`src/components/builder/BuilderFeaturePlan.tsx`**:
-- Add state to track whether the selected showcase feature is enabled: `const [showcaseLocked, setShowcaseLocked] = useState(false)`
-- On card click for enabled features: `setShowcaseKey(f.feature_key); setShowcaseLocked(false)`
-- On card click for disabled features: `setShowcaseKey(f.feature_key); setShowcaseLocked(true)`
-- Pass `isLocked={showcaseLocked}` to `FeatureShowcase`
+### Database Migration
 
-**`src/components/admin/FeatureShowcase.tsx`**:
-- Add `isLocked?: boolean` to `FeatureShowcaseProps`
-- When `isLocked` is true, hide the "Try this feature" button
-- Optionally show a muted note like "This feature is not included in your current plan"
+```sql
+-- In check_seller_license(), after the draft check, add:
+IF TG_OP = 'UPDATE' AND OLD.approval_status = 'approved' THEN
+  RETURN NEW;
+END IF;
+```
+
+This single change means: if a product was already approved (meaning the license was valid at that time), subsequent edits are allowed through the license gate. The product still gets set to `pending` for admin content re-review, which is correct behavior.
+
+### Files Changed
+1. **New migration** — Update `check_seller_license()` function to bypass license check for products that were previously approved (edit scenario)
+
+No frontend changes needed.
 
