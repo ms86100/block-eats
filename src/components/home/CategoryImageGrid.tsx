@@ -119,8 +119,8 @@ function CategoryImageGridInner({ parentGroup, title, activeCategories }: Catego
         </Link>
       </div>
 
-      {/* 2-column enriched card grid */}
-      <div className="grid grid-cols-2 gap-3 px-4">
+      {/* Responsive card grid */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 px-4 max-w-7xl mx-auto">
         {categories.slice(0, 6).map((cat) => {
           const meta = metaMap[cat.category] || { count: 0, sellerCount: 0, minPrice: null, collageImages: [], hasBestseller: false };
           return (
