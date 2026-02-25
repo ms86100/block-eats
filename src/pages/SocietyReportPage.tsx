@@ -4,6 +4,7 @@ import { AppLayout } from '@/components/layout/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
+import { FeatureGate } from '@/components/ui/FeatureGate';
 import { format, subMonths, startOfMonth, endOfMonth } from 'date-fns';
 import { BarChart3, TrendingUp, TrendingDown, Minus, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
 import { useCurrency } from '@/hooks/useCurrency';
@@ -108,6 +109,7 @@ export default function SocietyReportPage() {
 
   return (
     <AppLayout headerTitle="Monthly Report" showLocation={false}>
+      <FeatureGate feature="monthly_report_card">
       <div className="p-4 space-y-4">
         {/* Month Navigator */}
         <div className="flex items-center justify-between">
@@ -206,6 +208,7 @@ export default function SocietyReportPage() {
           </>
         ) : null}
       </div>
+      </FeatureGate>
     </AppLayout>
   );
 }

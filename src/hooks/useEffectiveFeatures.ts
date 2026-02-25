@@ -36,6 +36,8 @@ export type FeatureKey =
   | 'subscriptions'
   | 'trust_directory'
   | 'community_rules'
+  | 'trust_score'
+  | 'monthly_report_card'
   | 'notifications';
 
 export type FeatureState = 'enabled' | 'disabled' | 'locked' | 'unavailable';

@@ -260,8 +260,8 @@ export default function SocietyDashboardPage() {
       </div>
 
       <div className="px-4 py-3 space-y-4">
-        {/* Trust Badge - enhanced */}
-        {!searchQuery && (
+        {/* Trust Badge - gated */}
+        {!searchQuery && isFeatureEnabled('trust_score') && (
           <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
@@ -342,8 +342,8 @@ export default function SocietyDashboardPage() {
           ))
         )}
 
-        {/* Monthly Report Link */}
-        {!searchQuery && (
+        {/* Monthly Report Link - gated */}
+        {!searchQuery && isFeatureEnabled('monthly_report_card') && (
           <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
