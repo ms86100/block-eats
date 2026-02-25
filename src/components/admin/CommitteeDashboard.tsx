@@ -4,6 +4,8 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { AlertTriangle, CheckCircle2, Clock, Users, IndianRupee, Shield, TrendingUp } from 'lucide-react';
 import { useCurrency } from '@/hooks/useCurrency';
+import { motion } from 'framer-motion';
+import { cn } from '@/lib/utils';
 
 interface DashboardMetrics {
   openDisputes: number;
@@ -59,7 +61,7 @@ export function CommitteeDashboard({ societyId }: Props) {
   };
 
   if (loading) {
-    return <div className="space-y-3">{[1, 2, 3].map(i => <Skeleton key={i} className="h-20 w-full" />)}</div>;
+    return <div className="space-y-3">{[1, 2, 3].map(i => <Skeleton key={i} className="h-20 w-full rounded-2xl" />)}</div>;
   }
 
   const { formatPrice } = useCurrency();
@@ -69,90 +71,99 @@ export function CommitteeDashboard({ societyId }: Props) {
     ? Math.round((metrics.maintenanceCollected / (metrics.maintenanceCollected + metrics.maintenancePending)) * 100)
     : 0;
 
-  return (
-    <div className="space-y-3">
-      <h3 className="text-sm font-semibold text-muted-foreground flex items-center gap-1.5">
-        <TrendingUp size={14} /> Operations Overview
-      </h3>
+  const metricCards = [
+    { icon: AlertTriangle, value: metrics.openDisputes, label: 'Open Disputes', color: 'bg-rose-500/10 text-rose-600' },
+    { icon: AlertTriangle, value: metrics.openSnags, label: 'Open Snags', color: 'bg-amber-500/10 text-amber-600' },
+    { icon: Users, value: metrics.pendingApprovals, label: 'Pending Approvals', color: 'bg-blue-500/10 text-blue-600' },
+    { icon: Shield, value: metrics.pendingVisitors, label: 'Expected Visitors', color: 'bg-violet-500/10 text-violet-600' },
+  ];
 
-      <div className="grid grid-cols-2 gap-2">
-        <Card>
-          <CardContent className="p-3 text-center">
-            <AlertTriangle size={16} className="mx-auto text-destructive mb-1" />
-            <p className="text-lg font-bold">{metrics.openDisputes}</p>
-            <p className="text-[10px] text-muted-foreground">Open Disputes</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-3 text-center">
-            <AlertTriangle size={16} className="mx-auto text-warning mb-1" />
-            <p className="text-lg font-bold">{metrics.openSnags}</p>
-            <p className="text-[10px] text-muted-foreground">Open Snags</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-3 text-center">
-            <Users size={16} className="mx-auto text-primary mb-1" />
-            <p className="text-lg font-bold">{metrics.pendingApprovals}</p>
-            <p className="text-[10px] text-muted-foreground">Pending Approvals</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-3 text-center">
-            <Shield size={16} className="mx-auto text-primary mb-1" />
-            <p className="text-lg font-bold">{metrics.pendingVisitors}</p>
-            <p className="text-[10px] text-muted-foreground">Expected Visitors</p>
-          </CardContent>
-        </Card>
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center gap-2.5 mb-1">
+        <div className="w-8 h-8 rounded-xl bg-primary/10 flex items-center justify-center">
+          <TrendingUp size={15} className="text-primary" />
+        </div>
+        <h3 className="text-sm font-bold text-foreground">Operations Overview</h3>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        {metricCards.map((m, idx) => {
+          const MIcon = m.icon;
+          return (
+            <motion.div key={m.label} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: idx * 0.05 }}>
+              <Card className="border-0 shadow-[var(--shadow-card)] rounded-2xl hover:shadow-[var(--shadow-md)] transition-all duration-300">
+                <CardContent className="p-4 text-center">
+                  <div className={cn('w-9 h-9 rounded-xl mx-auto mb-2 flex items-center justify-center', m.color.split(' ')[0])}>
+                    <MIcon size={16} className={m.color.split(' ')[1]} />
+                  </div>
+                  <p className="text-2xl font-extrabold tabular-nums">{m.value}</p>
+                  <p className="text-[10px] text-muted-foreground font-semibold uppercase tracking-widest mt-0.5">{m.label}</p>
+                </CardContent>
+              </Card>
+            </motion.div>
+          );
+        })}
       </div>
 
       {/* Maintenance Collection */}
-      <Card>
-        <CardContent className="p-4">
-          <div className="flex items-center justify-between mb-2">
-            <div className="flex items-center gap-2">
-              <IndianRupee size={16} className="text-primary" />
-              <p className="font-semibold text-sm">Maintenance Collection</p>
+      <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
+        <Card className="border-0 shadow-[var(--shadow-card)] rounded-2xl">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-emerald-500/10 flex items-center justify-center">
+                  <IndianRupee size={15} className="text-emerald-600" />
+                </div>
+                <p className="font-bold text-sm">Maintenance Collection</p>
+              </div>
+              <span className="text-xs font-extrabold text-primary tabular-nums">{collectionRate}%</span>
             </div>
-            <span className="text-xs font-medium text-primary">{collectionRate}%</span>
-          </div>
-          <div className="w-full bg-muted rounded-full h-2 mb-2">
-            <div className="bg-primary h-2 rounded-full transition-all" style={{ width: `${collectionRate}%` }} />
-          </div>
-          <div className="flex justify-between text-xs text-muted-foreground">
-            <span>{formatPrice(metrics.maintenanceCollected)} collected</span>
-            <span>{formatPrice(metrics.maintenancePending)} pending</span>
-          </div>
-        </CardContent>
-      </Card>
+            <div className="w-full bg-muted rounded-full h-2.5 mb-3">
+              <motion.div 
+                className="bg-primary h-2.5 rounded-full" 
+                initial={{ width: 0 }} 
+                animate={{ width: `${collectionRate}%` }} 
+                transition={{ duration: 0.8, delay: 0.3 }}
+              />
+            </div>
+            <div className="flex justify-between text-xs text-muted-foreground font-medium">
+              <span>{formatPrice(metrics.maintenanceCollected)} collected</span>
+              <span>{formatPrice(metrics.maintenancePending)} pending</span>
+            </div>
+          </CardContent>
+        </Card>
+      </motion.div>
 
       {/* Resolution rates */}
-      <Card>
-        <CardContent className="p-4 grid grid-cols-2 gap-4">
-          <div>
-            <p className="text-xs text-muted-foreground mb-1">Dispute Resolution</p>
-            <div className="flex items-center gap-1.5">
-              <CheckCircle2 size={14} className="text-success" />
-              <span className="font-bold text-sm">
-                {metrics.openDisputes + metrics.resolvedDisputes > 0
-                  ? Math.round((metrics.resolvedDisputes / (metrics.openDisputes + metrics.resolvedDisputes)) * 100)
-                  : 0}%
-              </span>
+      <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
+        <Card className="border-0 shadow-[var(--shadow-card)] rounded-2xl">
+          <CardContent className="p-4 grid grid-cols-2 gap-4">
+            <div>
+              <p className="text-[10px] text-muted-foreground font-semibold uppercase tracking-widest mb-1.5">Dispute Resolution</p>
+              <div className="flex items-center gap-2">
+                <CheckCircle2 size={15} className="text-emerald-500" />
+                <span className="font-extrabold text-lg tabular-nums">
+                  {metrics.openDisputes + metrics.resolvedDisputes > 0
+                    ? Math.round((metrics.resolvedDisputes / (metrics.openDisputes + metrics.resolvedDisputes)) * 100)
+                    : 0}%
+                </span>
+              </div>
             </div>
-          </div>
-          <div>
-            <p className="text-xs text-muted-foreground mb-1">Snag Resolution</p>
-            <div className="flex items-center gap-1.5">
-              <CheckCircle2 size={14} className="text-success" />
-              <span className="font-bold text-sm">
-                {metrics.openSnags + metrics.resolvedSnags > 0
-                  ? Math.round((metrics.resolvedSnags / (metrics.openSnags + metrics.resolvedSnags)) * 100)
-                  : 0}%
-              </span>
+            <div>
+              <p className="text-[10px] text-muted-foreground font-semibold uppercase tracking-widest mb-1.5">Snag Resolution</p>
+              <div className="flex items-center gap-2">
+                <CheckCircle2 size={15} className="text-emerald-500" />
+                <span className="font-extrabold text-lg tabular-nums">
+                  {metrics.openSnags + metrics.resolvedSnags > 0
+                    ? Math.round((metrics.resolvedSnags / (metrics.openSnags + metrics.resolvedSnags)) * 100)
+                    : 0}%
+                </span>
+              </div>
             </div>
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      </motion.div>
     </div>
   );
 }

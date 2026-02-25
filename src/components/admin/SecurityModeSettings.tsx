@@ -65,18 +65,20 @@ export function SecurityModeSettings() {
   };
 
   return (
-    <Card>
+    <Card className="border-0 shadow-[var(--shadow-card)] rounded-2xl">
       <CardContent className="p-4 space-y-4">
-        <div className="flex items-center gap-2">
-          <Shield size={16} className="text-primary" />
-          <h3 className="font-semibold text-sm">Gate Security Mode</h3>
+        <div className="flex items-center gap-2.5">
+          <div className="w-8 h-8 rounded-xl bg-rose-500/10 flex items-center justify-center">
+            <Shield size={15} className="text-rose-600" />
+          </div>
+          <h3 className="font-bold text-sm">Gate Security Mode</h3>
         </div>
 
         <div className="space-y-3">
           <div>
-            <Label className="text-sm">Security Level</Label>
+            <Label className="text-sm font-semibold">Security Level</Label>
             <Select value={mode} onValueChange={updateMode} disabled={isSaving}>
-              <SelectTrigger className="mt-1">
+              <SelectTrigger className="mt-1.5 rounded-xl">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -95,7 +97,7 @@ export function SecurityModeSettings() {
                 <SelectItem value="ai_match" disabled>
                   <div className="flex items-center gap-2">
                     <span>🔴 AI Match</span>
-                    <Badge variant="outline" className="text-[8px] h-4 gap-0.5">
+                    <Badge variant="outline" className="text-[8px] h-4 gap-0.5 rounded-md">
                       <Lock size={8} /> Enterprise
                     </Badge>
                   </div>
@@ -106,7 +108,7 @@ export function SecurityModeSettings() {
 
           {mode === 'confirmation' && (
             <div>
-              <Label className="text-sm flex items-center gap-1">
+              <Label className="text-sm font-semibold flex items-center gap-1.5">
                 <Clock size={12} /> Confirmation Timeout (seconds)
               </Label>
               <Input
@@ -115,15 +117,15 @@ export function SecurityModeSettings() {
                 max={120}
                 value={timeout}
                 onChange={(e) => updateTimeout(parseInt(e.target.value) || 20)}
-                className="mt-1 w-32"
+                className="mt-1.5 w-32 rounded-xl"
               />
-              <p className="text-xs text-muted-foreground mt-1">
+              <p className="text-xs text-muted-foreground mt-1.5">
                 How long to wait for resident response (10–120s)
               </p>
             </div>
           )}
 
-          <div className="text-xs text-muted-foreground bg-muted rounded-lg p-3 space-y-1">
+          <div className="text-xs text-muted-foreground bg-muted/50 rounded-xl p-4 space-y-1">
             {mode === 'basic' && (
               <>
                 <p><strong>Basic Mode:</strong> Guard scans QR → instant verification.</p>

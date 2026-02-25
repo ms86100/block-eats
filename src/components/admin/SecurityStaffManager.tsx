@@ -66,7 +66,6 @@ export function SecurityStaffManager() {
   const addSecurityOfficer = async (userId: string) => {
     if (!societyId || !profile) return;
     try {
-      // Add to security_staff
       const { error: staffError } = await supabase.from('security_staff').insert({
         user_id: userId,
         society_id: societyId,
@@ -79,13 +78,10 @@ export function SecurityStaffManager() {
         }
         throw staffError;
       }
-
-      // Add security_officer role if not exists
       await supabase.from('user_roles').upsert(
         { user_id: userId, role: 'security_officer' as any },
         { onConflict: 'user_id,role' }
       );
-
       await logAudit('security_officer_added', 'security_staff', userId, societyId, {});
       toast.success('Security officer added');
       setAddOpen(false);
@@ -104,12 +100,9 @@ export function SecurityStaffManager() {
         is_active: false,
         deactivated_at: new Date().toISOString(),
       }).eq('id', staffId);
-
-      // Remove role
       await supabase.from('user_roles').delete()
         .eq('user_id', userId)
         .eq('role', 'security_officer' as any);
-
       await logAudit('security_officer_removed', 'security_staff', userId, societyId, {});
       toast.success('Security officer removed');
       fetchStaff();
@@ -118,25 +111,26 @@ export function SecurityStaffManager() {
     }
   };
 
-  // Filter out users who are already security staff
   const existingUserIds = new Set(staff.map(s => s.user_id));
   const filteredResults = searchResults.filter(r => !existingUserIds.has(r.id));
 
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Shield size={16} className="text-primary" />
-          <h3 className="text-sm font-semibold text-muted-foreground">Security Officers ({staff.length})</h3>
+        <div className="flex items-center gap-2.5">
+          <div className="w-8 h-8 rounded-xl bg-violet-500/10 flex items-center justify-center">
+            <Shield size={15} className="text-violet-600" />
+          </div>
+          <h3 className="text-sm font-bold text-foreground">Security Officers <span className="text-muted-foreground font-normal text-xs">({staff.length})</span></h3>
         </div>
         <Sheet open={addOpen} onOpenChange={setAddOpen}>
           <SheetTrigger asChild>
-            <Button size="sm" variant="outline" className="gap-1">
+            <Button size="sm" variant="outline" className="gap-1.5 rounded-xl font-semibold">
               <UserPlus size={14} /> Add Officer
             </Button>
           </SheetTrigger>
           <SheetContent>
-            <SheetHeader><SheetTitle>Add Security Officer</SheetTitle></SheetHeader>
+            <SheetHeader><SheetTitle className="font-bold">Add Security Officer</SheetTitle></SheetHeader>
             <div className="mt-4 space-y-4">
               <div className="relative">
                 <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
@@ -144,27 +138,27 @@ export function SecurityStaffManager() {
                   placeholder="Search residents by name..."
                   value={searchQuery}
                   onChange={(e) => searchResidents(e.target.value)}
-                  className="pl-9"
+                  className="pl-9 rounded-xl"
                 />
               </div>
               <div className="space-y-2 max-h-96 overflow-y-auto">
                 {filteredResults.map((resident) => (
-                  <Card key={resident.id}>
-                    <CardContent className="p-3 flex items-center justify-between">
+                  <Card key={resident.id} className="border-0 shadow-[var(--shadow-card)] rounded-2xl">
+                    <CardContent className="p-3.5 flex items-center justify-between">
                       <div>
-                        <p className="font-medium text-sm">{resident.name}</p>
+                        <p className="font-bold text-sm">{resident.name}</p>
                         <p className="text-xs text-muted-foreground">
                           Block {resident.block}, Flat {resident.flat_number}
                         </p>
                       </div>
-                      <Button size="sm" onClick={() => addSecurityOfficer(resident.id)}>
+                      <Button size="sm" className="rounded-xl font-semibold" onClick={() => addSecurityOfficer(resident.id)}>
                         Add
                       </Button>
                     </CardContent>
                   </Card>
                 ))}
                 {searchQuery.length >= 2 && filteredResults.length === 0 && (
-                  <p className="text-sm text-center text-muted-foreground py-4">No matching residents found</p>
+                  <p className="text-sm text-center text-muted-foreground py-4 font-medium">No matching residents found</p>
                 )}
               </div>
             </div>
@@ -173,19 +167,19 @@ export function SecurityStaffManager() {
       </div>
 
       {isLoading ? (
-        <p className="text-sm text-muted-foreground text-center py-4">Loading...</p>
+        <p className="text-sm text-muted-foreground text-center py-4 font-medium">Loading...</p>
       ) : staff.length === 0 ? (
-        <p className="text-center text-muted-foreground py-8 text-sm">No security officers assigned</p>
+        <div className="text-center py-12 text-sm text-muted-foreground font-medium">No security officers assigned</div>
       ) : (
         staff.map((officer) => (
-          <Card key={officer.id}>
-            <CardContent className="p-3 flex items-center justify-between">
+          <Card key={officer.id} className="border-0 shadow-[var(--shadow-card)] rounded-2xl">
+            <CardContent className="p-3.5 flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
-                  <Shield size={14} className="text-primary" />
+                <div className="w-9 h-9 rounded-xl bg-violet-500/10 flex items-center justify-center">
+                  <Shield size={14} className="text-violet-600" />
                 </div>
                 <div>
-                  <p className="font-medium text-sm">{(officer as any).user?.name || 'Unknown'}</p>
+                  <p className="font-bold text-sm">{(officer as any).user?.name || 'Unknown'}</p>
                   <p className="text-xs text-muted-foreground">
                     {(officer as any).user?.block && `Block ${(officer as any).user.block}`}
                     {(officer as any).user?.flat_number && `, Flat ${(officer as any).user.flat_number}`}
@@ -193,11 +187,11 @@ export function SecurityStaffManager() {
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                <Badge variant="secondary" className="text-[10px]">Active</Badge>
+                <Badge variant="secondary" className="text-[10px] rounded-md font-semibold bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">Active</Badge>
                 <Button
                   size="sm"
                   variant="ghost"
-                  className="text-destructive h-8 w-8 p-0"
+                  className="text-destructive h-8 w-8 p-0 rounded-xl"
                   onClick={() => removeSecurityOfficer(officer.id, officer.user_id)}
                 >
                   <Trash2 size={14} />
