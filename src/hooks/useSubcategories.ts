@@ -10,6 +10,14 @@ export interface Subcategory {
   display_order: number | null;
   icon: string | null;
   is_active: boolean;
+  image_url: string | null;
+  color: string | null;
+  name_placeholder: string | null;
+  description_placeholder: string | null;
+  price_label: string | null;
+  duration_label: string | null;
+  show_veg_toggle: boolean | null;
+  show_duration_field: boolean | null;
 }
 
 export function useSubcategories(categoryConfigId?: string | null) {

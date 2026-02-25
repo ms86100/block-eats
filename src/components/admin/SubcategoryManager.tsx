@@ -6,8 +6,9 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
 } from '@/components/ui/dialog';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -17,8 +18,8 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
 import { toast } from 'sonner';
-import { Loader2, Plus, Edit2, Trash2, Tag, RefreshCw } from 'lucide-react';
-import { friendlyError } from '@/lib/utils';
+import { Loader2, Plus, Edit2, Trash2, Tag, RefreshCw, Sparkles, ImageIcon } from 'lucide-react';
+import { friendlyError, cn } from '@/lib/utils';
 import { motion } from 'framer-motion';
 
 interface Subcategory {
@@ -30,16 +31,94 @@ interface Subcategory {
   icon: string | null;
   is_active: boolean;
   created_at: string;
+  image_url: string | null;
+  color: string | null;
+  name_placeholder: string | null;
+  description_placeholder: string | null;
+  price_label: string | null;
+  duration_label: string | null;
+  show_veg_toggle: boolean | null;
+  show_duration_field: boolean | null;
 }
 
 interface OpenSubcategoryCreateEventDetail {
   categoryConfigId?: string;
 }
 
+const COLOR_PRESETS = [
+  { label: 'Orange', value: 'bg-orange-100 text-orange-600' }, { label: 'Blue', value: 'bg-blue-100 text-blue-600' },
+  { label: 'Green', value: 'bg-green-100 text-green-600' }, { label: 'Purple', value: 'bg-purple-100 text-purple-600' },
+  { label: 'Pink', value: 'bg-pink-100 text-pink-600' }, { label: 'Teal', value: 'bg-teal-100 text-teal-600' },
+  { label: 'Amber', value: 'bg-amber-100 text-amber-600' }, { label: 'Indigo', value: 'bg-indigo-100 text-indigo-600' },
+  { label: 'Emerald', value: 'bg-emerald-100 text-emerald-600' }, { label: 'Violet', value: 'bg-violet-100 text-violet-600' },
+  { label: 'Lime', value: 'bg-lime-100 text-lime-600' }, { label: 'Slate', value: 'bg-slate-100 text-slate-600' },
+];
+
+const EMOJI_PRESETS = ['🍲', '🍕', '🍰', '🥗', '🧁', '☕', '🥤', '🧃', '🎓', '📚', '🧘', '💃', '🎵', '🎨', '🗣️', '💪', '🔧', '🔌', '🪠', '🪚', '❄️', '🐛', '🔩', '🧹', '👩‍🍳', '🚗', '👶', '✂️', '👗', '💅', '🧕', '💈', '📊', '💻', '📝', '📄', '🎯', '💼', '🏠', '🅿️', '🚲', '🎉', '🎈', '📸', '🎧', '🐕', '🐾', '🐈', '🛋️', '📱', '📖', '🧸', '🍳', '👕', '🎂', '🏡', '🛒', '🎟️', '⭐', '🌟', '🔥', '💎', '🏪', '🌿'];
+
+interface SubcategoryFormData {
+  display_name: string;
+  slug: string;
+  icon: string;
+  display_order: string;
+  is_active: boolean;
+  image_url: string;
+  color: string;
+  name_placeholder: string;
+  description_placeholder: string;
+  price_label: string;
+  duration_label: string;
+  show_veg_toggle: boolean | null;
+  show_duration_field: boolean | null;
+}
+
+const INITIAL_FORM: SubcategoryFormData = {
+  display_name: '', slug: '', icon: '', display_order: '0', is_active: true,
+  image_url: '', color: '', name_placeholder: '', description_placeholder: '',
+  price_label: '', duration_label: '', show_veg_toggle: null, show_duration_field: null,
+};
+
+function GenerateSubcategoryImageButton({ name, subcategoryId, parentCategoryName, imageUrl, onImageGenerated }: {
+  name: string; subcategoryId?: string; parentCategoryName?: string; imageUrl?: string | null; onImageGenerated: (url: string) => void;
+}) {
+  const [isGenerating, setIsGenerating] = useState(false);
+  const handleGenerate = async () => {
+    if (!name.trim()) { toast.error('Enter a name first'); return; }
+    setIsGenerating(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('generate-category-image', {
+        body: { categoryName: name, categoryKey: `sub_${subcategoryId || name.toLowerCase().replace(/\s+/g, '_')}`, parentGroup: parentCategoryName || 'general', targetType: 'subcategory' },
+      });
+      if (!error && data?.image_url) { onImageGenerated(data.image_url); toast.success('Image generated!'); }
+      else { toast.error('Generation failed'); }
+    } catch { toast.error('Generation failed'); } finally { setIsGenerating(false); }
+  };
+  return (
+    <div className="space-y-2">
+      <Label className="flex items-center gap-1.5 text-xs font-semibold"><ImageIcon size={14} />Subcategory Image</Label>
+      {imageUrl ? (
+        <div className="relative rounded-xl overflow-hidden border border-border aspect-square w-32">
+          <img src={imageUrl} alt={name} className="w-full h-full object-cover" />
+          <div className="absolute inset-0 bg-black/40 opacity-0 hover:opacity-100 transition-opacity flex items-center justify-center">
+            <Button type="button" size="sm" variant="secondary" onClick={handleGenerate} disabled={isGenerating} className="rounded-xl">
+              {isGenerating ? <Loader2 className="animate-spin mr-1" size={14} /> : <Sparkles size={14} className="mr-1" />}Regenerate
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <Button type="button" variant="outline" onClick={handleGenerate} disabled={isGenerating || !name.trim()} className="w-full gap-2 rounded-xl h-10">
+          {isGenerating ? <><Loader2 className="animate-spin" size={16} />Generating AI Image...</> : <><Sparkles size={16} />Generate AI Image</>}
+        </Button>
+      )}
+      {isGenerating && <p className="text-xs text-muted-foreground">This may take 10-15 seconds...</p>}
+    </div>
+  );
+}
+
 export function SubcategoryManager() {
   const [allConfigs, setAllConfigs] = useState<Array<{ id: string; display_name: string; icon: string }>>([]);
   const [configsLoading, setConfigsLoading] = useState(true);
-  
+
   const fetchConfigs = useCallback(async () => {
     setConfigsLoading(true);
     const { data } = await supabase
@@ -51,28 +130,20 @@ export function SubcategoryManager() {
   }, []);
 
   useEffect(() => { fetchConfigs(); }, [fetchConfigs]);
+
   const [subcategories, setSubcategories] = useState<Subcategory[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  // Empty string means "all categories" — never sent as a DB filter
   const [selectedConfigId, setSelectedConfigId] = useState<string>('');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingSub, setEditingSub] = useState<Subcategory | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Subcategory | null>(null);
   const [isSaving, setIsSaving] = useState(false);
-  const [formData, setFormData] = useState({
-    display_name: '',
-    slug: '',
-    icon: '',
-    display_order: '0',
-    is_active: true,
-  });
-  // Separate state for the parent category in the create dialog
+  const [formData, setFormData] = useState<SubcategoryFormData>(INITIAL_FORM);
   const [createConfigId, setCreateConfigId] = useState<string>('');
 
   const fetchSubcategories = useCallback(async () => {
     setIsLoading(true);
     let q = supabase.from('subcategories').select('*').order('display_order', { ascending: true });
-    // Only apply filter when a real config id is selected (not empty = all)
     if (selectedConfigId) {
       q = q.eq('category_config_id', selectedConfigId);
     }
@@ -85,21 +156,16 @@ export function SubcategoryManager() {
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
-
     const handleOpenCreate = (event: Event) => {
       const detail = (event as CustomEvent<OpenSubcategoryCreateEventDetail>).detail;
       const preferredConfigId = detail?.categoryConfigId || selectedConfigId || '';
-
-      setFormData({ display_name: '', slug: '', icon: '', display_order: '0', is_active: true });
+      setFormData(INITIAL_FORM);
       setEditingSub(null);
       setCreateConfigId(preferredConfigId);
-      if (preferredConfigId) {
-        setSelectedConfigId(preferredConfigId);
-      }
-      fetchConfigs(); // Refresh categories to pick up any newly created ones
+      if (preferredConfigId) setSelectedConfigId(preferredConfigId);
+      fetchConfigs();
       setIsDialogOpen(true);
     };
-
     window.addEventListener('admin:open-subcategory-create', handleOpenCreate);
     return () => window.removeEventListener('admin:open-subcategory-create', handleOpenCreate);
   }, [selectedConfigId]);
@@ -109,8 +175,13 @@ export function SubcategoryManager() {
     return c ? `${c.icon} ${c.display_name}` : configId;
   };
 
+  const getParentCategoryName = (configId: string) => {
+    const c = allConfigs.find(cfg => cfg.id === configId);
+    return c?.display_name || '';
+  };
+
   const resetForm = () => {
-    setFormData({ display_name: '', slug: '', icon: '', display_order: '0', is_active: true });
+    setFormData(INITIAL_FORM);
     setEditingSub(null);
     setCreateConfigId('');
   };
@@ -119,10 +190,8 @@ export function SubcategoryManager() {
     resetForm();
     const nextConfigId = preferredConfigId ?? selectedConfigId ?? '';
     setCreateConfigId(nextConfigId);
-    if (nextConfigId) {
-      setSelectedConfigId(nextConfigId);
-    }
-    fetchConfigs(); // Always refresh to pick up newly created categories
+    if (nextConfigId) setSelectedConfigId(nextConfigId);
+    fetchConfigs();
     setIsDialogOpen(true);
   };
 
@@ -134,6 +203,14 @@ export function SubcategoryManager() {
       icon: sub.icon || '',
       display_order: (sub.display_order ?? 0).toString(),
       is_active: sub.is_active,
+      image_url: sub.image_url || '',
+      color: sub.color || '',
+      name_placeholder: sub.name_placeholder || '',
+      description_placeholder: sub.description_placeholder || '',
+      price_label: sub.price_label || '',
+      duration_label: sub.duration_label || '',
+      show_veg_toggle: sub.show_veg_toggle,
+      show_duration_field: sub.show_duration_field,
     });
     setCreateConfigId(sub.category_config_id);
     setIsDialogOpen(true);
@@ -151,20 +228,28 @@ export function SubcategoryManager() {
     }
     setIsSaving(true);
     try {
-      const payload = {
+      const payload: Record<string, any> = {
         category_config_id: configId,
         display_name: formData.display_name.trim(),
         slug: formData.slug.trim().toLowerCase().replace(/[^a-z0-9_-]/g, '_'),
         icon: formData.icon.trim() || null,
         display_order: parseInt(formData.display_order) || 0,
         is_active: formData.is_active,
+        image_url: formData.image_url.trim() || null,
+        color: formData.color || null,
+        name_placeholder: formData.name_placeholder.trim() || null,
+        description_placeholder: formData.description_placeholder.trim() || null,
+        price_label: formData.price_label.trim() || null,
+        duration_label: formData.duration_label.trim() || null,
+        show_veg_toggle: formData.show_veg_toggle,
+        show_duration_field: formData.show_duration_field,
       };
       if (editingSub) {
         const { error } = await supabase.from('subcategories').update(payload).eq('id', editingSub.id);
         if (error) throw error;
         toast.success('Subcategory updated');
       } else {
-        const { error } = await supabase.from('subcategories').insert(payload);
+        const { error } = await supabase.from('subcategories').insert(payload as any);
         if (error) throw error;
         toast.success('Subcategory created');
       }
@@ -193,9 +278,10 @@ export function SubcategoryManager() {
   };
 
   const handleFilterChange = (value: string) => {
-    // "all" maps to empty string internally
     setSelectedConfigId(value === 'all' ? '' : value);
   };
+
+  const activeConfigId = editingSub ? editingSub.category_config_id : createConfigId;
 
   return (
     <Card className="border-0 shadow-[var(--shadow-card)] rounded-2xl">
@@ -246,13 +332,20 @@ export function SubcategoryManager() {
             {subcategories.map((sub, idx) => (
               <motion.div key={sub.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: idx * 0.02 }}>
                 <div className="flex items-center gap-3 p-3 bg-card border border-border/30 rounded-xl shadow-sm hover:shadow-md transition-all duration-200 group">
-                  <span className="text-lg">{sub.icon || '📂'}</span>
+                  {sub.image_url ? (
+                    <img src={sub.image_url} alt={sub.display_name} className="w-8 h-8 rounded-lg object-cover" />
+                  ) : (
+                    <span className="text-lg">{sub.icon || '📂'}</span>
+                  )}
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-semibold truncate">{sub.display_name}</p>
                     <p className="text-[10px] text-muted-foreground">
                       {getCategoryName(sub.category_config_id)} · <span className="font-mono">{sub.slug}</span>
                     </p>
                   </div>
+                  {sub.color && (
+                    <div className={cn('w-4 h-4 rounded', sub.color)} />
+                  )}
                   {!sub.is_active && (
                     <Badge variant="secondary" className="text-[10px] rounded-md">Inactive</Badge>
                   )}
@@ -268,73 +361,182 @@ export function SubcategoryManager() {
           </div>
         )}
 
-        {/* Add/Edit Dialog */}
+        {/* Add/Edit Dialog — Rich form matching Category edit dialog */}
         <Dialog open={isDialogOpen} onOpenChange={(o) => { if (!o) resetForm(); setIsDialogOpen(o); }}>
-          <DialogContent className="rounded-2xl">
+          <DialogContent className="rounded-2xl max-w-md">
             <DialogHeader>
               <DialogTitle className="font-bold">{editingSub ? 'Edit Subcategory' : 'Add Subcategory'}</DialogTitle>
               <DialogDescription className="text-xs">
-                {editingSub ? 'Update this subcategory.' : 'Create a new subcategory under a parent category.'}
+                {editingSub ? 'Update this subcategory settings.' : 'Create a new subcategory under a parent category.'}
               </DialogDescription>
             </DialogHeader>
-            <div className="space-y-4">
-              {!editingSub && (
+            <ScrollArea className="max-h-[70vh]">
+              <div className="space-y-4 py-2 pr-3">
+                {/* Parent Category */}
+                {!editingSub ? (
+                  <div className="space-y-2">
+                    <Label className="text-xs font-semibold">Parent Category *</Label>
+                    <Select value={createConfigId} onValueChange={setCreateConfigId}>
+                      <SelectTrigger className="rounded-xl"><SelectValue placeholder="Select category" /></SelectTrigger>
+                      <SelectContent>
+                        {allConfigs.map(c => (
+                          <SelectItem key={c.id} value={c.id}>{c.icon} {c.display_name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <Label className="text-xs font-semibold">Parent:</Label>
+                    <Badge variant="secondary" className="rounded-lg text-xs">{getCategoryName(editingSub.category_config_id)}</Badge>
+                  </div>
+                )}
+
+                {/* Display Name */}
                 <div className="space-y-2">
-                  <Label className="text-xs font-semibold">Parent Category *</Label>
-                  <Select value={createConfigId} onValueChange={setCreateConfigId}>
-                    <SelectTrigger className="rounded-xl"><SelectValue placeholder="Select category" /></SelectTrigger>
+                  <Label className="text-xs font-semibold">Display Name *</Label>
+                  <Input
+                    placeholder="e.g. Dairy Products"
+                    value={formData.display_name}
+                    onChange={e => {
+                      const name = e.target.value;
+                      setFormData({
+                        ...formData,
+                        display_name: name,
+                        slug: editingSub ? formData.slug : name.toLowerCase().replace(/[^a-z0-9]+/g, '_'),
+                      });
+                    }}
+                    className="rounded-xl"
+                  />
+                </div>
+
+                {/* AI Image Generation */}
+                <GenerateSubcategoryImageButton
+                  name={formData.display_name}
+                  subcategoryId={editingSub?.id}
+                  parentCategoryName={getParentCategoryName(activeConfigId)}
+                  imageUrl={formData.image_url || null}
+                  onImageGenerated={(url) => setFormData({ ...formData, image_url: url })}
+                />
+
+                {/* Icon (Emoji) */}
+                <div className="space-y-2">
+                  <Label className="text-xs font-semibold">Icon (Emoji)</Label>
+                  <Input value={formData.icon} onChange={e => setFormData({ ...formData, icon: e.target.value })} className="text-2xl rounded-xl" />
+                  <div className="flex flex-wrap gap-1.5 mt-1">
+                    {EMOJI_PRESETS.slice(0, 24).map((emoji) => (
+                      <button key={emoji} type="button" onClick={() => setFormData({ ...formData, icon: emoji })} className={cn('w-8 h-8 rounded-lg text-lg flex items-center justify-center hover:bg-muted transition-colors', formData.icon === emoji && 'bg-primary/15 ring-1 ring-primary')}>
+                        {emoji}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Color */}
+                <div className="space-y-2">
+                  <Label className="text-xs font-semibold">Color</Label>
+                  <Select value={formData.color || 'none'} onValueChange={(value) => setFormData({ ...formData, color: value === 'none' ? '' : value })}>
+                    <SelectTrigger className="rounded-xl"><SelectValue placeholder="Inherit from parent" /></SelectTrigger>
                     <SelectContent>
-                      {allConfigs.map(c => (
-                        <SelectItem key={c.id} value={c.id}>{c.icon} {c.display_name}</SelectItem>
+                      <SelectItem value="none">
+                        <span className="text-muted-foreground">Inherit from parent</span>
+                      </SelectItem>
+                      {COLOR_PRESETS.map((color) => (
+                        <SelectItem key={color.value} value={color.value}>
+                          <div className="flex items-center gap-2"><div className={cn('w-4 h-4 rounded', color.value)} />{color.label}</div>
+                        </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 </div>
-              )}
-              <div className="space-y-2">
-                <Label className="text-xs font-semibold">Display Name *</Label>
-                <Input
-                  placeholder="e.g. Dairy Products"
-                  value={formData.display_name}
-                  onChange={e => {
-                    const name = e.target.value;
-                    setFormData({
-                      ...formData,
-                      display_name: name,
-                      slug: editingSub ? formData.slug : name.toLowerCase().replace(/[^a-z0-9]+/g, '_'),
-                    });
-                  }}
-                  className="rounded-xl"
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-2">
-                  <Label className="text-xs font-semibold">Slug</Label>
-                  <Input value={formData.slug} onChange={e => setFormData({ ...formData, slug: e.target.value })} className="rounded-xl font-mono text-xs" />
+
+                {/* Slug + Order */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-2">
+                    <Label className="text-xs font-semibold">Slug</Label>
+                    <Input value={formData.slug} onChange={e => setFormData({ ...formData, slug: e.target.value })} className="rounded-xl font-mono text-xs" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-xs font-semibold">Display Order</Label>
+                    <Input type="number" value={formData.display_order} onChange={e => setFormData({ ...formData, display_order: e.target.value })} className="rounded-xl" />
+                  </div>
                 </div>
-                <div className="space-y-2">
-                  <Label className="text-xs font-semibold">Icon (emoji)</Label>
-                  <Input placeholder="🥛" value={formData.icon} onChange={e => setFormData({ ...formData, icon: e.target.value })} className="rounded-xl" />
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-2">
-                  <Label className="text-xs font-semibold">Display Order</Label>
-                  <Input type="number" value={formData.display_order} onChange={e => setFormData({ ...formData, display_order: e.target.value })} className="rounded-xl" />
-                </div>
-                <div className="flex items-center gap-2 pt-6">
+
+                {/* Active toggle */}
+                <div className="flex items-center justify-between p-3 bg-muted/40 rounded-xl">
+                  <span className="text-xs font-medium">Active</span>
                   <Switch checked={formData.is_active} onCheckedChange={c => setFormData({ ...formData, is_active: c })} />
-                  <Label className="text-xs font-medium">Active</Label>
                 </div>
+
+                {/* ── Seller Form Hints ── */}
+                <div className="border-t pt-4 mt-2">
+                  <Label className="text-xs text-muted-foreground mb-3 block font-bold uppercase tracking-wider">Seller Form Hints</Label>
+                  <p className="text-[10px] text-muted-foreground mb-3">Leave blank to inherit from parent category.</p>
+                  <div className="space-y-3">
+                    <div className="space-y-1">
+                      <Label className="text-xs">Name Placeholder</Label>
+                      <Input value={formData.name_placeholder} onChange={e => setFormData({ ...formData, name_placeholder: e.target.value })} placeholder="e.g. Enter milk brand name" className="h-9 text-sm rounded-xl" />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">Description Placeholder</Label>
+                      <Input value={formData.description_placeholder} onChange={e => setFormData({ ...formData, description_placeholder: e.target.value })} placeholder="e.g. Describe the dairy product" className="h-9 text-sm rounded-xl" />
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="space-y-1">
+                        <Label className="text-xs">Price Label</Label>
+                        <Input value={formData.price_label} onChange={e => setFormData({ ...formData, price_label: e.target.value })} placeholder="e.g. ₹/litre" className="h-9 text-sm rounded-xl" />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">Duration Label</Label>
+                        <Input value={formData.duration_label} onChange={e => setFormData({ ...formData, duration_label: e.target.value })} placeholder="e.g. Shelf life" className="h-9 text-sm rounded-xl" />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* ── Configuration Toggles ── */}
+                <div className="border-t pt-4 mt-2">
+                  <Label className="text-xs text-muted-foreground mb-3 block font-bold uppercase tracking-wider">Configuration Toggles</Label>
+                  <p className="text-[10px] text-muted-foreground mb-3">Override parent category settings. "Inherit" means the parent's setting is used.</p>
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between p-3 bg-muted/40 rounded-xl">
+                      <span className="text-xs font-medium">Show Veg/Non-Veg Toggle</span>
+                      <Select
+                        value={formData.show_veg_toggle === null ? 'inherit' : formData.show_veg_toggle ? 'yes' : 'no'}
+                        onValueChange={(v) => setFormData({ ...formData, show_veg_toggle: v === 'inherit' ? null : v === 'yes' })}
+                      >
+                        <SelectTrigger className="w-28 h-8 rounded-lg text-xs"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="inherit">Inherit</SelectItem>
+                          <SelectItem value="yes">Yes</SelectItem>
+                          <SelectItem value="no">No</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="flex items-center justify-between p-3 bg-muted/40 rounded-xl">
+                      <span className="text-xs font-medium">Show Duration Field</span>
+                      <Select
+                        value={formData.show_duration_field === null ? 'inherit' : formData.show_duration_field ? 'yes' : 'no'}
+                        onValueChange={(v) => setFormData({ ...formData, show_duration_field: v === 'inherit' ? null : v === 'yes' })}
+                      >
+                        <SelectTrigger className="w-28 h-8 rounded-lg text-xs"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="inherit">Inherit</SelectItem>
+                          <SelectItem value="yes">Yes</SelectItem>
+                          <SelectItem value="no">No</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Save */}
+                <Button onClick={handleSave} disabled={isSaving} className="w-full rounded-xl h-11 font-semibold">
+                  {isSaving && <Loader2 className="animate-spin mr-2" size={16} />}
+                  {editingSub ? 'Save Changes' : 'Create Subcategory'}
+                </Button>
               </div>
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setIsDialogOpen(false)} className="rounded-xl">Cancel</Button>
-              <Button onClick={handleSave} disabled={isSaving} className="rounded-xl font-semibold">
-                {isSaving && <Loader2 className="animate-spin mr-1" size={14} />}
-                {editingSub ? 'Save' : 'Create'}
-              </Button>
-            </DialogFooter>
+            </ScrollArea>
           </DialogContent>
         </Dialog>
 

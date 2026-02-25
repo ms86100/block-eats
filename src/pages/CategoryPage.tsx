@@ -184,13 +184,18 @@ export default function CategoryPage() {
                 key={sub.id}
                 onClick={() => setSelectedSubcategory(sub.id)}
                 className={cn(
-                  'px-3.5 py-1.5 rounded-full text-[11px] font-medium whitespace-nowrap transition-colors',
+                  'px-3.5 py-1.5 rounded-full text-[11px] font-medium whitespace-nowrap transition-colors flex items-center gap-1',
                   selectedSubcategory === sub.id
                     ? 'bg-primary text-primary-foreground'
-                    : 'bg-secondary text-muted-foreground'
+                    : sub.color || 'bg-secondary text-muted-foreground'
                 )}
               >
-                {sub.icon || ''} {sub.display_name}
+                {sub.image_url ? (
+                  <img src={sub.image_url} alt="" className="w-4 h-4 rounded-full object-cover" />
+                ) : sub.icon ? (
+                  <span>{sub.icon}</span>
+                ) : null}
+                {sub.display_name}
               </button>
             ))}
           </div>

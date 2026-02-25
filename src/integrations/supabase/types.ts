@@ -5464,34 +5464,58 @@ export type Database = {
       subcategories: {
         Row: {
           category_config_id: string
+          color: string | null
           created_at: string
+          description_placeholder: string | null
           display_name: string
           display_order: number | null
+          duration_label: string | null
           icon: string | null
           id: string
+          image_url: string | null
           is_active: boolean
+          name_placeholder: string | null
+          price_label: string | null
+          show_duration_field: boolean | null
+          show_veg_toggle: boolean | null
           slug: string
           updated_at: string
         }
         Insert: {
           category_config_id: string
+          color?: string | null
           created_at?: string
+          description_placeholder?: string | null
           display_name: string
           display_order?: number | null
+          duration_label?: string | null
           icon?: string | null
           id?: string
+          image_url?: string | null
           is_active?: boolean
+          name_placeholder?: string | null
+          price_label?: string | null
+          show_duration_field?: boolean | null
+          show_veg_toggle?: boolean | null
           slug: string
           updated_at?: string
         }
         Update: {
           category_config_id?: string
+          color?: string | null
           created_at?: string
+          description_placeholder?: string | null
           display_name?: string
           display_order?: number | null
+          duration_label?: string | null
           icon?: string | null
           id?: string
+          image_url?: string | null
           is_active?: boolean
+          name_placeholder?: string | null
+          price_label?: string | null
+          show_duration_field?: boolean | null
+          show_veg_toggle?: boolean | null
           slug?: string
           updated_at?: string
         }

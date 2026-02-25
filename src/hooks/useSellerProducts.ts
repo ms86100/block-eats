@@ -62,16 +62,26 @@ export function useSellerProducts() {
     return configs.find(c => c.category === formData.category) || null;
   }, [formData.category, configs]);
 
-  const showVegToggle = activeCategoryConfig?.formHints.showVegToggle ?? false;
-  const showDurationField = activeCategoryConfig?.formHints.showDurationField ?? false;
+  const activeCategoryConfigId = activeCategoryConfig?.id || null;
+  const { data: subcategories = [] } = useSubcategories(activeCategoryConfigId);
+
+  // Find selected subcategory to cascade its overrides
+  const activeSubcategory = useMemo(() => {
+    if (!formData.subcategory_id) return null;
+    return subcategories.find(s => s.id === formData.subcategory_id) || null;
+  }, [formData.subcategory_id, subcategories]);
+
+  // Subcategory overrides parent when non-null
+  const showVegToggle = activeSubcategory?.show_veg_toggle ?? activeCategoryConfig?.formHints.showVegToggle ?? false;
+  const showDurationField = activeSubcategory?.show_duration_field ?? activeCategoryConfig?.formHints.showDurationField ?? false;
 
   const allowedCategories = useMemo(() => {
     if (!primaryGroup || !groupedConfigs[primaryGroup]) return [];
     return groupedConfigs[primaryGroup];
   }, [primaryGroup, groupedConfigs]);
 
-  const activeCategoryConfigId = activeCategoryConfig?.id || null;
-  const { data: subcategories = [] } = useSubcategories(activeCategoryConfigId);
+
+
 
   useEffect(() => {
     if (user && currentSellerId) fetchData(currentSellerId);
