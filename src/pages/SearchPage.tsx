@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
@@ -15,6 +15,8 @@ import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 import { TypewriterPlaceholder } from '@/components/search/TypewriterPlaceholder';
 import { useCurrency } from '@/hooks/useCurrency';
 import { useSearchPage, ProductSearchResult } from '@/hooks/useSearchPage';
+import { ProductDetailSheet } from '@/components/product/ProductDetailSheet';
+import { type ProductDetail } from '@/hooks/useProductDetail';
 
 function toProductWithSeller(p: ProductSearchResult): ProductWithSeller {
   return {
@@ -33,6 +35,33 @@ function toProductWithSeller(p: ProductSearchResult): ProductWithSeller {
 
 export default function SearchPage() {
   const s = useSearchPage();
+  const [selectedProduct, setSelectedProduct] = useState<ProductDetail | null>(null);
+  const [detailOpen, setDetailOpen] = useState(false);
+
+  const handleProductTap = (product: ProductWithSeller) => {
+    setSelectedProduct({
+      product_id: product.id,
+      product_name: product.name,
+      price: product.price,
+      image_url: product.image_url,
+      is_veg: product.is_veg,
+      category: product.category,
+      description: product.description,
+      prep_time_minutes: product.prep_time_minutes,
+      fulfillment_mode: product.fulfillment_mode,
+      delivery_note: product.delivery_note,
+      action_type: product.action_type,
+      contact_phone: product.contact_phone,
+      seller_id: product.seller_id,
+      seller_name: product.seller_name || 'Seller',
+      seller_rating: product.seller_rating || 0,
+      seller_reviews: product.seller_reviews || 0,
+      society_name: (product as any).society_name || null,
+      distance_km: (product as any).distance_km || null,
+      is_same_society: (product as any).is_same_society ?? true,
+    });
+    setDetailOpen(true);
+  };
 
   return (
     <AppLayout showHeader={false} showCart={false}>
@@ -108,13 +137,19 @@ export default function SearchPage() {
               {[1, 2, 3, 4, 5, 6].map((i) => <Skeleton key={i} className="h-52 w-full rounded-xl" />)}
             </div>
           ) : s.displayProducts.length > 0 ? (
-            <ProductGridByCategory products={s.displayProducts} categoryMap={s.categoryMap} categoryConfigs={s.categoryConfigs} marketplaceConfig={s.mc} badgeConfigs={s.badgeConfigs} showCount={s.isSearchActive} onNavigate={s.navigate} />
+            <ProductGridByCategory products={s.displayProducts} categoryMap={s.categoryMap} categoryConfigs={s.categoryConfigs} marketplaceConfig={s.mc} badgeConfigs={s.badgeConfigs} showCount={s.isSearchActive} onNavigate={s.navigate} onProductTap={handleProductTap} />
           ) : s.isSearchActive ? (
             <EmptyState browseBeyond={s.browseBeyond} onEnableBrowseBeyond={() => s.setBrowseBeyond(true)} />
           ) : (
             <EmptyMarketplace />
           )}
         </div>
+
+        <ProductDetailSheet
+          product={selectedProduct}
+          open={detailOpen}
+          onOpenChange={setDetailOpen}
+        />
       </div>
     </AppLayout>
   );
@@ -144,7 +179,7 @@ function CategoryBubbleRow({ categories, selectedCategory, onCategoryTap, isLoad
 }
 
 // ── Product Grid By Category ──
-function ProductGridByCategory({ products, categoryMap, categoryConfigs, marketplaceConfig, badgeConfigs, showCount, onNavigate }: {
+function ProductGridByCategory({ products, categoryMap, categoryConfigs, marketplaceConfig, badgeConfigs, showCount, onNavigate, onProductTap }: {
   products: ProductSearchResult[];
   categoryMap: Record<string, { icon: string; displayName: string; color: string }>;
   categoryConfigs: { category: string; displayName: string; icon: string; behavior?: any }[];
@@ -152,6 +187,7 @@ function ProductGridByCategory({ products, categoryMap, categoryConfigs, marketp
   badgeConfigs?: BadgeConfigRow[];
   showCount?: boolean;
   onNavigate?: (path: string) => void;
+  onProductTap?: (product: ProductWithSeller) => void;
 }) {
   const { formatPrice } = useCurrency();
   const grouped = useMemo(() => {
@@ -175,7 +211,7 @@ function ProductGridByCategory({ products, categoryMap, categoryConfigs, marketp
               <span className="text-[11px] font-semibold text-accent ml-auto">From {formatPrice(Math.min(...items.map(p => p.price)))}</span>
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5">
-              {items.map((p) => <ProductListingCard key={p.product_id} product={toProductWithSeller(p)} categoryConfigs={categoryConfigs as any} marketplaceConfig={marketplaceConfig} badgeConfigs={badgeConfigs} onNavigate={onNavigate} />)}
+              {items.map((p) => <ProductListingCard key={p.product_id} product={toProductWithSeller(p)} categoryConfigs={categoryConfigs as any} marketplaceConfig={marketplaceConfig} badgeConfigs={badgeConfigs} onNavigate={onNavigate} onTap={onProductTap} />)}
             </div>
           </div>
         );
