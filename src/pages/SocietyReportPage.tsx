@@ -98,7 +98,7 @@ export default function SocietyReportPage() {
     <div className="flex items-center justify-between py-2">
       <span className="text-sm text-muted-foreground">{label}</span>
       <div className="flex items-center gap-1.5">
-        <span className="text-sm font-semibold">{value}</span>
+        <span className="text-sm font-semibold tabular-nums">{value}</span>
         {trend === 'up' && <TrendingUp size={12} className="text-success" />}
         {trend === 'down' && <TrendingDown size={12} className="text-destructive" />}
         {trend === 'neutral' && <Minus size={12} className="text-muted-foreground" />}

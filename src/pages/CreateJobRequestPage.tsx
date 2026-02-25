@@ -246,7 +246,7 @@ export default function CreateJobRequestPage() {
                 <button
                   type="button"
                   onClick={() => { setVisibilityScope('society'); setTargetSocietyIds([]); }}
-                  className={`flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-colors ${
+                  className={`flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-colors min-h-[80px] ${
                     visibilityScope === 'society'
                       ? 'border-primary bg-primary/5'
                       : 'border-border bg-card'
@@ -258,7 +258,7 @@ export default function CreateJobRequestPage() {
                 <button
                   type="button"
                   onClick={() => setVisibilityScope('nearby')}
-                  className={`flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-colors ${
+                  className={`flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-colors min-h-[80px] ${
                     visibilityScope === 'nearby'
                       ? 'border-primary bg-primary/5'
                       : 'border-border bg-card'
@@ -283,7 +283,7 @@ export default function CreateJobRequestPage() {
                           key={r}
                           type="button"
                           onClick={() => { setSelectedRadius(r); setTargetSocietyIds([]); }}
-                          className={`px-4 py-2 rounded-lg text-sm font-medium border transition-colors ${
+                          className={`px-4 py-2 rounded-lg text-sm font-medium border transition-colors min-h-[40px] tabular-nums ${
                             effectiveRadius === r
                               ? 'border-primary bg-primary text-primary-foreground'
                               : 'border-border bg-card text-foreground hover:bg-accent'

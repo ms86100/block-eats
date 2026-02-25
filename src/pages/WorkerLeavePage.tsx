@@ -113,7 +113,7 @@ export default function WorkerLeavePage() {
 
   if (loading) return (
     <AppLayout headerTitle="Worker Leave" showLocation={false}>
-      <div className="p-4 space-y-3">{[1, 2, 3].map(i => <Skeleton key={i} className="h-20 w-full" />)}</div>
+      <div className="p-4 space-y-3">{[1, 2, 3].map(i => <Skeleton key={i} className="h-20 w-full rounded-xl" />)}</div>
     </AppLayout>
   );
 

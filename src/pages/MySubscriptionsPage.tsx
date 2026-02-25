@@ -102,7 +102,7 @@ export default function MySubscriptionsPage() {
               <div className="flex items-center gap-4 text-xs text-muted-foreground">
                 <span>Qty: {sub.quantity}</span>
                 <span className="capitalize">{sub.frequency}</span>
-                <span>{formatPrice((sub.product?.price || 0) * sub.quantity)}/{sub.frequency === 'daily' ? 'day' : sub.frequency === 'weekly' ? 'week' : 'month'}</span>
+                <span className="tabular-nums">{formatPrice((sub.product?.price || 0) * sub.quantity)}/{sub.frequency === 'daily' ? 'day' : sub.frequency === 'weekly' ? 'week' : 'month'}</span>
               </div>
               {sub.status === 'active' && (
                 <p className="text-xs text-muted-foreground">

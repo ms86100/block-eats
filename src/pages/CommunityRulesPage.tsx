@@ -64,9 +64,8 @@ export default function CommunityRulesPage() {
   return (
     <AppLayout showHeader={false} showNav={false}>
       <div className="p-4 pb-8 safe-top">
-        <Link to="/help" className="flex items-center gap-2 text-muted-foreground mb-6">
-          <ArrowLeft size={20} />
-          <span>Back to Help</span>
+        <Link to="/help" className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-muted shrink-0 mb-4">
+          <ArrowLeft size={18} className="text-foreground" />
         </Link>
 
         <div className="text-center mb-6">

@@ -143,7 +143,7 @@ export default function CategoryGroupPage() {
         <div className="px-4 pt-1 pb-2">
           {/* Back + title */}
           <div className="flex items-center gap-2.5 mb-2.5">
-            <Link to="/" className="h-9 w-9 rounded-full bg-muted flex items-center justify-center shrink-0">
+            <Link to="/" className="h-10 w-10 rounded-full bg-muted flex items-center justify-center shrink-0">
               <ArrowLeft size={18} className="text-foreground" />
             </Link>
             <h1 className="text-base font-bold flex items-center gap-1.5 flex-1 min-w-0">

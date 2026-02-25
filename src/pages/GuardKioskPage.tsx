@@ -49,32 +49,32 @@ export default function GuardKioskPage() {
       <FeatureGate feature="guard_kiosk">
         <div className="p-4 space-y-4">
           <Tabs defaultValue="resident">
-            <TabsList className="w-full grid grid-cols-7">
-              <TabsTrigger value="resident" className="text-[9px] gap-0.5 flex-col h-auto py-1.5">
+            <TabsList className="w-full grid grid-cols-7 h-auto">
+              <TabsTrigger value="resident" className="text-[9px] gap-0.5 flex-col h-auto py-2 min-h-[44px]">
                 <QrCode size={14} />
                 QR
               </TabsTrigger>
-              <TabsTrigger value="visitor" className="text-[9px] gap-0.5 flex-col h-auto py-1.5">
+              <TabsTrigger value="visitor" className="text-[9px] gap-0.5 flex-col h-auto py-2 min-h-[44px]">
                 <KeyRound size={14} />
                 OTP
               </TabsTrigger>
-              <TabsTrigger value="manual" className="text-[9px] gap-0.5 flex-col h-auto py-1.5">
+              <TabsTrigger value="manual" className="text-[9px] gap-0.5 flex-col h-auto py-2 min-h-[44px]">
                 <UserX size={14} />
                 Manual
               </TabsTrigger>
-              <TabsTrigger value="delivery" className="text-[9px] gap-0.5 flex-col h-auto py-1.5">
+              <TabsTrigger value="delivery" className="text-[9px] gap-0.5 flex-col h-auto py-2 min-h-[44px]">
                 <Truck size={14} />
                 Delivery
               </TabsTrigger>
-              <TabsTrigger value="worker" className="text-[9px] gap-0.5 flex-col h-auto py-1.5">
+              <TabsTrigger value="worker" className="text-[9px] gap-0.5 flex-col h-auto py-2 min-h-[44px]">
                 <Users size={14} />
                 Worker
               </TabsTrigger>
-              <TabsTrigger value="expected" className="text-[9px] gap-0.5 flex-col h-auto py-1.5">
+              <TabsTrigger value="expected" className="text-[9px] gap-0.5 flex-col h-auto py-2 min-h-[44px]">
                 <ClipboardList size={14} />
                 Expected
               </TabsTrigger>
-              <TabsTrigger value="log" className="text-[9px] gap-0.5 flex-col h-auto py-1.5">
+              <TabsTrigger value="log" className="text-[9px] gap-0.5 flex-col h-auto py-2 min-h-[44px]">
                 <ScrollText size={14} />
                 Log
               </TabsTrigger>

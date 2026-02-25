@@ -95,7 +95,7 @@ export default function BuilderDashboardPage() {
     return (
       <AppLayout headerTitle="Builder Dashboard" showLocation={false}>
         <div className="p-4 space-y-4">
-          {[1, 2, 3].map((i) => <Skeleton key={i} className="h-24 w-full" />)}
+          {[1, 2, 3].map((i) => <Skeleton key={i} className="h-24 w-full rounded-xl" />)}
         </div>
       </AppLayout>
     );
@@ -113,22 +113,22 @@ export default function BuilderDashboardPage() {
         <div className="grid grid-cols-2 gap-3">
           <Card><CardContent className="p-3 text-center">
             <Building2 className="mx-auto text-primary mb-1" size={18} />
-            <p className="text-lg font-bold">{societies.length}</p>
+            <p className="text-lg font-bold tabular-nums">{societies.length}</p>
             <p className="text-[10px] text-muted-foreground">Societies</p>
           </CardContent></Card>
           <Card><CardContent className="p-3 text-center">
             <Users className="mx-auto text-primary mb-1" size={18} />
-            <p className="text-lg font-bold">{totalMembers}</p>
+            <p className="text-lg font-bold tabular-nums">{totalMembers}</p>
             <p className="text-[10px] text-muted-foreground">Total Members</p>
           </CardContent></Card>
           <Card><CardContent className="p-3 text-center">
             <Shield className="mx-auto text-warning mb-1" size={18} />
-            <p className="text-lg font-bold">{totalPending + totalPendingSellers}</p>
+            <p className="text-lg font-bold tabular-nums">{totalPending + totalPendingSellers}</p>
             <p className="text-[10px] text-muted-foreground">Pending Approvals</p>
           </CardContent></Card>
           <Card><CardContent className="p-3 text-center">
             <AlertTriangle className="mx-auto text-destructive mb-1" size={18} />
-            <p className="text-lg font-bold">{totalDisputes}</p>
+            <p className="text-lg font-bold tabular-nums">{totalDisputes}</p>
             <p className="text-[10px] text-muted-foreground">Open Issues</p>
           </CardContent></Card>
         </div>

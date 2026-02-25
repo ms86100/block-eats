@@ -130,9 +130,9 @@ export default function SocietyNoticesPage() {
                   <Label>Body *</Label>
                   <Textarea value={body} onChange={e => setBody(e.target.value)} placeholder="Notice content..." rows={5} />
                 </div>
-                <div className="flex items-center gap-2">
-                  <input type="checkbox" id="pin" checked={isPinned} onChange={e => setIsPinned(e.target.checked)} />
-                  <Label htmlFor="pin" className="text-sm">Pin this notice</Label>
+                   <div className="flex items-center gap-2 min-h-[40px]">
+                  <input type="checkbox" id="pin" checked={isPinned} onChange={e => setIsPinned(e.target.checked)} className="w-4 h-4 accent-primary" />
+                  <Label htmlFor="pin" className="text-sm cursor-pointer">Pin this notice</Label>
                 </div>
                 <Button onClick={handlePost} disabled={submitting || !title.trim() || !body.trim()} className="w-full">
                   {submitting ? 'Posting...' : 'Post & Notify All Residents'}
@@ -142,8 +142,8 @@ export default function SocietyNoticesPage() {
           </Sheet>
         )}
 
-        {loading ? (
-          [1, 2, 3].map(i => <Skeleton key={i} className="h-24 w-full" />)
+         {loading ? (
+          [1, 2, 3].map(i => <Skeleton key={i} className="h-24 w-full rounded-xl" />)
         ) : notices.length === 0 ? (
           <div className="text-center py-16 text-muted-foreground">
             <Megaphone size={40} className="mx-auto mb-3 opacity-40" />

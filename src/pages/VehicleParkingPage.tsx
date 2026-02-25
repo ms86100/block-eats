@@ -150,7 +150,7 @@ export default function VehicleParkingPage() {
     return (
       <AppLayout headerTitle="Parking" showLocation={false}>
         <div className="p-4 space-y-4">
-          {[1, 2, 3].map(i => <Skeleton key={i} className="h-24 w-full" />)}
+          {[1, 2, 3].map(i => <Skeleton key={i} className="h-24 w-full rounded-xl" />)}
         </div>
       </AppLayout>
     );
@@ -165,17 +165,17 @@ export default function VehicleParkingPage() {
         <div className="grid grid-cols-3 gap-3">
           <Card><CardContent className="p-3 text-center">
             <ParkingSquare className="mx-auto text-primary mb-1" size={18} />
-            <p className="text-lg font-bold">{slots.length}</p>
+             <p className="text-lg font-bold tabular-nums">{slots.length}</p>
             <p className="text-[10px] text-muted-foreground">Total Slots</p>
           </CardContent></Card>
           <Card><CardContent className="p-3 text-center">
             <Car className="mx-auto text-warning mb-1" size={18} />
-            <p className="text-lg font-bold">{occupiedCount}</p>
+            <p className="text-lg font-bold tabular-nums">{occupiedCount}</p>
             <p className="text-[10px] text-muted-foreground">Occupied</p>
           </CardContent></Card>
           <Card><CardContent className="p-3 text-center">
             <AlertTriangle className="mx-auto text-destructive mb-1" size={18} />
-            <p className="text-lg font-bold">{openViolations}</p>
+            <p className="text-lg font-bold tabular-nums">{openViolations}</p>
             <p className="text-[10px] text-muted-foreground">Violations</p>
           </CardContent></Card>
         </div>

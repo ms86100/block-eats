@@ -172,8 +172,8 @@ export default function PaymentMilestonesPage() {
     return (
       <AppLayout headerTitle="Payment Schedule" showLocation={false}>
         <div className="p-4 space-y-4">
-          <Skeleton className="h-24 w-full" />
-          <Skeleton className="h-32 w-full" />
+          <Skeleton className="h-24 w-full rounded-xl" />
+          <Skeleton className="h-32 w-full rounded-xl" />
         </div>
       </AppLayout>
     );
@@ -203,7 +203,7 @@ export default function PaymentMilestonesPage() {
             <div className="space-y-2">
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">Paid</span>
-                <span className="font-semibold text-primary">{paidPercentage}% of {totalPercentage}%</span>
+                <span className="font-semibold text-primary tabular-nums">{paidPercentage}% of {totalPercentage}%</span>
               </div>
               <Progress value={totalPercentage > 0 ? (paidPercentage / totalPercentage) * 100 : 0} className="h-3" />
             </div>

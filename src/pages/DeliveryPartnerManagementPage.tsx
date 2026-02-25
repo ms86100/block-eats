@@ -109,7 +109,7 @@ export default function DeliveryPartnerManagementPage() {
               </div>
               <div>
                 <p className="font-semibold">Delivery Pool</p>
-                <p className="text-2xl font-bold text-primary">{partners.filter(p => p.is_active).length}</p>
+                <p className="text-2xl font-bold text-primary tabular-nums">{partners.filter(p => p.is_active).length}</p>
               </div>
             </div>
             <Sheet open={isAddOpen} onOpenChange={setIsAddOpen}>

@@ -23,10 +23,10 @@ export default function BuilderAnalyticsPage() {
       <div className="p-4 space-y-4">
         {/* KPIs */}
         <div className="grid grid-cols-2 gap-3">
-          <Card><CardContent className="p-3 text-center"><CheckCircle className="mx-auto text-success mb-1" size={18} /><p className="text-xl font-bold">{ba.resolutionRate}%</p><p className="text-[10px] text-muted-foreground">Resolution Rate</p></CardContent></Card>
-          <Card><CardContent className="p-3 text-center"><Clock className="mx-auto text-warning mb-1" size={18} /><p className="text-xl font-bold">{ba.totals.avgResolution}h</p><p className="text-[10px] text-muted-foreground">Avg Resolution</p></CardContent></Card>
-          <Card><CardContent className="p-3 text-center"><AlertTriangle className="mx-auto text-destructive mb-1" size={18} /><p className="text-xl font-bold">{ba.totals.totalBreached}</p><p className="text-[10px] text-muted-foreground">SLA Breached</p></CardContent></Card>
-          <Card><CardContent className="p-3 text-center"><IndianRupee className="mx-auto text-primary mb-1" size={18} /><p className="text-xl font-bold">{ba.formatPrice(ba.totals.totalRevenue)}</p><p className="text-[10px] text-muted-foreground">Total Revenue</p></CardContent></Card>
+          <Card><CardContent className="p-3 text-center"><CheckCircle className="mx-auto text-success mb-1" size={18} /><p className="text-xl font-bold tabular-nums">{ba.resolutionRate}%</p><p className="text-[10px] text-muted-foreground">Resolution Rate</p></CardContent></Card>
+          <Card><CardContent className="p-3 text-center"><Clock className="mx-auto text-warning mb-1" size={18} /><p className="text-xl font-bold tabular-nums">{ba.totals.avgResolution}h</p><p className="text-[10px] text-muted-foreground">Avg Resolution</p></CardContent></Card>
+          <Card><CardContent className="p-3 text-center"><AlertTriangle className="mx-auto text-destructive mb-1" size={18} /><p className="text-xl font-bold tabular-nums">{ba.totals.totalBreached}</p><p className="text-[10px] text-muted-foreground">SLA Breached</p></CardContent></Card>
+          <Card><CardContent className="p-3 text-center"><IndianRupee className="mx-auto text-primary mb-1" size={18} /><p className="text-xl font-bold tabular-nums">{ba.formatPrice(ba.totals.totalRevenue)}</p><p className="text-[10px] text-muted-foreground">Total Revenue</p></CardContent></Card>
         </div>
 
         <Tabs defaultValue="trends">
