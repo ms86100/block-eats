@@ -15,6 +15,7 @@ import { Society } from '@/types/database';
 import { PasswordStrengthIndicator } from '@/components/auth/PasswordStrengthIndicator';
 import { useAutocomplete, PlaceDetails } from '@/hooks/useGoogleMaps';
 import { useSystemSettings } from '@/hooks/useSystemSettings';
+import { useLoginThrottle } from '@/hooks/useLoginThrottle';
 
 type SignupStep = 'credentials' | 'society' | 'profile' | 'verification';
 type SocietySubStep = 'search' | 'map-confirm' | 'request-form';
@@ -152,7 +153,13 @@ export default function AuthPage() {
 
   const validateEmail = (email: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 
+  const { isLocked, remainingSeconds, recordFailure, recordSuccess } = useLoginThrottle();
+
   const handleLogin = async () => {
+    if (isLocked) {
+      toast.error(`Too many attempts. Please wait ${remainingSeconds}s before trying again.`);
+      return;
+    }
     const validation = validateForm(loginSchema, { email, password });
     if ('errors' in validation) {
       toast.error(Object.values(validation.errors)[0] as string);
@@ -164,15 +171,15 @@ export default function AuthPage() {
     try {
       const { data, error } = await supabase.auth.signInWithPassword({ email: trimmedEmail, password: validatedPassword });
       if (error) throw error;
+      recordSuccess();
       const { data: profile } = await supabase.from('profiles').select('*').eq('id', data.user?.id).single();
       if (profile) { toast.success('Welcome back!'); navigate('/'); }
       else {
-        // User has auth credentials but no profile — this is an orphaned account.
-        // Sign them out and show a clear error instead of redirecting to signup.
         await supabase.auth.signOut();
         toast.error('Your account setup is incomplete. Please sign up again with a new account, or contact support.', { duration: 8000 });
       }
     } catch (error: any) {
+      recordFailure();
       if (error.message.includes('Email not confirmed')) {
         toast.error('Your email is not verified yet. Please check your inbox and click the verification link before logging in.', { duration: 6000 });
       } else if (error.message.includes('Invalid login')) {
@@ -522,7 +529,12 @@ export default function AuthPage() {
                       Forgot password?
                     </button>
                   </div>
-                  <Button onClick={handleLogin} disabled={!email || !password || isLoading} className="w-full h-12 rounded-xl text-base font-semibold">
+                  {isLocked && (
+                    <div className="text-center p-3 rounded-lg bg-destructive/10 text-destructive text-sm font-medium">
+                      Too many attempts. Try again in {remainingSeconds}s
+                    </div>
+                  )}
+                  <Button onClick={handleLogin} disabled={!email || !password || isLoading || isLocked} className="w-full h-12 rounded-xl text-base font-semibold">
                     {isLoading ? <Loader2 className="animate-spin mr-2" size={18} /> : <ArrowRight className="mr-2" size={18} />}
                     Sign In
                   </Button>

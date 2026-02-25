@@ -12,7 +12,7 @@ import { motion } from 'framer-motion';
 
 export default function HomePage() {
   const { user, profile, isApproved, isSeller, sellerProfiles } = useAuth();
-  const { showOnboarding, hasChecked, completeOnboarding } = useOnboarding();
+  const { showOnboarding, hasChecked, completeOnboarding } = useOnboarding(user?.id);
   const [showSellerCongrats, setShowSellerCongrats] = useState(false);
 
   useEffect(() => {

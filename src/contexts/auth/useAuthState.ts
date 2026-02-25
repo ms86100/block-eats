@@ -121,6 +121,11 @@ export function useAuthState() {
     isExplicitSignOut.current = true;
     await supabase.auth.signOut();
     clearAuthState();
+    // Clear React Query cache to prevent cross-user data leakage
+    const { QueryClient } = await import('@tanstack/react-query');
+    // Access the global queryClient via the DOM's react tree isn't possible here,
+    // so we dispatch a custom event that App.tsx listens to
+    window.dispatchEvent(new CustomEvent('app:clear-cache'));
   }, [clearAuthState]);
 
   // Fix #8: Guard against double fetchProfile on mount

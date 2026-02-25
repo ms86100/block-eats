@@ -1,4 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { withAuth } from "../_shared/auth.ts";
+import { checkRateLimit, rateLimitResponse } from "../_shared/rate-limiter.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -12,42 +14,24 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const authHeader = req.headers.get("Authorization");
-    if (!authHeader) {
-      return new Response(
-        JSON.stringify({ error: "Missing authorization header" }),
-        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
-
-    // Verify the user's JWT
-    const userClient = createClient(supabaseUrl, supabaseAnonKey, {
-      global: { headers: { Authorization: authHeader } },
-    });
-
-    const {
-      data: { user },
-      error: authError,
-    } = await userClient.auth.getUser();
-
-    if (authError || !user) {
-      return new Response(
-        JSON.stringify({ error: "Invalid or expired token" }),
-        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
+    // Use shared auth middleware
+    const authResult = await withAuth(req, corsHeaders);
+    if (authResult instanceof Response) return authResult;
+    const { userId } = authResult;
 
     const body = await req.json();
     const { society_id, new_society } = body;
 
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const adminClient = createClient(supabaseUrl, supabaseServiceKey);
 
     // Handle new society creation
     if (new_society && typeof new_society === "object") {
+      // Rate limit: max 3 society creations per user per hour
+      const rl = await checkRateLimit(`create-society:${userId}`, 3, 3600);
+      if (!rl.allowed) return rateLimitResponse(corsHeaders);
+
       const { name, slug, address, city, state, pincode, latitude, longitude } = new_society;
 
       if (!name || !slug) {
@@ -57,11 +41,36 @@ Deno.serve(async (req) => {
         );
       }
 
+      // Sanitize slug
+      const sanitizedSlug = String(slug).toLowerCase().replace(/[^a-z0-9-]/g, '').slice(0, 100);
+      const sanitizedName = String(name).trim().slice(0, 200);
+
+      if (!sanitizedSlug || sanitizedSlug.length < 3) {
+        return new Response(
+          JSON.stringify({ error: "Slug must be at least 3 alphanumeric characters" }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // Check for duplicate slug
+      const { data: existingSlug } = await adminClient
+        .from("societies")
+        .select("id")
+        .eq("slug", sanitizedSlug)
+        .maybeSingle();
+
+      if (existingSlug) {
+        return new Response(
+          JSON.stringify({ error: "A society with this slug already exists" }),
+          { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
       const { data: created, error: createError } = await adminClient
         .from("societies")
         .insert({
-          name,
-          slug,
+          name: sanitizedName,
+          slug: sanitizedSlug,
           address: address || null,
           city: city || null,
           state: state || null,
@@ -69,7 +78,7 @@ Deno.serve(async (req) => {
           latitude: latitude || null,
           longitude: longitude || null,
           is_verified: false,
-          is_active: true,
+          is_active: false, // Requires admin approval before activation
         })
         .select("id, name, is_active, is_verified")
         .single();
@@ -81,8 +90,6 @@ Deno.serve(async (req) => {
           { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
-
-      // Profile and metadata updates are handled client-side to avoid JWT race conditions
 
       return new Response(
         JSON.stringify({
@@ -98,7 +105,10 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Handle existing society validation
+    // Handle existing society validation — also rate-limited
+    const rlValidate = await checkRateLimit(`validate-society:${userId}`, 20, 60);
+    if (!rlValidate.allowed) return rateLimitResponse(corsHeaders);
+
     if (!society_id || typeof society_id !== "string") {
       return new Response(
         JSON.stringify({ error: "society_id or new_society is required" }),
@@ -126,8 +136,6 @@ Deno.serve(async (req) => {
         { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
-
-    // Profile and metadata updates are handled client-side to avoid JWT race conditions
 
     return new Response(
       JSON.stringify({

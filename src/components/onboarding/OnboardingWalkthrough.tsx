@@ -133,25 +133,29 @@ export function OnboardingWalkthrough({ onComplete, slides: customSlides }: Onbo
 }
 
 // Hook to manage onboarding state
-export function useOnboarding() {
+export function useOnboarding(userId?: string | null) {
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [hasChecked, setHasChecked] = useState(false);
 
   useEffect(() => {
-    const hasSeenOnboarding = localStorage.getItem('app_has_seen_onboarding');
+    // User-scoped key prevents shared-device issues
+    const key = userId ? `app_has_seen_onboarding_${userId}` : 'app_has_seen_onboarding';
+    const hasSeenOnboarding = localStorage.getItem(key);
     if (!hasSeenOnboarding) {
       setShowOnboarding(true);
     }
     setHasChecked(true);
-  }, []);
+  }, [userId]);
 
   const completeOnboarding = () => {
-    localStorage.setItem('app_has_seen_onboarding', 'true');
+    const key = userId ? `app_has_seen_onboarding_${userId}` : 'app_has_seen_onboarding';
+    localStorage.setItem(key, 'true');
     setShowOnboarding(false);
   };
 
   const resetOnboarding = () => {
-    localStorage.removeItem('app_has_seen_onboarding');
+    const key = userId ? `app_has_seen_onboarding_${userId}` : 'app_has_seen_onboarding';
+    localStorage.removeItem(key);
     setShowOnboarding(true);
   };
 

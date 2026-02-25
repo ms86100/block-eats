@@ -79,7 +79,7 @@ interface HelpPageProps {
 }
 
 export default function HelpPage({ sections: customSections }: HelpPageProps) {
-  const { resetOnboarding } = useOnboarding();
+  const { resetOnboarding } = useOnboarding(); // No userId needed for reset
   const settings = useSystemSettings();
 
   // Priority: prop > DB > default

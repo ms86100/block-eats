@@ -1,4 +1,5 @@
 import { useEffect, lazy, Suspense } from "react";
+
 import { ThemeProvider } from "next-themes";
 import { toast } from "sonner";
 import { Toaster } from "@/components/ui/toaster";
@@ -207,6 +208,22 @@ function ManagementRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+// Route guard for seller-only pages
+function SellerRoute({ children }: { children: React.ReactNode }) {
+  const { isSeller, isAdmin, isLoading } = useAuth();
+  if (isLoading) return <div className="min-h-screen flex items-center justify-center bg-background"><div className="animate-pulse text-primary text-xl font-bold">Loading...</div></div>;
+  if (!isSeller && !isAdmin) return <Navigate to="/" replace />;
+  return <>{children}</>;
+}
+
+// Route guard for worker-only pages
+function WorkerRoute({ children }: { children: React.ReactNode }) {
+  const { roles, isAdmin, isLoading } = useAuth();
+  if (isLoading) return <div className="min-h-screen flex items-center justify-center bg-background"><div className="animate-pulse text-primary text-xl font-bold">Loading...</div></div>;
+  if (!roles.includes('worker') && !isAdmin) return <Navigate to="/" replace />;
+  return <>{children}</>;
+}
+
 // Median.co SPA Navigation Handler + Deep Links
 function NavigationHandler() {
   const navigate = useNavigate();
@@ -268,14 +285,14 @@ function AppRoutes() {
         <Route path="/gate-entry" element={<ProtectedRoute><GateEntryPage /></ProtectedRoute>} />
         <Route path="/security/verify" element={<ProtectedRoute><SecurityRoute><SecurityVerifyPage /></SecurityRoute></ProtectedRoute>} />
         <Route path="/security/audit" element={<ProtectedRoute><SecurityRoute><SecurityAuditPage /></SecurityRoute></ProtectedRoute>} />
-        <Route path="/worker/jobs" element={<ProtectedRoute><WorkerJobsPage /></ProtectedRoute>} />
-        <Route path="/worker/my-jobs" element={<ProtectedRoute><WorkerMyJobsPage /></ProtectedRoute>} />
+        <Route path="/worker/jobs" element={<ProtectedRoute><WorkerRoute><WorkerJobsPage /></WorkerRoute></ProtectedRoute>} />
+        <Route path="/worker/my-jobs" element={<ProtectedRoute><WorkerRoute><WorkerMyJobsPage /></WorkerRoute></ProtectedRoute>} />
         <Route path="/worker-hire" element={<ProtectedRoute><WorkerHirePage /></ProtectedRoute>} />
         <Route path="/worker-hire/create" element={<ProtectedRoute><CreateJobRequestPage /></ProtectedRoute>} />
         <Route path="/society/notices" element={<ProtectedRoute><SocietyNoticesPage /></ProtectedRoute>} />
         <Route path="/society/deliveries" element={<ProtectedRoute><SocietyDeliveriesPage /></ProtectedRoute>} />
         <Route path="/delivery-partners" element={<ProtectedRoute><ManagementRoute><DeliveryPartnerManagementPage /></ManagementRoute></ProtectedRoute>} />
-        <Route path="/my-deliveries" element={<ProtectedRoute><DeliveryPartnerDashboardPage /></ProtectedRoute>} />
+        <Route path="/my-deliveries" element={<ProtectedRoute><ManagementRoute><DeliveryPartnerDashboardPage /></ManagementRoute></ProtectedRoute>} />
         <Route path="/worker-attendance" element={<ProtectedRoute><ManagementRoute><WorkerAttendancePage /></ManagementRoute></ProtectedRoute>} />
         <Route path="/my-workers" element={<ProtectedRoute><MyWorkersPage /></ProtectedRoute>} />
         <Route path="/worker-leave" element={<ProtectedRoute><ManagementRoute><WorkerLeavePage /></ManagementRoute></ProtectedRoute>} />
@@ -283,10 +300,10 @@ function AppRoutes() {
         <Route path="/authorized-persons" element={<ProtectedRoute><AuthorizedPersonsPage /></ProtectedRoute>} />
         <Route path="/builder-inspections" element={<ProtectedRoute><BuilderRoute><BuilderInspectionsPage /></BuilderRoute></ProtectedRoute>} />
         <Route path="/become-seller" element={<ProtectedRoute><RouteErrorBoundary sectionName="Seller Onboarding"><BecomeSellerPage /></RouteErrorBoundary></ProtectedRoute>} />
-        <Route path="/seller" element={<ProtectedRoute><RouteErrorBoundary sectionName="Seller Dashboard"><SellerDashboardPage /></RouteErrorBoundary></ProtectedRoute>} />
-        <Route path="/seller/products" element={<ProtectedRoute><RouteErrorBoundary sectionName="Products"><SellerProductsPage /></RouteErrorBoundary></ProtectedRoute>} />
-        <Route path="/seller/settings" element={<ProtectedRoute><RouteErrorBoundary sectionName="Seller Settings"><SellerSettingsPage /></RouteErrorBoundary></ProtectedRoute>} />
-        <Route path="/seller/earnings" element={<ProtectedRoute><RouteErrorBoundary sectionName="Earnings"><SellerEarningsPage /></RouteErrorBoundary></ProtectedRoute>} />
+        <Route path="/seller" element={<ProtectedRoute><SellerRoute><RouteErrorBoundary sectionName="Seller Dashboard"><SellerDashboardPage /></RouteErrorBoundary></SellerRoute></ProtectedRoute>} />
+        <Route path="/seller/products" element={<ProtectedRoute><SellerRoute><RouteErrorBoundary sectionName="Products"><SellerProductsPage /></RouteErrorBoundary></SellerRoute></ProtectedRoute>} />
+        <Route path="/seller/settings" element={<ProtectedRoute><SellerRoute><RouteErrorBoundary sectionName="Seller Settings"><SellerSettingsPage /></RouteErrorBoundary></SellerRoute></ProtectedRoute>} />
+        <Route path="/seller/earnings" element={<ProtectedRoute><SellerRoute><RouteErrorBoundary sectionName="Earnings"><SellerEarningsPage /></RouteErrorBoundary></SellerRoute></ProtectedRoute>} />
         <Route path="/admin" element={<ProtectedRoute><AdminRoute><AdminPage /></AdminRoute></ProtectedRoute>} />
         <Route path="/test-results" element={<ProtectedRoute><AdminRoute><TestResultsPage /></AdminRoute></ProtectedRoute>} />
         <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
@@ -301,29 +318,38 @@ function AppRoutes() {
   );
 }
 
-const App = () => (
-  <ErrorBoundary>
-    <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false}>
-      <QueryClientProvider client={queryClient}>
-        <TooltipProvider>
-          <OfflineBanner />
-          <Toaster />
-          <Sonner />
-          <HashRouter>
-            <GlobalHapticListener />
-            <NavigationHandler />
-            <AuthProvider>
-              <CartProvider>
-                <PushNotificationProvider>
-                  <AppRoutes />
-                </PushNotificationProvider>
-              </CartProvider>
-            </AuthProvider>
-          </HashRouter>
-        </TooltipProvider>
-      </QueryClientProvider>
-    </ThemeProvider>
-  </ErrorBoundary>
-);
+function App() {
+  // Listen for cache-clear event dispatched by signOut
+  useEffect(() => {
+    const handler = () => queryClient.clear();
+    window.addEventListener('app:clear-cache', handler);
+    return () => window.removeEventListener('app:clear-cache', handler);
+  }, []);
+
+  return (
+    <ErrorBoundary>
+      <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false}>
+        <QueryClientProvider client={queryClient}>
+          <TooltipProvider>
+            <OfflineBanner />
+            <Toaster />
+            <Sonner />
+            <HashRouter>
+              <GlobalHapticListener />
+              <NavigationHandler />
+              <AuthProvider>
+                <CartProvider>
+                  <PushNotificationProvider>
+                    <AppRoutes />
+                  </PushNotificationProvider>
+                </CartProvider>
+              </AuthProvider>
+            </HashRouter>
+          </TooltipProvider>
+        </QueryClientProvider>
+      </ThemeProvider>
+    </ErrorBoundary>
+  );
+}
 
 export default App;
