@@ -28,6 +28,8 @@ export interface SystemSettings {
   maxPriceFilter: number;
   locale: string;
   upiProviderLabel: string;
+  defaultCountryCode: string;
+  supportedCountryCodes: string[];
 }
 
 const DEFAULTS: SystemSettings = {
@@ -56,6 +58,8 @@ const DEFAULTS: SystemSettings = {
   maxPriceFilter: 50000,
   locale: 'en-IN',
   upiProviderLabel: 'GPay, PhonePe, Paytm',
+  defaultCountryCode: '+91',
+  supportedCountryCodes: ['+91', '+1', '+44', '+971', '+65', '+61'],
 };
 
 export function useSystemSettings(): SystemSettings {
@@ -75,6 +79,7 @@ export function useSystemSettings(): SystemSettings {
           'currency_symbol', 'budget_filter_threshold', 'platform_name',
           'violation_policy_json', 'seller_empty_state_copy', 'landing_slides_json',
           'max_price_filter', 'locale', 'upi_provider_label',
+          'default_country_code', 'supported_country_codes',
         ]);
 
       const map: Record<string, string> = {};
@@ -108,10 +113,19 @@ export function useSystemSettings(): SystemSettings {
         maxPriceFilter: parseInt(map.max_price_filter || '50000', 10) || 50000,
         locale: map.locale || DEFAULTS.locale,
         upiProviderLabel: map.upi_provider_label || DEFAULTS.upiProviderLabel,
+        defaultCountryCode: map.default_country_code || DEFAULTS.defaultCountryCode,
+        supportedCountryCodes: map.supported_country_codes
+          ? map.supported_country_codes.split(',').map(c => c.trim())
+          : DEFAULTS.supportedCountryCodes,
       };
     },
     staleTime: jitteredStaleTime(15 * 60 * 1000),
   });
+
+  // E6: Warn when falling back to defaults
+  if (data === DEFAULTS && import.meta.env.DEV) {
+    console.warn('[SystemSettings] Using hardcoded defaults — DB query may have failed');
+  }
 
   return data;
 }

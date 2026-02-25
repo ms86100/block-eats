@@ -2509,6 +2509,39 @@ export type Database = {
           },
         ]
       }
+      notification_preferences: {
+        Row: {
+          chat: boolean
+          created_at: string
+          id: string
+          orders: boolean
+          promotions: boolean
+          sounds: boolean
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          chat?: boolean
+          created_at?: string
+          id?: string
+          orders?: boolean
+          promotions?: boolean
+          sounds?: boolean
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          chat?: boolean
+          created_at?: string
+          id?: string
+          orders?: boolean
+          promotions?: boolean
+          sounds?: boolean
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       notification_queue: {
         Row: {
           body: string
@@ -6543,41 +6576,24 @@ export type Database = {
         Args: { _job_id: string; _worker_id: string }
         Returns: Json
       }
-      create_multi_vendor_orders:
-        | {
-            Args: {
-              _buyer_id: string
-              _cart_total?: number
-              _coupon_code?: string
-              _coupon_discount?: number
-              _coupon_id?: string
-              _delivery_address: string
-              _has_urgent?: boolean
-              _notes?: string
-              _payment_method?: string
-              _payment_status?: string
-              _seller_groups?: Json
-            }
-            Returns: Json
-          }
-        | {
-            Args: {
-              _buyer_id: string
-              _cart_total?: number
-              _coupon_code?: string
-              _coupon_discount?: number
-              _coupon_id?: string
-              _delivery_address: string
-              _delivery_fee?: number
-              _fulfillment_type?: string
-              _has_urgent?: boolean
-              _notes?: string
-              _payment_method?: string
-              _payment_status?: string
-              _seller_groups?: Json
-            }
-            Returns: Json
-          }
+      create_multi_vendor_orders: {
+        Args: {
+          _buyer_id: string
+          _cart_total?: number
+          _coupon_code?: string
+          _coupon_discount?: number
+          _coupon_id?: string
+          _delivery_address: string
+          _delivery_fee?: number
+          _fulfillment_type?: string
+          _has_urgent?: boolean
+          _notes?: string
+          _payment_method?: string
+          _payment_status?: string
+          _seller_groups?: Json
+        }
+        Returns: Json
+      }
       generate_recurring_visitor_entries: { Args: never; Returns: undefined }
       get_builder_dashboard: { Args: { _builder_id: string }; Returns: Json }
       get_category_parent_group: { Args: { cat: string }; Returns: string }

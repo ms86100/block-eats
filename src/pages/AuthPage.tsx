@@ -288,9 +288,9 @@ export default function AuthPage() {
       const redirectUrl = `${window.location.origin}/auth`;
       const { data, error } = await supabase.auth.signUp({
         email, password,
-        options: {
+         options: {
           emailRedirectTo: redirectUrl,
-          data: { name: profileData.name, phone: `+91${profileData.phone}`, flat_number: profileData.flat_number, block: profileData.block, phase: profileData.phase, society_id: selectedSociety.id }
+          data: { name: profileData.name, phone: `${settings.defaultCountryCode}${profileData.phone}`, flat_number: profileData.flat_number, block: profileData.block, phase: profileData.phase, society_id: selectedSociety.id }
         },
       });
       if (error) throw error;
@@ -331,7 +331,7 @@ export default function AuthPage() {
         }
 
         const { error: profileError } = await supabase.from('profiles').insert({
-          id: data.user.id, email, phone: `+91${profileData.phone}`, name: profileData.name,
+          id: data.user.id, email, phone: `${settings.defaultCountryCode}${profileData.phone}`, name: profileData.name,
           flat_number: profileData.flat_number, block: profileData.block,
           phase: profileData.phase || null, society_id: finalSocietyId,
         });
@@ -555,13 +555,21 @@ export default function AuthPage() {
                         <Mail className="text-primary" size={32} />
                       </div>
                       <div className="space-y-2">
-                        <p className="font-semibold">Check your email</p>
+                        <p className="font-semibold text-lg">Check your email</p>
                         <p className="text-sm text-muted-foreground">We've sent a password reset link to:</p>
                         <p className="text-sm font-semibold text-primary">{email}</p>
                       </div>
+                      <div className="bg-muted/50 rounded-xl p-3 text-xs text-muted-foreground space-y-1">
+                        <p>📧 Check your inbox and spam folder</p>
+                        <p>🔗 Click the link in the email to reset your password</p>
+                        <p>⏱️ The link expires in 1 hour</p>
+                      </div>
                       <Button onClick={() => { setAuthMode('login'); setResetEmailSent(false); }} className="w-full h-12 rounded-xl text-base font-semibold">
-                        Back to Login
+                        <ArrowLeft size={16} className="mr-2" /> Back to Login
                       </Button>
+                      <button type="button" onClick={handlePasswordReset} disabled={isLoading} className="text-xs text-primary hover:underline">
+                        {isLoading ? 'Sending...' : "Didn't receive it? Resend"}
+                      </button>
                     </div>
                   ) : (
                     <>
@@ -668,7 +676,7 @@ export default function AuthPage() {
                         <div className="space-y-2">
                           <Label>Contact Number *</Label>
                           <div className="flex gap-2">
-                            <div className="flex items-center px-3 bg-muted rounded-xl border border-input text-sm font-medium h-12">+91</div>
+                            <div className="flex items-center px-3 bg-muted rounded-xl border border-input text-sm font-medium h-12">{settings.defaultCountryCode}</div>
                             <Input placeholder="Your phone number" value={newSocietyData.contact} onChange={(e) => setNewSocietyData({ ...newSocietyData, contact: e.target.value.replace(/\D/g, '').slice(0, 10) })} maxLength={10} className="flex-1 h-12 rounded-xl" />
                           </div>
                         </div>
@@ -812,7 +820,7 @@ export default function AuthPage() {
                   <div className="space-y-2">
                     <Label htmlFor="phone">Phone Number *</Label>
                     <div className="flex gap-2">
-                      <div className="flex items-center px-3 bg-muted rounded-xl border border-input text-sm font-medium h-12">+91</div>
+                      <div className="flex items-center px-3 bg-muted rounded-xl border border-input text-sm font-medium h-12">{settings.defaultCountryCode}</div>
                       <Input id="phone" type="tel" placeholder="10-digit number" value={profileData.phone} onChange={(e) => setProfileData({ ...profileData, phone: formatPhone(e.target.value) })} maxLength={10} className="flex-1 h-12 rounded-xl" />
                     </div>
                   </div>

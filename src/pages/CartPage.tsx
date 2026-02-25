@@ -77,11 +77,18 @@ export default function CartPage() {
 
     if (error) throw error;
 
-    const result = data as { success: boolean; order_ids: string[]; order_count: number };
-    if (!result?.success) throw new Error('Failed to create orders');
+    const result = data as { success: boolean; order_ids?: string[]; order_count?: number; error?: string; unavailable_items?: string[] };
+    
+    // A2: Handle stock validation failures from the RPC
+    if (!result?.success) {
+      if (result?.error === 'stock_validation_failed' && result?.unavailable_items) {
+        const itemList = result.unavailable_items.join('\n• ');
+        throw new Error(`Some items are unavailable:\n• ${itemList}`);
+      }
+      throw new Error('Failed to create orders');
+    }
 
-    // Notifications are now handled by database triggers (enqueue_order_placed_notification)
-    return result.order_ids;
+    return result.order_ids || [];
   };
 
   const handlePlaceOrderInner = async () => {

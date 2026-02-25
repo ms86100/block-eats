@@ -46,7 +46,28 @@ export function CommunityTeaser() {
   const posts = data?.posts || [];
   const helpCount = data?.helpCount || 0;
 
-  if (!effectiveSocietyId || (posts.length === 0 && helpCount === 0)) return null;
+  if (!effectiveSocietyId) return null;
+
+  // C4: Show empty state instead of disappearing
+  if (posts.length === 0 && helpCount === 0) {
+    return (
+      <div className="px-4 mt-6">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="font-extrabold text-[15px] text-foreground tracking-tight flex items-center gap-1.5">
+            <MessageCircle size={15} className="text-primary" />
+            Community
+          </h3>
+        </div>
+        <Link to="/community">
+          <div className="bg-primary/5 border border-primary/10 rounded-2xl px-4 py-6 text-center active:scale-[0.98] transition-transform">
+            <MessageCircle size={28} className="text-primary mx-auto mb-2 opacity-60" />
+            <p className="text-sm font-semibold text-foreground">Be the first to post!</p>
+            <p className="text-[11px] text-muted-foreground mt-1">Share updates, ask questions, or help a neighbor</p>
+          </div>
+        </Link>
+      </div>
+    );
+  }
 
   return (
     <div className="px-4 mt-6">

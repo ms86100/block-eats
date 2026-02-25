@@ -43,34 +43,20 @@ function HeaderInner({
   const { selectionChanged } = useHaptics();
   const [unreadCount, setUnreadCount] = useState(0);
 
-  // Fix #18: Clean channel ref without polluting window
-  const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+  // B4: Replace realtime channel with polling for notification badge
+  const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     if (!user) return;
     fetchUnread();
 
-    const timer = setTimeout(() => {
-      const channel = supabase
-        .channel(`notification-badge-${user.id}`)
-        .on('postgres_changes', {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'user_notifications',
-          filter: `user_id=eq.${user.id}`,
-        }, () => {
-          setUnreadCount(prev => prev + 1);
-        })
-        .subscribe();
-
-      channelRef.current = channel;
-    }, 1000);
+    // Poll every 30 seconds instead of maintaining a persistent WebSocket
+    pollIntervalRef.current = setInterval(fetchUnread, 30_000);
 
     return () => {
-      clearTimeout(timer);
-      if (channelRef.current) {
-        supabase.removeChannel(channelRef.current);
-        channelRef.current = null;
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
+        pollIntervalRef.current = null;
       }
     };
   }, [user?.id]);
