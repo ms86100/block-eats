@@ -5,6 +5,7 @@ import { useSellerTrustSnapshot } from '@/hooks/queries/useProductTrustMetrics';
 import { ProductActionType } from '@/types/database';
 import { ACTION_CONFIG } from '@/lib/marketplace-constants';
 import { useCurrency } from '@/hooks/useCurrency';
+import { hapticImpact } from '@/lib/haptics';
 
 export interface ProductDetail {
   product_id: string;
@@ -70,6 +71,7 @@ export function useProductDetail(product: ProductDetail | null, open: boolean) {
     if (!product) return;
     if (actionType === 'contact_seller') { setContactOpen(true); return; }
     if (!isCartAction) { setEnquiryOpen(true); return; }
+    hapticImpact('medium');
     addItem({
       id: product.product_id, seller_id: product.seller_id,
       name: product.product_name, price: product.price,
