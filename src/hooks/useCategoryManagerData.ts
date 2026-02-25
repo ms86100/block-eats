@@ -30,6 +30,7 @@ export interface CategoryConfigRow {
 }
 
 export function useCategoryManagerData() {
+  const queryClient = useQueryClient();
   const { groups, parentGroupInfos, isLoading: groupsLoading, refresh: refreshGroups } = useParentGroups();
   const [categories, setCategories] = useState<CategoryConfigRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
