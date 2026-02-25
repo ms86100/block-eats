@@ -27,7 +27,6 @@ import {
   Repeat,
   Award,
   Building2,
-  FlaskConical,
 } from 'lucide-react';
 import { FeedbackSheet } from '@/components/feedback/FeedbackSheet';
 import { toast } from 'sonner';
@@ -106,14 +105,13 @@ export default function ProfilePage() {
       : []),
     ...(isSeller
       ? [{ icon: Store, label: 'Seller Dashboard', to: '/seller' }]
-      : [{ icon: Store, label: 'Become a Seller', to: '/become-seller' }]),
+      : []),
     { icon: Bell, label: 'Notifications', to: '/notifications' },
     { icon: HelpCircle, label: 'Help & Guide', to: '/help' },
-    { icon: FileText, label: 'Community Rules', to: '/community-rules' },
     ...(isAdmin ? [{ icon: Shield, label: 'Admin Panel', to: '/admin' }] : []),
-    ...(isAdmin ? [{ icon: FlaskConical, label: 'Test Results', to: '/test-results' }] : []),
-    { icon: Shield, label: 'Privacy Policy', to: '/privacy-policy' },
+    { icon: FileText, label: 'Privacy Policy', to: '/privacy-policy' },
     { icon: FileText, label: 'Terms & Conditions', to: '/terms' },
+    { icon: FileText, label: 'Community Rules', to: '/community-rules' },
   ];
 
   return (
