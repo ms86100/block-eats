@@ -55,49 +55,87 @@ class CapacitorStorage implements SupportedStorage {
   async getItem(key: string): Promise<string | null> {
     const t = Date.now();
     const shortKey = key.substring(0, 30);
-    if (!Capacitor.isNativePlatform()) {
-      return localStorage.getItem(key);
-    }
-    console.log('[CapacitorStorage] getItem start', shortKey, t);
-    const prefs = await ensurePreferences();
-    if (!prefs) { console.log('[CapacitorStorage] getItem fallback (no prefs)', shortKey, Date.now() - t, 'ms'); return localStorage.getItem(key); }
+
     try {
-      const { value } = await this.withTimeout(prefs.get({ key }), 3000, { value: localStorage.getItem(key) });
-      console.log('[CapacitorStorage] getItem done', shortKey, Date.now() - t, 'ms');
+      const localValue = localStorage.getItem(key);
+      if (!Capacitor.isNativePlatform()) return localValue;
+
+      // Fast path: if local copy exists, return immediately to avoid blocking auth flows.
+      if (localValue !== null) {
+        console.log('[CapacitorStorage] getItem fast-path(localStorage)', shortKey, Date.now() - t, 'ms');
+        return localValue;
+      }
+    } catch {
+      // Ignore localStorage read errors and continue to native read fallback
+    }
+
+    console.log('[CapacitorStorage] getItem native-read start', shortKey, t);
+    const prefs = await ensurePreferences();
+    if (!prefs) {
+      console.log('[CapacitorStorage] getItem fallback (no prefs)', shortKey, Date.now() - t, 'ms');
+      return null;
+    }
+
+    try {
+      const { value } = await this.withTimeout(prefs.get({ key }), 1200, { value: null });
+      if (value !== null) {
+        try { localStorage.setItem(key, value); } catch { /* ignore */ }
+      }
+      console.log('[CapacitorStorage] getItem native-read done', shortKey, Date.now() - t, 'ms');
       return value;
     } catch (e) {
-      console.warn('[CapacitorStorage] getItem failed', shortKey, Date.now() - t, 'ms', e);
-      return localStorage.getItem(key);
+      console.warn('[CapacitorStorage] getItem native-read failed', shortKey, Date.now() - t, 'ms', e);
+      return null;
     }
   }
 
   async setItem(key: string, value: string): Promise<void> {
     const t = Date.now();
     const shortKey = key.substring(0, 30);
-    // Always write to localStorage as a safety net
+
+    // Primary write path for auth runtime (must be immediate/non-blocking).
     try { localStorage.setItem(key, value); } catch (_) { /* quota exceeded, ignore */ }
+
     if (!Capacitor.isNativePlatform()) return;
-    console.log('[CapacitorStorage] setItem start', shortKey, t);
-    const prefs = await ensurePreferences();
-    if (!prefs) return;
-    try {
-      await this.withTimeout(prefs.set({ key, value }), 3000, undefined);
-      console.log('[CapacitorStorage] setItem done', shortKey, Date.now() - t, 'ms');
-    } catch (e) {
-      console.warn('[CapacitorStorage] setItem failed', shortKey, Date.now() - t, 'ms', e);
-    }
+
+    console.log('[CapacitorStorage] setItem queued(native-mirror)', shortKey, t);
+    void (async () => {
+      const prefs = await ensurePreferences();
+      if (!prefs) {
+        console.log('[CapacitorStorage] setItem mirror skipped (no prefs)', shortKey, Date.now() - t, 'ms');
+        return;
+      }
+      try {
+        await this.withTimeout(prefs.set({ key, value }), 1500, undefined);
+        console.log('[CapacitorStorage] setItem mirror done', shortKey, Date.now() - t, 'ms');
+      } catch (e) {
+        console.warn('[CapacitorStorage] setItem mirror failed', shortKey, Date.now() - t, 'ms', e);
+      }
+    })();
   }
 
   async removeItem(key: string): Promise<void> {
+    const t = Date.now();
+    const shortKey = key.substring(0, 30);
+
     try { localStorage.removeItem(key); } catch (_) { /* ignore */ }
+
     if (!Capacitor.isNativePlatform()) return;
-    const prefs = await ensurePreferences();
-    if (!prefs) return;
-    try {
-      await this.withTimeout(prefs.remove({ key }), 3000, undefined);
-    } catch (e) {
-      console.warn('[CapacitorStorage] removeItem failed:', e);
-    }
+
+    console.log('[CapacitorStorage] removeItem queued(native-mirror)', shortKey, t);
+    void (async () => {
+      const prefs = await ensurePreferences();
+      if (!prefs) {
+        console.log('[CapacitorStorage] removeItem mirror skipped (no prefs)', shortKey, Date.now() - t, 'ms');
+        return;
+      }
+      try {
+        await this.withTimeout(prefs.remove({ key }), 1500, undefined);
+        console.log('[CapacitorStorage] removeItem mirror done', shortKey, Date.now() - t, 'ms');
+      } catch (e) {
+        console.warn('[CapacitorStorage] removeItem mirror failed', shortKey, Date.now() - t, 'ms', e);
+      }
+    })();
   }
 }
 

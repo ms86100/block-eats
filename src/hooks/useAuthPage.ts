@@ -154,16 +154,22 @@ export function useAuthPage() {
     setIsLoading(true);
 
     // Safety timeout: ensure spinner clears even if a native bridge call hangs
+    let loginPhase: 'signInWithPassword' | 'profileQuery' | 'postProfileDecision' = 'signInWithPassword';
     const safetyTimer = setTimeout(() => {
-      console.warn('[Auth] Login safety timeout triggered — clearing spinner');
+      console.error('[Auth:Login] Global timeout after 20s', { phase: loginPhase });
       setIsLoading(false);
-      toast.error('Login is taking too long. Please check your connection and try again.');
+      toast.error(`Login stalled at ${loginPhase} after 20s. Native session storage did not complete in time. Please retry.`, { duration: 9000 });
     }, 20000);
 
     try {
+      console.log('[Auth:Login] Attempt metadata', {
+        provider: 'password',
+        emailDomain: trimmedEmail.includes('@') ? trimmedEmail.split('@')[1] : 'invalid',
+      });
       console.log('[Auth:Login] Step 1: signInWithPassword start', Date.now());
       const { data, error } = await supabase.auth.signInWithPassword({ email: trimmedEmail, password: validatedPassword });
       console.log('[Auth:Login] Step 2: signInWithPassword done', Date.now());
+      loginPhase = 'profileQuery';
       if (error) throw error;
       recordSuccess();
 
@@ -180,6 +186,7 @@ export function useAuthPage() {
       console.log('[Auth:Login] Step 4: profile query done', Date.now());
 
       const profile = profileResult.data;
+      loginPhase = 'postProfileDecision';
       if (profile) {
         console.log('[Auth:Login] Step 5: navigating to home', Date.now());
         toast.success('Welcome back!');
