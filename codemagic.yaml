@@ -47,6 +47,44 @@ workflows:
         script: |
           cd ios/App
           sed -i '' "s/PRODUCT_BUNDLE_IDENTIFIER = .*;/PRODUCT_BUNDLE_IDENTIFIER = $BUNDLE_ID;/g" App.xcodeproj/project.pbxproj
+
+      - name: Add iOS capabilities (Push Notifications & Background Modes)
+        script: |
+          cd ios/App
+          # Add Push Notifications entitlement
+          ENTITLEMENTS_FILE="App/App.entitlements"
+          if [ ! -f "$ENTITLEMENTS_FILE" ]; then
+            cat > "$ENTITLEMENTS_FILE" << 'EOF'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>aps-environment</key>
+            <string>production</string>
+          </dict>
+          </plist>
+          EOF
+            echo "Created entitlements file with Push Notifications"
+          else
+            # Add aps-environment if not already present
+            /usr/libexec/PlistBuddy -c "Add :aps-environment string production" "$ENTITLEMENTS_FILE" 2>/dev/null || \
+              /usr/libexec/PlistBuddy -c "Set :aps-environment production" "$ENTITLEMENTS_FILE"
+            echo "Updated entitlements with Push Notifications"
+          fi
+
+          # Add entitlements reference to project.pbxproj if not already present
+          if ! grep -q "App.entitlements" App.xcodeproj/project.pbxproj; then
+            sed -i '' 's/CODE_SIGN_IDENTITY/CODE_SIGN_ENTITLEMENTS = App\/App.entitlements;\n\t\t\t\tCODE_SIGN_IDENTITY/g' App.xcodeproj/project.pbxproj
+            echo "Added entitlements reference to Xcode project"
+          fi
+
+          # Add Background Modes to Info.plist (remote-notification + fetch)
+          /usr/libexec/PlistBuddy -c "Add :UIBackgroundModes array" App/Info.plist 2>/dev/null || true
+          /usr/libexec/PlistBuddy -c "Delete :UIBackgroundModes" App/Info.plist 2>/dev/null || true
+          /usr/libexec/PlistBuddy -c "Add :UIBackgroundModes array" App/Info.plist
+          /usr/libexec/PlistBuddy -c "Add :UIBackgroundModes:0 string remote-notification" App/Info.plist
+          /usr/libexec/PlistBuddy -c "Add :UIBackgroundModes:1 string fetch" App/Info.plist
+          echo "Added Background Modes (remote-notification, fetch) to Info.plist"
           
       - name: Set up code signing
         script: |
@@ -174,7 +212,41 @@ workflows:
         script: |
           cd ios/App
           sed -i '' "s/PRODUCT_BUNDLE_IDENTIFIER = .*;/PRODUCT_BUNDLE_IDENTIFIER = $BUNDLE_ID;/g" App.xcodeproj/project.pbxproj
-          
+
+      - name: Add iOS capabilities (Push Notifications & Background Modes)
+        script: |
+          cd ios/App
+          ENTITLEMENTS_FILE="App/App.entitlements"
+          if [ ! -f "$ENTITLEMENTS_FILE" ]; then
+            cat > "$ENTITLEMENTS_FILE" << 'EOF'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>aps-environment</key>
+            <string>production</string>
+          </dict>
+          </plist>
+          EOF
+            echo "Created entitlements file with Push Notifications"
+          else
+            /usr/libexec/PlistBuddy -c "Add :aps-environment string production" "$ENTITLEMENTS_FILE" 2>/dev/null || \
+              /usr/libexec/PlistBuddy -c "Set :aps-environment production" "$ENTITLEMENTS_FILE"
+            echo "Updated entitlements with Push Notifications"
+          fi
+
+          if ! grep -q "App.entitlements" App.xcodeproj/project.pbxproj; then
+            sed -i '' 's/CODE_SIGN_IDENTITY/CODE_SIGN_ENTITLEMENTS = App\/App.entitlements;\n\t\t\t\tCODE_SIGN_IDENTITY/g' App.xcodeproj/project.pbxproj
+            echo "Added entitlements reference to Xcode project"
+          fi
+
+          /usr/libexec/PlistBuddy -c "Add :UIBackgroundModes array" App/Info.plist 2>/dev/null || true
+          /usr/libexec/PlistBuddy -c "Delete :UIBackgroundModes" App/Info.plist 2>/dev/null || true
+          /usr/libexec/PlistBuddy -c "Add :UIBackgroundModes array" App/Info.plist
+          /usr/libexec/PlistBuddy -c "Add :UIBackgroundModes:0 string remote-notification" App/Info.plist
+          /usr/libexec/PlistBuddy -c "Add :UIBackgroundModes:1 string fetch" App/Info.plist
+          echo "Added Background Modes (remote-notification, fetch) to Info.plist"
+
       - name: Set up iOS code signing
         script: |
           keychain initialize
