@@ -10,22 +10,28 @@ function showFatalFallback(message: string) {
   root.innerHTML = FALLBACK_HTML(message);
 }
 
-function rootLooksEmpty() {
+/**
+ * Checks if the app has meaningfully mounted.
+ * Uses a data attribute set by ErrorBoundary.componentDidMount or AppRoutes
+ * instead of checking childElementCount (which fails when ErrorBoundary
+ * renders its own error UI — root has children but the app is broken).
+ */
+function appDidNotMount() {
   const root = document.getElementById("root");
-  return !!root && root.childElementCount === 0;
+  return !!root && !root.hasAttribute("data-app-mounted");
 }
 
 function installGlobalRuntimeGuards() {
   window.addEventListener("error", (event) => {
     console.error("[Bootstrap] Unhandled error:", event.error || event.message);
-    if (rootLooksEmpty()) {
+    if (appDidNotMount()) {
       showFatalFallback("The app crashed while starting. Please reopen the app.");
     }
   });
 
   window.addEventListener("unhandledrejection", (event) => {
     console.error("[Bootstrap] Unhandled rejection:", event.reason);
-    if (rootLooksEmpty()) {
+    if (appDidNotMount()) {
       showFatalFallback("Startup failed due to a runtime error. Please reopen the app.");
     }
   });
@@ -52,11 +58,13 @@ async function bootstrap() {
 
   createRoot(rootElement).render(<App />);
 
+  // Safety net: if the app hasn't signalled it mounted within 10s, show fallback
   window.setTimeout(() => {
-    if (rootLooksEmpty()) {
+    if (appDidNotMount()) {
+      console.error("[Bootstrap] App did not mount within 10 seconds");
       showFatalFallback("The app did not initialize correctly. Please close and reopen the app.");
     }
-  }, 8000);
+  }, 10000);
 }
 
 bootstrap().catch((e) => {

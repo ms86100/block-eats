@@ -6,8 +6,9 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { useAuth } from '@/contexts/AuthContext';
-import { Clock, Users, Shield, Building2, ShieldCheck, Activity, HelpCircle, ChevronDown, CheckCircle2 } from 'lucide-react';
+import { Clock, Users, Shield, Building2, ShieldCheck, Activity, HelpCircle, ChevronDown, CheckCircle2, LogOut } from 'lucide-react';
 import { toast } from 'sonner';
+import { Button } from '@/components/ui/button';
 
 interface PreviewData {
   queuePosition: number;
@@ -18,7 +19,7 @@ interface PreviewData {
 }
 
 export function VerificationPendingScreen() {
-  const { profile, refreshProfile } = useAuth();
+  const { profile, refreshProfile, signOut } = useAuth();
   const [preview, setPreview] = useState<PreviewData | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -156,6 +157,16 @@ export function VerificationPendingScreen() {
         <Link to="/help" className="block text-center text-sm text-primary font-medium hover:underline">
           Need help? Contact support →
         </Link>
+
+        {/* Logout button */}
+        <Button
+          variant="ghost"
+          className="w-full text-destructive hover:text-destructive"
+          onClick={() => signOut()}
+        >
+          <LogOut size={16} className="mr-2" />
+          Log Out & Start Over
+        </Button>
 
         {/* Queue & Timing Info */}
         {loading ? (

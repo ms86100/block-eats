@@ -19,6 +19,8 @@ import { useDeepLinks } from "@/hooks/useDeepLinks";
 import { useSecurityOfficer } from "@/hooks/useSecurityOfficer";
 import { useAppLifecycle } from "@/hooks/useAppLifecycle";
 import { useBuyerOrderAlerts } from "@/hooks/useBuyerOrderAlerts";
+import { useNewOrderAlert } from "@/hooks/useNewOrderAlert";
+import { NewOrderAlertOverlay } from "@/components/seller/NewOrderAlertOverlay";
 import { Skeleton } from "@/components/ui/skeleton";
 
 // Lazy-loaded pages for code splitting
@@ -94,18 +96,14 @@ const CollectiveBuyPage = lazy(() => import("./pages/CollectiveBuyPage"));
 const queryClient = new QueryClient({
   queryCache: new QueryCache({
     onError: (error) => {
-      if (import.meta.env.DEV) {
-        console.error('[Query Error]', error);
-      }
+      console.error('[Query Error]', error);
     },
   }),
   mutationCache: new MutationCache({
     onError: (error) => {
       const message = error instanceof Error ? error.message : 'Something went wrong';
       toast.error(message);
-      if (import.meta.env.DEV) {
-        console.error('[Mutation Error]', error);
-      }
+      console.error('[Mutation Error]', error);
     },
   }),
   defaultOptions: {
@@ -246,8 +244,19 @@ function NavigationHandler() {
   return null;
 }
 
+function GlobalSellerAlert() {
+  const { isSeller, currentSellerId } = useAuth();
+  const { pendingAlert, dismiss } = useNewOrderAlert(isSeller ? currentSellerId : null);
+  return <NewOrderAlertOverlay order={pendingAlert} onDismiss={dismiss} />;
+}
+
 function AppRoutes() {
   const { user, profile } = useAuth();
+
+  // Signal to main.tsx that React has successfully mounted
+  useEffect(() => {
+    document.getElementById('root')?.setAttribute('data-app-mounted', 'true');
+  }, []);
 
   // Real-time buyer order status alerts (toast + haptic)
   useBuyerOrderAlerts();
@@ -370,6 +379,7 @@ function App() {
                 <NavigationHandler />
                 <CartProvider>
                   <PushNotificationProvider>
+                    <GlobalSellerAlert />
                     <AppRoutes />
                   </PushNotificationProvider>
                 </CartProvider>

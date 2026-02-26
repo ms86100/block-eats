@@ -11,7 +11,7 @@ export function useAuthState() {
     setState(prev => ({ ...prev, ...partial }));
   }, []);
 
-  const fetchProfile = useCallback(async (userId: string) => {
+  const fetchProfile = useCallback(async (userId: string, retryCount = 0) => {
     try {
       const { data, error } = await supabase.rpc('get_user_auth_context', {
         _user_id: userId,
@@ -19,6 +19,14 @@ export function useAuthState() {
 
       if (error || !data) {
         console.error('Error fetching auth context:', error);
+        // Retry once on failure (network blip) with exponential backoff
+        if (retryCount < 2) {
+          const delay = (retryCount + 1) * 2000;
+          console.warn(`[Auth] Profile fetch failed, retrying in ${delay}ms (attempt ${retryCount + 1})`);
+          setTimeout(() => fetchProfile(userId, retryCount + 1), delay);
+        } else {
+          toast.error('Could not load your profile. Please check your connection and reload.');
+        }
         return;
       }
 

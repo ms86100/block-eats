@@ -7,14 +7,15 @@ import { supabase } from '@/integrations/supabase/client';
 import { restoreAppPreferences } from '@/lib/persistent-kv';
 
 export async function initializeCapacitorPlugins() {
-  // Swap Supabase auth storage to persistent native storage before any auth calls.
+  // On native platforms, migrate existing localStorage tokens and restore preferences.
+  // NOTE: Auth storage is now configured at client creation time in supabase/client.ts
+  // via capacitorStorage — no runtime patching needed.
   if (Capacitor.isNativePlatform()) {
     try {
-      (supabase.auth as any).storage = capacitorStorage;
       await migrateLocalStorageToPreferences();
       await restoreAppPreferences();
     } catch (e) {
-      console.warn('[Capacitor] Failed to set persistent auth storage:', e);
+      console.warn('[Capacitor] Failed to initialize native storage:', e);
     }
 
     // Manual session restore — isolated so a failure here doesn't block the app
