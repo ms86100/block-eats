@@ -303,7 +303,7 @@ function ProductListings({
               {cat.displayName}
             </h3>
             <Link
-              to={`/category/${cat.category}`}
+              to={`/category/${cat.parentGroup}?sub=${cat.category}`}
               className="text-[11px] font-bold text-primary flex items-center gap-0.5"
             >
               see all <ChevronRight size={12} />

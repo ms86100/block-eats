@@ -70,8 +70,8 @@ export function ReorderLastOrder() {
       .limit(1);
 
     if (existingCart && existingCart.length > 0) {
-      const confirmReplace = window.confirm('This will replace your current cart. Continue?');
-      if (!confirmReplace) return;
+      // #6: Replaced window.confirm with non-blocking toast
+      toast.info('Replacing current cart with reorder items');
     }
 
     setIsLoading(true);

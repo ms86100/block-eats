@@ -22,6 +22,7 @@ export function useCartPage() {
   const [pendingOrderIds, setPendingOrderIds] = useState<string[]>([]);
   const [appliedCoupon, setAppliedCoupon] = useState<{ id: string; code: string; discountAmount: number } | null>(null);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+  // #4: Default fulfillment based on seller's fulfillment_mode
   const [fulfillmentType, setFulfillmentType] = useState<'self_pickup' | 'delivery'>('self_pickup');
   const [orderStep, setOrderStep] = useState<'validating' | 'creating' | 'confirming'>('validating');
   const settings = useSystemSettings();
@@ -43,6 +44,22 @@ export function useCartPage() {
     if (!acceptsCod && acceptsUpi) setPaymentMethod('upi');
     else if (acceptsCod && !acceptsUpi) setPaymentMethod('cod');
   }, [acceptsCod, acceptsUpi, setPaymentMethod]);
+  // #4: Auto-set fulfillment based on seller capability
+  useEffect(() => {
+    if (sellerGroups.length === 0) return;
+    const firstMode = (firstSeller as any)?.fulfillment_mode;
+    if (firstMode === 'delivery') setFulfillmentType('delivery');
+    else if (firstMode === 'both') setFulfillmentType('delivery');
+    else setFulfillmentType('self_pickup');
+  }, [sellerGroups.length, firstSeller]);
+
+  // #22: Clear coupon when switching from single to multi-seller
+  useEffect(() => {
+    if (sellerGroups.length > 1 && appliedCoupon) {
+      setAppliedCoupon(null);
+    }
+  }, [sellerGroups.length]);
+
   const hasUrgentItem = items.some((item) => (item.product as any)?.is_urgent);
   const itemCount = items.reduce((sum, item) => sum + item.quantity, 0);
   const maxPrepTime = items.reduce((max, item) => {

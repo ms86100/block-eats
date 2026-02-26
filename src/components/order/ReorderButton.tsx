@@ -66,13 +66,8 @@ export function ReorderButton({
         .limit(1);
 
       if (existingCart && existingCart.length > 0) {
-        const confirmReplace = window.confirm(
-          'This will replace your current cart items. Continue?'
-        );
-        if (!confirmReplace) {
-          setIsLoading(false);
-          return;
-        }
+        // #5: Proceed with replace — toast gives undo context instead of blocking window.confirm
+        toast.info('Replacing current cart with reorder items');
       }
 
       await supabase

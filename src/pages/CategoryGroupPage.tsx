@@ -173,9 +173,9 @@ export default function CategoryGroupPage() {
         <div className="px-4 pt-1 pb-2">
           {/* Back + title */}
           <div className="flex items-center gap-2.5 mb-2.5">
-            <Link to="/" className="h-10 w-10 rounded-full bg-muted flex items-center justify-center shrink-0">
+            <button onClick={() => navigate(-1)} className="h-10 w-10 rounded-full bg-muted flex items-center justify-center shrink-0">
               <ArrowLeft size={18} className="text-foreground" />
-            </Link>
+            </button>
             <h1 className="text-base font-bold flex items-center gap-1.5 flex-1 min-w-0">
               <span>{parentGroup.icon}</span>
               <span className="truncate">{parentGroup.label}</span>
@@ -280,6 +280,7 @@ export default function CategoryGroupPage() {
                   product={product}
                   onTap={handleProductTap}
                   onNavigate={navigate}
+                  categoryConfigs={categoryConfigs as any}
                 />
               ))}
             </div>

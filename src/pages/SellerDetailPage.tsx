@@ -217,7 +217,7 @@ export default function SellerDetailPage() {
   const operatingDays = seller.operating_days || DAYS_OF_WEEK;
 
   return (
-    <AppLayout showHeader={false} showNav={cartCount === 0} showCart={false}>
+    <AppLayout showHeader={false} showNav={true} showCart={false}>
       {/* Cover Image */}
       <div className="relative h-56">
         {seller.cover_image_url ? (

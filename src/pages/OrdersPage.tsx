@@ -153,21 +153,19 @@ function OrderList({ type, userId, sellerId }: { type: 'buyer' | 'seller'; userI
     }
   }, [type, userId, sellerId]);
 
-  // Refetch on mount and when navigating back to this page
+  // #1: Single effect for initial + back-navigation refetch (avoids double-fetch)
   const location = useLocation();
-  const lastPathRef = useRef(location.pathname);
+  const mountedRef = useRef(false);
 
   useEffect(() => {
-    fetchOrders();
-  }, [fetchOrders]);
-
-  useEffect(() => {
-    // Re-fetch when the route is revisited (e.g. navigating back from order detail)
-    if (lastPathRef.current === location.pathname) {
+    if (mountedRef.current) {
+      // Re-fetch on back-navigation (location.key changes)
+      fetchOrders();
+    } else {
+      mountedRef.current = true;
       fetchOrders();
     }
-    lastPathRef.current = location.pathname;
-  }, [location.key]); // location.key changes on every navigation
+  }, [fetchOrders, location.key]);
 
   const loadMore = () => {
     if (orders.length > 0 && hasMore) {

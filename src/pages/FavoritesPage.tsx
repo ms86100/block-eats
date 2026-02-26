@@ -56,9 +56,9 @@ export default function FavoritesPage() {
     <AppLayout showHeader={false}>
       {/* Sticky header */}
       <div className="sticky top-0 z-30 bg-background border-b border-border px-4 py-3.5 safe-top flex items-center gap-3">
-        <Link to="/profile" className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-muted shrink-0">
+        <button onClick={() => window.history.back()} className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-muted shrink-0">
           <ArrowLeft size={18} />
-        </Link>
+        </button>
         <h1 className="text-lg font-bold text-foreground">Favourites</h1>
         {favorites.length > 0 && (
           <span className="ml-auto text-xs text-muted-foreground">{favorites.length} saved</span>

@@ -49,7 +49,7 @@ export function useProductDetail(product: ProductDetail | null, open: boolean) {
       const [specsRes, similarRes] = await Promise.all([
         supabase.from('products').select('specifications').eq('id', product.product_id).maybeSingle(),
         supabase.from('products')
-          .select('id, name, price, image_url, is_veg, seller_id, seller:seller_profiles!products_seller_id_fkey(business_name)')
+          .select('id, name, price, image_url, is_veg, seller_id, seller:seller_profiles!products_seller_id_fkey(business_name, society_id)')
           .eq('category', product.category as string)
           .eq('is_available', true).eq('approval_status', 'approved')
           .neq('id', product.product_id).limit(6),

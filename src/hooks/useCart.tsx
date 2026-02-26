@@ -144,9 +144,10 @@ export function CartProvider({ children }: { children: ReactNode }) {
     }
   }, [user, setOptimistic, invalidate]);
 
+  // #24: Capture prev from queryClient to avoid stale closure
   const removeItem = useCallback(async (productId: string) => {
     if (!user) return;
-    const prev = items;
+    const prev = queryClient.getQueryData([...CART_QUERY_KEY, user?.id]) as any[] || [];
     setOptimistic(old => old.filter(item => item.product_id !== productId));
 
     try {
@@ -161,21 +162,23 @@ export function CartProvider({ children }: { children: ReactNode }) {
       queryClient.setQueryData([...CART_QUERY_KEY, user?.id], prev);
       handleApiError(error, 'Failed to remove item');
     }
-  }, [user, items, setOptimistic, queryClient]);
+  }, [user, setOptimistic, queryClient]);
 
   const updateQuantity = useCallback(async (productId: string, quantity: number) => {
     if (!user) return;
     if (quantity <= 0) { await removeItem(productId); return; }
+    // #17: Cap quantity at 99 to prevent unreasonable orders
+    const cappedQuantity = Math.min(quantity, 99);
 
-    const prev = items;
+    const prev = queryClient.getQueryData([...CART_QUERY_KEY, user?.id]) as any[] || [];
     setOptimistic(old => old.map(item =>
-      item.product_id === productId ? { ...item, quantity } : item
+      item.product_id === productId ? { ...item, quantity: cappedQuantity } : item
     ));
 
     try {
       const { error } = await supabase
         .from('cart_items')
-        .update({ quantity })
+        .update({ quantity: cappedQuantity })
         .eq('user_id', user.id)
         .eq('product_id', productId);
       if (error) throw error;
@@ -183,11 +186,11 @@ export function CartProvider({ children }: { children: ReactNode }) {
       queryClient.setQueryData([...CART_QUERY_KEY, user?.id], prev);
       handleApiError(error, 'Failed to update quantity');
     }
-  }, [user, items, setOptimistic, removeItem, queryClient]);
+  }, [user, setOptimistic, removeItem, queryClient]);
 
   const clearCart = useCallback(async () => {
     if (!user) return;
-    const prev = items;
+    const prev = queryClient.getQueryData([...CART_QUERY_KEY, user?.id]) as any[] || [];
     setOptimistic(() => []);
 
     try {
@@ -202,7 +205,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
       queryClient.setQueryData([...CART_QUERY_KEY, user?.id], prev);
       console.error('Error clearing cart:', error);
     }
-  }, [user, items, setOptimistic, queryClient]);
+  }, [user, setOptimistic, queryClient]);
 
   const contextValue = useMemo<CartContextType>(() => ({
     items,
