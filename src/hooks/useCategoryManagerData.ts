@@ -27,6 +27,35 @@ export interface CategoryConfigRow {
   duration_label?: string | null;
   show_veg_toggle?: boolean | null;
   show_duration_field?: boolean | null;
+  transaction_type?: string;
+}
+
+export const LISTING_TYPE_PRESETS = [
+  { value: 'cart_purchase', label: 'Product (Add to Cart)', description: 'Buyers add items to cart and checkout together' },
+  { value: 'buy_now', label: 'Buy Now', description: 'Direct purchase, no cart' },
+  { value: 'book_slot', label: 'Bookable Service', description: 'Buyers pick a time slot to book' },
+  { value: 'request_service', label: 'Request Service', description: 'Buyers send a service request to the seller' },
+  { value: 'request_quote', label: 'Request Quote', description: 'Buyers request a price quote, negotiable' },
+  { value: 'contact_only', label: 'Contact Only', description: 'Buyers contact the seller directly' },
+  { value: 'schedule_visit', label: 'Schedule Visit', description: 'Buyers schedule an in-person visit' },
+] as const;
+
+export function deriveBehaviorFlags(transactionType: string) {
+  const base = {
+    supports_cart: false, has_quantity: false, requires_time_slot: false,
+    has_duration: false, has_date_range: false, enquiry_only: false,
+    is_negotiable: false, layout_type: 'ecommerce',
+  };
+  switch (transactionType) {
+    case 'cart_purchase': return { ...base, supports_cart: true, has_quantity: true, layout_type: 'ecommerce' };
+    case 'buy_now': return { ...base, has_quantity: true, layout_type: 'ecommerce' };
+    case 'book_slot': return { ...base, requires_time_slot: true, has_duration: true, layout_type: 'service' };
+    case 'request_service': return { ...base, enquiry_only: true, layout_type: 'service' };
+    case 'request_quote': return { ...base, enquiry_only: true, is_negotiable: true, layout_type: 'service' };
+    case 'contact_only': return { ...base, enquiry_only: true, layout_type: 'service' };
+    case 'schedule_visit': return { ...base, requires_time_slot: true, has_date_range: true, layout_type: 'service' };
+    default: return { ...base, supports_cart: true, has_quantity: true };
+  }
 }
 
 export function useCategoryManagerData() {
@@ -36,11 +65,11 @@ export function useCategoryManagerData() {
   const [isLoading, setIsLoading] = useState(true);
   const [selectedGroupSlug, setSelectedGroupSlug] = useState<string | null>(null);
   const [editingCategory, setEditingCategory] = useState<CategoryConfigRow | null>(null);
-  const [editForm, setEditForm] = useState({ display_name: '', icon: '', color: '', image_url: '' as string | null, name_placeholder: '', description_placeholder: '', price_label: '', duration_label: '', show_veg_toggle: false, show_duration_field: false });
+  const [editForm, setEditForm] = useState({ display_name: '', icon: '', color: '', image_url: '' as string | null, name_placeholder: '', description_placeholder: '', price_label: '', duration_label: '', show_veg_toggle: false, show_duration_field: false, transaction_type: 'cart_purchase' });
   const [isSaving, setIsSaving] = useState(false);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [addingToGroup, setAddingToGroup] = useState<string | null>(null);
-  const [addForm, setAddForm] = useState({ display_name: '', icon: '', color: 'bg-blue-100 text-blue-600', parent_group: '', image_url: null as string | null });
+  const [addForm, setAddForm] = useState({ display_name: '', icon: '', color: 'bg-blue-100 text-blue-600', parent_group: '', image_url: null as string | null, transaction_type: 'cart_purchase' });
   const [deleteCategory, setDeleteCategory] = useState<CategoryConfigRow | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isGroupDialogOpen, setIsGroupDialogOpen] = useState(false);
@@ -77,7 +106,7 @@ export function useCategoryManagerData() {
 
   const openEditDialog = (category: CategoryConfigRow) => {
     setEditingCategory(category);
-    setEditForm({ display_name: category.display_name, icon: category.icon, color: category.color, image_url: category.image_url || null, name_placeholder: category.name_placeholder || '', description_placeholder: category.description_placeholder || '', price_label: category.price_label || 'Price', duration_label: category.duration_label || '', show_veg_toggle: category.show_veg_toggle ?? false, show_duration_field: category.show_duration_field ?? false });
+    setEditForm({ display_name: category.display_name, icon: category.icon, color: category.color, image_url: category.image_url || null, name_placeholder: category.name_placeholder || '', description_placeholder: category.description_placeholder || '', price_label: category.price_label || 'Price', duration_label: category.duration_label || '', show_veg_toggle: category.show_veg_toggle ?? false, show_duration_field: category.show_duration_field ?? false, transaction_type: category.transaction_type || 'cart_purchase' });
   };
 
   const saveEditedCategory = async () => {
@@ -85,7 +114,8 @@ export function useCategoryManagerData() {
     if (!editForm.display_name.trim()) { toast.error('Display name is required'); return; }
     setIsSaving(true);
     try {
-      const { error } = await supabase.from('category_config').update({ display_name: editForm.display_name.trim(), icon: editForm.icon.trim(), color: editForm.color.trim(), image_url: editForm.image_url || null, name_placeholder: editForm.name_placeholder.trim() || null, description_placeholder: editForm.description_placeholder.trim() || null, price_label: editForm.price_label.trim() || 'Price', duration_label: editForm.duration_label.trim() || null, show_veg_toggle: editForm.show_veg_toggle, show_duration_field: editForm.show_duration_field }).eq('id', editingCategory.id);
+      const behaviorFlags = deriveBehaviorFlags(editForm.transaction_type);
+      const { error } = await supabase.from('category_config').update({ display_name: editForm.display_name.trim(), icon: editForm.icon.trim(), color: editForm.color.trim(), image_url: editForm.image_url || null, name_placeholder: editForm.name_placeholder.trim() || null, description_placeholder: editForm.description_placeholder.trim() || null, price_label: editForm.price_label.trim() || 'Price', duration_label: editForm.duration_label.trim() || null, show_veg_toggle: editForm.show_veg_toggle, show_duration_field: editForm.show_duration_field, transaction_type: editForm.transaction_type, ...behaviorFlags }).eq('id', editingCategory.id);
       if (error) throw error;
       setCategories(categories.map(c => c.id === editingCategory.id ? { ...c, ...editForm } : c));
       queryClient.invalidateQueries({ queryKey: ['category-configs'] });
@@ -99,7 +129,7 @@ export function useCategoryManagerData() {
 
   const openAddDialog = (groupSlug: string) => {
     setAddingToGroup(groupSlug);
-    setAddForm({ display_name: '', icon: '', color: 'bg-blue-100 text-blue-600', parent_group: groupSlug, image_url: null });
+    setAddForm({ display_name: '', icon: '', color: 'bg-blue-100 text-blue-600', parent_group: groupSlug, image_url: null, transaction_type: 'cart_purchase' });
     setIsAddDialogOpen(true);
   };
 
@@ -112,7 +142,8 @@ export function useCategoryManagerData() {
     try {
       const groupCats = categories.filter(c => c.parent_group === addForm.parent_group);
       const maxOrder = groupCats.length > 0 ? Math.max(...groupCats.map(c => c.display_order)) : 0;
-      const { data, error } = await supabase.from('category_config').insert({ category: categoryKey, display_name: addForm.display_name.trim(), icon: addForm.icon.trim(), color: addForm.color, parent_group: addForm.parent_group, display_order: maxOrder + 1, is_active: true, image_url: addForm.image_url || null }).select().single();
+      const behaviorFlags = deriveBehaviorFlags(addForm.transaction_type);
+      const { data, error } = await supabase.from('category_config').insert({ category: categoryKey, display_name: addForm.display_name.trim(), icon: addForm.icon.trim(), color: addForm.color, parent_group: addForm.parent_group, display_order: maxOrder + 1, is_active: true, image_url: addForm.image_url || null, transaction_type: addForm.transaction_type, ...behaviorFlags }).select().single();
       if (error) throw error;
       setCategories([...categories, data]);
       queryClient.invalidateQueries({ queryKey: ['category-configs'] });

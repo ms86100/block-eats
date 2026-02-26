@@ -17,7 +17,7 @@ import { cn } from '@/lib/utils';
 import { DndContext, closestCenter } from '@dnd-kit/core';
 import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { useCategoryManagerData, CategoryConfigRow } from '@/hooks/useCategoryManagerData';
+import { useCategoryManagerData, CategoryConfigRow, LISTING_TYPE_PRESETS } from '@/hooks/useCategoryManagerData';
 import { ParentGroupRow } from '@/hooks/useParentGroups';
 import { toast } from 'sonner';
 import { motion } from 'framer-motion';
@@ -238,6 +238,24 @@ export function CategoryManager() {
               <Label htmlFor="display_name" className="text-xs font-semibold">Display Name</Label>
               <Input id="display_name" value={cm.editForm.display_name} onChange={(e) => cm.setEditForm({ ...cm.editForm, display_name: e.target.value })} className="rounded-xl" />
             </div>
+            <div className="space-y-2">
+              <Label className="text-xs font-semibold">Listing Type</Label>
+              <Select value={cm.editForm.transaction_type} onValueChange={(value) => cm.setEditForm({ ...cm.editForm, transaction_type: value })}>
+                <SelectTrigger className="rounded-xl"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {LISTING_TYPE_PRESETS.map((preset) => (
+                    <SelectItem key={preset.value} value={preset.value}>
+                      <div className="flex flex-col">
+                        <span>{preset.label}</span>
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-[11px] text-muted-foreground">
+                {LISTING_TYPE_PRESETS.find(p => p.value === cm.editForm.transaction_type)?.description}
+              </p>
+            </div>
             {cm.editingCategory && (
               <GenerateImageButton
                 categoryName={cm.editForm.display_name}
@@ -323,6 +341,24 @@ export function CategoryManager() {
             <div className="space-y-2">
               <Label className="text-xs font-semibold">Display Name</Label>
               <Input value={cm.addForm.display_name} onChange={(e) => cm.setAddForm({ ...cm.addForm, display_name: e.target.value })} className="rounded-xl" />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-xs font-semibold">Listing Type</Label>
+              <Select value={cm.addForm.transaction_type} onValueChange={(value) => cm.setAddForm({ ...cm.addForm, transaction_type: value })}>
+                <SelectTrigger className="rounded-xl"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {LISTING_TYPE_PRESETS.map((preset) => (
+                    <SelectItem key={preset.value} value={preset.value}>
+                      <div className="flex flex-col">
+                        <span>{preset.label}</span>
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-[11px] text-muted-foreground">
+                {LISTING_TYPE_PRESETS.find(p => p.value === cm.addForm.transaction_type)?.description}
+              </p>
             </div>
             <div className="space-y-2">
               <Label className="text-xs font-semibold">Icon (Emoji)</Label>
