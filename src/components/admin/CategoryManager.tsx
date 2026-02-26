@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'react';
+import { TransactionTypeConfirmSave } from './TransactionTypeConfirmSave';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
@@ -323,9 +324,12 @@ export function CategoryManager() {
                 </div>
               </div>
             </div>
-            <Button onClick={cm.saveEditedCategory} disabled={cm.isSaving} className="w-full rounded-xl h-11 font-semibold">
-              {cm.isSaving && <Loader2 className="animate-spin mr-2" size={16} />}Save Changes
-            </Button>
+            <TransactionTypeConfirmSave
+              editingCategory={cm.editingCategory}
+              newTransactionType={cm.editForm.transaction_type}
+              isSaving={cm.isSaving}
+              onConfirmedSave={cm.saveEditedCategory}
+            />
           </div>
         </DialogContent>
       </Dialog>
