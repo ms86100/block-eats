@@ -5,11 +5,11 @@ import { Button } from '@/components/ui/button';
 import { ThemeToggle } from '@/components/ui/theme-toggle';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCart } from '@/hooks/useCart';
-import { supabase } from '@/integrations/supabase/client';
 import { cn } from '@/lib/utils';
 import { useHaptics } from '@/hooks/useHaptics';
 import { TypewriterPlaceholder } from '@/components/search/TypewriterPlaceholder';
 import { useSystemSettings } from '@/hooks/useSystemSettings';
+import { useUnreadNotificationCount } from '@/hooks/useUnreadNotificationCount';
 
 interface HeaderProps {
   showCart?: boolean;
@@ -40,35 +40,7 @@ function HeaderInner({
   const { profile, isApproved, society, user, viewAsSocietyId, effectiveSociety, setViewAsSociety, isAdmin, isBuilderMember } = useAuth();
   const { itemCount } = useCart();
   const { selectionChanged } = useHaptics();
-  const [unreadCount, setUnreadCount] = useState(0);
-
-  // B4: Replace realtime channel with polling for notification badge
-  const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  useEffect(() => {
-    if (!user) return;
-    fetchUnread();
-
-    // Poll every 30 seconds instead of maintaining a persistent WebSocket
-    pollIntervalRef.current = setInterval(fetchUnread, 30_000);
-
-    return () => {
-      if (pollIntervalRef.current) {
-        clearInterval(pollIntervalRef.current);
-        pollIntervalRef.current = null;
-      }
-    };
-  }, [user?.id]);
-
-  const fetchUnread = async () => {
-    if (!user) return;
-    const { count } = await supabase
-      .from('user_notifications')
-      .select('id', { count: 'exact', head: true })
-      .eq('user_id', user.id)
-      .eq('is_read', false);
-    setUnreadCount(count || 0);
-  };
+  const unreadCount = useUnreadNotificationCount();
 
   const displaySociety = effectiveSociety || society;
   const isViewingAs = viewAsSocietyId && (isAdmin || isBuilderMember);

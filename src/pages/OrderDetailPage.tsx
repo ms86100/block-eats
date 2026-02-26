@@ -26,7 +26,8 @@ export default function OrderDetailPage() {
   const seller = o.seller;
   const sellerProfile = seller?.profile;
   const buyer = (order as any).buyer;
-  const items = (order as any).items || [];
+  const items: OrderItem[] = (order as any).items || [];
+  const hasItemsField = 'items' in (order as any);
   const statusInfo = o.getOrderStatus(order.status);
   const paymentStatusInfo = o.getPaymentStatus((order.payment_status as PaymentStatus) || 'pending');
   const displayStatuses = ['placed', 'accepted', 'preparing', 'ready'];
@@ -144,6 +145,9 @@ export default function OrderDetailPage() {
               <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Items</p>
               {items.length > 1 && <span className="text-[11px] text-muted-foreground">{items.filter((i: OrderItem) => (i.status || 'pending') === 'delivered').length}/{items.length} done</span>}
             </div>
+            {!hasItemsField && items.length === 0 && (
+              <p className="text-sm text-muted-foreground py-4 text-center">Unable to load order items</p>
+            )}
             {items.length > 1 && (
               <div className="flex items-center gap-1.5 mb-3 flex-wrap">
                 {(['pending', 'accepted', 'preparing', 'ready', 'delivered', 'cancelled'] as ItemStatus[]).map((status) => {

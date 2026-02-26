@@ -7,6 +7,7 @@ import { toast } from 'sonner';
 import { useCurrency } from '@/hooks/useCurrency';
 import { useMarketplaceLabels } from '@/hooks/useMarketplaceLabels';
 import { useQueryClient } from '@tanstack/react-query';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 
 interface LastOrder {
   id: string;
@@ -25,6 +26,8 @@ export function ReorderLastOrder() {
   const ml = useMarketplaceLabels();
   const [lastOrder, setLastOrder] = useState<LastOrder | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [hasExistingCart, setHasExistingCart] = useState(false);
 
   useEffect(() => {
     if (!user) return;
@@ -62,7 +65,7 @@ export function ReorderLastOrder() {
   const handleReorder = async () => {
     if (!user) return;
     
-    // Check if cart has existing items and warn user
+    // Check if cart has existing items and ask for confirmation
     const { data: existingCart } = await supabase
       .from('cart_items')
       .select('id')
@@ -70,9 +73,17 @@ export function ReorderLastOrder() {
       .limit(1);
 
     if (existingCart && existingCart.length > 0) {
-      // #6: Replaced window.confirm with non-blocking toast
-      toast.info('Replacing current cart with reorder items');
+      setHasExistingCart(true);
+      setShowConfirm(true);
+      return;
     }
+
+    await executeReorder();
+  };
+
+  const executeReorder = async () => {
+    if (!user || !lastOrder) return;
+    setShowConfirm(false);
 
     setIsLoading(true);
     try {
@@ -137,6 +148,19 @@ export function ReorderLastOrder() {
         </div>
         <ChevronRight size={16} className="text-muted-foreground shrink-0" />
       </button>
+
+      <AlertDialog open={showConfirm} onOpenChange={setShowConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Replace cart?</AlertDialogTitle>
+            <AlertDialogDescription>Your current cart will be cleared and replaced with items from your previous order.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={executeReorder}>Replace Cart</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

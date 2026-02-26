@@ -64,7 +64,7 @@ export default function SearchPage() {
   };
 
   return (
-    <AppLayout showHeader={false} showCart={false}>
+    <AppLayout showHeader={false}>
       <div className="pb-24">
         {/* Sticky search header */}
         <div className="sticky top-0 z-40 bg-background safe-top">

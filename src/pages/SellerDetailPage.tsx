@@ -189,7 +189,7 @@ export default function SellerDetailPage() {
 
   if (isLoading) {
     return (
-      <AppLayout showHeader={false}>
+      <AppLayout showHeader={false} showNav={true} showCart={false}>
         <Skeleton className="h-48 w-full rounded-b-2xl" />
         <div className="p-4 space-y-4">
           <Skeleton className="h-8 w-3/4" />
@@ -202,7 +202,7 @@ export default function SellerDetailPage() {
 
   if (!seller) {
     return (
-      <AppLayout showHeader={false}>
+      <AppLayout showHeader={false} showNav={true} showCart={false}>
         <div className="p-4 text-center">
           <p>Seller not found</p>
           <Link to="/">
@@ -217,7 +217,7 @@ export default function SellerDetailPage() {
   const operatingDays = seller.operating_days || DAYS_OF_WEEK;
 
   return (
-    <AppLayout showHeader={false} showNav={true} showCart={false}>
+    <AppLayout showHeader={false} showNav={true} showCart={true}>
       {/* Cover Image */}
       <div className="relative h-56">
         {seller.cover_image_url ? (
@@ -540,28 +540,7 @@ export default function SellerDetailPage() {
         </Tabs>
       </div>
 
-      {/* Cart Footer */}
-      {cartCount > 0 && (
-        <div className="fixed bottom-0 left-0 right-0 p-4 pb-[max(1rem,env(safe-area-inset-bottom))] bg-primary">
-          <Link to="/cart">
-            <div className="flex items-center justify-between text-primary-foreground">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg bg-primary-foreground/20 flex items-center justify-center">
-                  <ShoppingCart size={20} />
-                </div>
-                <div>
-                  <p className="font-semibold">{cartCount} items</p>
-                  <p className="text-sm opacity-90">{formatPrice(cartTotal)}</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="font-semibold">View Cart</span>
-                <ArrowLeft size={18} className="rotate-180" />
-              </div>
-            </div>
-          </Link>
-        </div>
-      )}
+      {/* Cart Footer removed — using global FloatingCartBar via showCart={true} */}
 
       <ProductDetailSheet
         product={selectedProduct}

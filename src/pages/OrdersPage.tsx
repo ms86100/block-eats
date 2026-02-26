@@ -80,7 +80,7 @@ function OrderCard({ order, type }: { order: Order; type: 'buyer' | 'seller' }) 
 
         {/* Reorder row */}
         {canReorder && (
-          <div className="mt-2.5 pt-2.5 border-t border-border flex justify-end" onClick={(e) => e.preventDefault()}>
+          <div className="mt-2.5 pt-2.5 border-t border-border flex justify-end" onClick={(e) => e.stopPropagation()}>
             <ReorderButton orderItems={items} sellerId={order.seller_id} variant="outline" size="sm" />
           </div>
         )}
@@ -153,19 +153,14 @@ function OrderList({ type, userId, sellerId }: { type: 'buyer' | 'seller'; userI
     }
   }, [type, userId, sellerId]);
 
-  // #1: Single effect for initial + back-navigation refetch (avoids double-fetch)
+  // #11: Single effect — track location.key + sellerId directly, avoid fetchOrders in deps
   const location = useLocation();
-  const mountedRef = useRef(false);
+  const prevKeyRef = useRef(location.key);
 
   useEffect(() => {
-    if (mountedRef.current) {
-      // Re-fetch on back-navigation (location.key changes)
-      fetchOrders();
-    } else {
-      mountedRef.current = true;
-      fetchOrders();
-    }
-  }, [fetchOrders, location.key]);
+    fetchOrders();
+    prevKeyRef.current = location.key;
+  }, [type, userId, sellerId, location.key]);
 
   const loadMore = () => {
     if (orders.length > 0 && hasMore) {

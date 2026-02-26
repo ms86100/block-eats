@@ -8,6 +8,7 @@ import { RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { useQueryClient } from '@tanstack/react-query';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 
 interface ReorderButtonProps {
   orderItems: OrderItem[];
@@ -28,8 +29,9 @@ export function ReorderButton({
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [isLoading, setIsLoading] = useState(false);
-
-  const handleReorder = async () => {
+  const [showConfirm, setShowConfirm] = useState(false);
+  const handleReorder = async (e?: React.MouseEvent) => {
+    if (e) { e.preventDefault(); e.stopPropagation(); }
     if (!user) {
       toast.error('Please log in to reorder');
       return;
@@ -40,6 +42,24 @@ export function ReorderButton({
       return;
     }
 
+    // Check for existing cart
+    const { data: existingCart } = await supabase
+      .from('cart_items')
+      .select('id')
+      .eq('user_id', user.id)
+      .limit(1);
+
+    if (existingCart && existingCart.length > 0) {
+      setShowConfirm(true);
+      return;
+    }
+
+    await executeReorder();
+  };
+
+  const executeReorder = async () => {
+    if (!user) return;
+    setShowConfirm(false);
     setIsLoading(true);
     try {
       const productIds = orderItems
@@ -56,18 +76,6 @@ export function ReorderButton({
         toast.error('None of these items are currently available');
         setIsLoading(false);
         return;
-      }
-
-      // Check if user has existing cart items
-      const { data: existingCart } = await supabase
-        .from('cart_items')
-        .select('id')
-        .eq('user_id', user.id)
-        .limit(1);
-
-      if (existingCart && existingCart.length > 0) {
-        // #5: Proceed with replace — toast gives undo context instead of blocking window.confirm
-        toast.info('Replacing current cart with reorder items');
       }
 
       await supabase
@@ -116,20 +124,34 @@ export function ReorderButton({
   };
 
   return (
-    <Button
-      variant={variant}
-      size={size}
-      onClick={handleReorder}
-      disabled={isLoading}
-      className={cn(
-        'rounded-lg bg-accent text-accent-foreground hover:bg-accent/90 font-semibold text-xs',
-        className
-      )}
-    >
-      <RefreshCw size={14} className={isLoading ? 'animate-spin' : ''} />
-      {size !== 'icon' && (
-        <span className="ml-1.5">{isLoading ? 'Adding...' : 'Reorder'}</span>
-      )}
-    </Button>
+    <>
+      <Button
+        variant={variant}
+        size={size}
+        onClick={handleReorder}
+        disabled={isLoading}
+        className={cn(
+          'rounded-lg bg-accent text-accent-foreground hover:bg-accent/90 font-semibold text-xs',
+          className
+        )}
+      >
+        <RefreshCw size={14} className={isLoading ? 'animate-spin' : ''} />
+        {size !== 'icon' && (
+          <span className="ml-1.5">{isLoading ? 'Adding...' : 'Reorder'}</span>
+        )}
+      </Button>
+      <AlertDialog open={showConfirm} onOpenChange={setShowConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Replace cart?</AlertDialogTitle>
+            <AlertDialogDescription>Your current cart will be cleared and replaced with items from this order.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={executeReorder}>Replace Cart</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 }

@@ -58,7 +58,7 @@ function BottomNavInner() {
         {visibleItems.map(({ to, icon: Icon, label }) => {
           const isActive = location.pathname === to || 
             (to !== '/' && location.pathname.startsWith(to));
-          const showCartBadge = to === '/cart' && itemCount > 0;
+          const showCartBadge = to === '/cart' && itemCount > 0 && location.pathname !== '/cart';
           
           return (
             <NavLink

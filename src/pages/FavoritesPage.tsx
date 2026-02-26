@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -10,6 +10,7 @@ import { FavoriteButton } from '@/components/favorite/FavoriteButton';
 
 export default function FavoritesPage() {
   const { user, profile } = useAuth();
+  const location = useLocation();
   const [favorites, setFavorites] = useState<SellerProfile[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -17,7 +18,7 @@ export default function FavoritesPage() {
     if (user) {
       fetchFavorites();
     }
-  }, [user]);
+  }, [user, location.key]);
 
   const fetchFavorites = async () => {
     if (!user) return;

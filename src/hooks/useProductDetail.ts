@@ -52,7 +52,14 @@ export function useProductDetail(product: ProductDetail | null, open: boolean) {
           .select('id, name, price, image_url, is_veg, seller_id, seller:seller_profiles!products_seller_id_fkey(business_name, society_id)')
           .eq('category', product.category as string)
           .eq('is_available', true).eq('approval_status', 'approved')
-          .neq('id', product.product_id).limit(6),
+          .neq('id', product.product_id).limit(6)
+          .then(res => {
+            // #14: Filter to same society client-side
+            const filtered = (res.data || []).filter((p: any) =>
+              product.is_same_society === false || !p.seller?.society_id || p.seller.society_id === (product as any)._societyId || product.is_same_society
+            );
+            return { ...res, data: filtered };
+          }),
       ]);
       setLoadedSpecs(specsRes.data?.specifications as Record<string, any> | null);
       setSimilarProducts(similarRes.data || []);

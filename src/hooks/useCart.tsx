@@ -19,7 +19,7 @@ interface CartContextType {
   totalAmount: number;
   sellerGroups: SellerGroup[];
   isLoading: boolean;
-  addItem: (product: Product, quantity?: number) => Promise<void>;
+  addItem: (product: Product, quantity?: number, silent?: boolean) => Promise<void>;
   updateQuantity: (productId: string, quantity: number) => Promise<void>;
   removeItem: (productId: string) => Promise<void>;
   clearCart: () => Promise<void>;
@@ -90,7 +90,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
     [items]
   );
 
-  const addItem = useCallback(async (product: Product, quantity = 1) => {
+  const addItem = useCallback(async (product: Product, quantity = 1, silent = false) => {
     if (!user) {
       toast.error('Please sign in to add items to cart');
       return;
@@ -101,7 +101,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
       const existing = prev.find(item => item.product_id === product.id);
       if (existing) {
         return prev.map(item =>
-          item.product_id === product.id ? { ...item, quantity: item.quantity + quantity } : item
+          item.product_id === product.id ? { ...item, quantity: Math.min(item.quantity + quantity, 99) } : item
         );
       }
       return [...prev, {
@@ -126,7 +126,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
       if (existing) {
         const { error } = await supabase
           .from('cart_items')
-          .update({ quantity: existing.quantity + quantity })
+          .update({ quantity: Math.min(existing.quantity + quantity, 99) })
           .eq('user_id', user.id)
           .eq('product_id', product.id);
         if (error) throw error;
@@ -136,7 +136,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
           .insert({ user_id: user.id, product_id: product.id, quantity });
         if (error) throw error;
       }
-      toast.success('Added to cart');
+      if (!silent) toast.success('Added to cart');
       invalidate(); // Sync with server for real IDs
     } catch (error) {
       invalidate(); // Rollback

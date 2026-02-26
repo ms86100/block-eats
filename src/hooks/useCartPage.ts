@@ -20,7 +20,7 @@ export function useCartPage() {
   const [isPlacingOrder, setIsPlacingOrder] = useState(false);
   const [showRazorpayCheckout, setShowRazorpayCheckout] = useState(false);
   const [pendingOrderIds, setPendingOrderIds] = useState<string[]>([]);
-  const [appliedCoupon, setAppliedCoupon] = useState<{ id: string; code: string; discountAmount: number } | null>(null);
+  const [appliedCoupon, setAppliedCoupon] = useState<{ id: string; code: string; discountAmount: number; discount_type?: string; discount_value?: number; max_discount_amount?: number | null } | null>(null);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   // #4: Default fulfillment based on seller's fulfillment_mode
   const [fulfillmentType, setFulfillmentType] = useState<'self_pickup' | 'delivery'>('self_pickup');
@@ -28,16 +28,40 @@ export function useCartPage() {
   const settings = useSystemSettings();
   const { formatPrice, currencySymbol } = useCurrency();
 
+  // #5: Reactively recalculate coupon discount when totalAmount changes
+  const effectiveCouponDiscount = (() => {
+    if (!appliedCoupon) return 0;
+    if (appliedCoupon.discount_type === 'percentage' && appliedCoupon.discount_value) {
+      let d = (totalAmount * appliedCoupon.discount_value) / 100;
+      if (appliedCoupon.max_discount_amount) d = Math.min(d, appliedCoupon.max_discount_amount);
+      return Math.round(d * 100) / 100;
+    }
+    return appliedCoupon.discountAmount;
+  })();
+
   const effectiveDeliveryFee = fulfillmentType === 'delivery' ? (totalAmount >= settings.freeDeliveryThreshold ? 0 : settings.baseDeliveryFee) : 0;
-  const finalAmount = (appliedCoupon ? Math.max(0, totalAmount - appliedCoupon.discountAmount) : totalAmount) + effectiveDeliveryFee;
+  const finalAmount = (appliedCoupon ? Math.max(0, totalAmount - effectiveCouponDiscount) : totalAmount) + effectiveDeliveryFee;
 
   const firstSeller = sellerGroups[0]?.items[0]?.product?.seller;
+  const firstSellerFulfillmentMode = (firstSeller as any)?.fulfillment_mode as 'self_pickup' | 'delivery' | 'both' | undefined;
   // #11: For multi-seller carts, ALL sellers must accept COD
   const acceptsCod = sellerGroups.length > 1
     ? sellerGroups.every(g => g.items[0]?.product?.seller?.accepts_cod ?? true)
     : (firstSeller?.accepts_cod ?? true);
   // Disable UPI for multi-seller carts — only the first order would be charged (#2)
   const acceptsUpi = sellerGroups.length <= 1 && !!(firstSeller as any)?.accepts_upi && !!(firstSeller as any)?.upi_id;
+  // #3: Check for multi-seller fulfillment mode conflicts
+  const hasFulfillmentConflict = sellerGroups.length > 1 && sellerGroups.some(g => {
+    const mode = (g.items[0]?.product?.seller as any)?.fulfillment_mode;
+    return mode && mode !== 'both' && mode !== fulfillmentType;
+  });
+  // #9: Check for below-minimum-order sellers
+  const hasBelowMinimumOrder = sellerGroups.some(g => {
+    const minOrder = (g.items[0]?.product?.seller as any)?.minimum_order_amount;
+    return minOrder && g.subtotal < minOrder;
+  });
+  // #10: Check if no payment method is available
+  const noPaymentMethodAvailable = !acceptsCod && !acceptsUpi;
 
   // #3: Auto-select available payment method
   useEffect(() => {
@@ -89,7 +113,7 @@ export function useCartPage() {
       _payment_status: paymentStatus,
       _coupon_id: appliedCoupon?.id || null,
       _coupon_code: appliedCoupon?.code || null,
-      _coupon_discount: appliedCoupon?.discountAmount || 0,
+      _coupon_discount: effectiveCouponDiscount,
       _cart_total: totalAmount,
       _has_urgent: hasUrgentItem,
       _seller_groups: sellerGroupsPayload,
@@ -257,6 +281,11 @@ export function useCartPage() {
     settings, formatPrice, currencySymbol,
     effectiveDeliveryFee, finalAmount, acceptsCod, acceptsUpi,
     hasUrgentItem, itemCount, maxPrepTime,
+    effectiveCouponDiscount,
+    firstSellerFulfillmentMode,
+    hasFulfillmentConflict,
+    hasBelowMinimumOrder,
+    noPaymentMethodAvailable,
     handlePlaceOrder, handleRazorpaySuccess, handleRazorpayFailed,
     cancelPlacingOrder: () => setIsPlacingOrder(false),
   };

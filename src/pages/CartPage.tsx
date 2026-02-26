@@ -14,6 +14,7 @@ import { useCartPage } from '@/hooks/useCartPage';
 import { hapticImpact } from '@/lib/haptics';
 import { toast } from 'sonner';
 import { useMarketplaceLabels } from '@/hooks/useMarketplaceLabels';
+import { AlertCircle } from 'lucide-react';
 
 export default function CartPage() {
   const c = useCartPage();
@@ -22,7 +23,7 @@ export default function CartPage() {
 
   if (c.items.length === 0) {
     return (
-      <AppLayout showHeader={false}>
+      <AppLayout showHeader={false} showCart={false}>
         <div className="p-4 safe-top">
           <button onClick={() => navigate(-1)} className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-muted mb-6"><ArrowLeft size={18} /></button>
           <div className="text-center py-16">
@@ -54,7 +55,7 @@ export default function CartPage() {
             <AlertDialogTrigger asChild><Button variant="ghost" size="sm" className="text-destructive text-xs h-7 px-2">Clear</Button></AlertDialogTrigger>
             <AlertDialogContent>
               <AlertDialogHeader><AlertDialogTitle>Clear cart?</AlertDialogTitle><AlertDialogDescription>This will remove all items from your cart. This action cannot be undone.</AlertDialogDescription></AlertDialogHeader>
-              <AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={c.clearCart} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Clear All</AlertDialogAction></AlertDialogFooter>
+              <AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={() => { c.setAppliedCoupon(null); c.clearCart(); }} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Clear All</AlertDialogAction></AlertDialogFooter>
             </AlertDialogContent>
           </AlertDialog>
         </div>
@@ -119,7 +120,7 @@ export default function CartPage() {
                         <span className="w-6 text-center text-sm font-bold text-accent-foreground tabular-nums">{item.quantity}</span>
                         <button className="h-8 w-8 flex items-center justify-center active:scale-95 transition-transform" onClick={() => { hapticImpact('medium'); c.updateQuantity(item.product_id, item.quantity + 1); }}><Plus size={14} className="text-accent-foreground" /></button>
                       </div>
-                      <button className="h-8 w-8 flex items-center justify-center text-muted-foreground" onClick={() => { hapticImpact('medium'); const name = item.product?.name || 'Item'; c.removeItem(item.product_id); toast(`${name} removed`, { action: { label: 'Undo', onClick: () => c.addItem(item.product as any) }, duration: 4000 }); }}><Trash2 size={15} /></button>
+                      <button className="h-8 w-8 flex items-center justify-center text-muted-foreground" onClick={() => { hapticImpact('medium'); const name = item.product?.name || 'Item'; c.removeItem(item.product_id); toast(`${name} removed`, { action: { label: 'Undo', onClick: () => c.addItem(item.product as any, item.quantity) }, duration: 4000 }); }}><Trash2 size={15} /></button>
                     </div>
                   </div>
                 ))}
@@ -142,14 +143,17 @@ export default function CartPage() {
 
         {/* Fulfillment */}
         <div className="mt-5 px-4">
-          <FulfillmentSelector value={c.fulfillmentType} onChange={c.setFulfillmentType} deliveryFee={c.settings.baseDeliveryFee} freeDeliveryThreshold={c.settings.freeDeliveryThreshold} orderValue={c.totalAmount} />
+          <FulfillmentSelector value={c.fulfillmentType} onChange={c.setFulfillmentType} deliveryFee={c.settings.baseDeliveryFee} freeDeliveryThreshold={c.settings.freeDeliveryThreshold} orderValue={c.totalAmount} sellerFulfillmentMode={c.sellerGroups.length === 1 ? c.firstSellerFulfillmentMode : undefined} />
+          {c.hasFulfillmentConflict && (
+            <p className="text-xs text-warning mt-2 bg-warning/10 rounded-lg px-3 py-2">⚠️ Some sellers don't support this fulfillment mode. Separate handling may apply.</p>
+          )}
         </div>
 
         {/* Coupon */}
         {c.sellerGroups.length === 1 ? (
           <div className="mt-5 px-4">
             <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Apply Coupon</h3>
-            <CouponInput sellerId={c.sellerGroups[0].sellerId} totalAmount={c.totalAmount} onApply={c.setAppliedCoupon} onRemove={() => c.setAppliedCoupon(null)} appliedCoupon={c.appliedCoupon} />
+            <CouponInput key={c.sellerGroups[0].sellerId} sellerId={c.sellerGroups[0].sellerId} totalAmount={c.totalAmount} onApply={c.setAppliedCoupon} onRemove={() => c.setAppliedCoupon(null)} appliedCoupon={c.appliedCoupon} />
           </div>
         ) : c.sellerGroups.length > 1 ? (
           <div className="mt-5 px-4"><p className="text-xs text-muted-foreground bg-muted rounded-lg px-3 py-2">Coupons are not available for multi-seller carts.</p></div>
@@ -160,7 +164,7 @@ export default function CartPage() {
           <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">Bill Details</h3>
           <div className="space-y-2 text-sm">
             {c.sellerGroups.map((group) => (<div key={group.sellerId} className="flex justify-between"><span className="text-muted-foreground truncate mr-2">{group.sellerName}</span><span className="font-medium">{c.formatPrice(group.subtotal)}</span></div>))}
-            {c.appliedCoupon && (<div className="flex justify-between text-primary"><span>Coupon ({c.appliedCoupon.code})</span><span>-{c.formatPrice(Math.min(c.appliedCoupon.discountAmount, c.totalAmount))}</span></div>)}
+            {c.appliedCoupon && (<div className="flex justify-between text-primary"><span>Coupon ({c.appliedCoupon.code})</span><span>-{c.formatPrice(Math.min(c.effectiveCouponDiscount, c.totalAmount))}</span></div>)}
             <div className="flex justify-between"><span className="text-muted-foreground">Delivery Fee</span><span className={`font-medium ${c.effectiveDeliveryFee === 0 ? 'text-primary' : ''}`}>{c.fulfillmentType === 'delivery' ? (c.effectiveDeliveryFee === 0 ? 'FREE' : c.formatPrice(c.effectiveDeliveryFee)) : 'Self Pickup'}</span></div>
             <div className="border-t border-border pt-2 mt-1 flex justify-between font-bold"><span>To Pay</span><span>{c.formatPrice(c.finalAmount)}</span></div>
           </div>
@@ -204,6 +208,11 @@ export default function CartPage() {
 
       {/* Sticky Footer */}
       <div className="fixed bottom-0 left-0 right-0 z-40 bg-background border-t border-border pb-[env(safe-area-inset-bottom)]">
+        {c.noPaymentMethodAvailable && (
+          <div className="mx-4 mt-2 bg-destructive/10 border border-destructive/20 rounded-lg px-3 py-2">
+            <p className="text-xs text-destructive font-medium">No payment method available for this cart. Try ordering from each seller separately.</p>
+          </div>
+        )}
         {c.sellerGroups.length > 0 && (
           <p className="text-[11px] text-primary font-medium text-center pt-2.5 px-4 flex items-center justify-center gap-1.5">
             <span className="text-base">{ml.label('label_checkout_community_emoji')}</span>
@@ -213,7 +222,7 @@ export default function CartPage() {
         <p className="text-[10px] text-muted-foreground text-center pt-1 px-4">Payments are processed by third-party providers and are not covered by Apple. <Link to="/terms" className="underline">Refund & Cancellation Policy</Link></p>
         <div className="px-4 py-3 flex items-center gap-3">
           <div className="flex-1"><p className="text-xs text-muted-foreground">Total</p><p className="text-lg font-bold tabular-nums">{c.formatPrice(c.finalAmount)}</p></div>
-          <Button className="px-8 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 font-bold" size="lg" onClick={() => c.setShowConfirmDialog(true)} disabled={c.isPlacingOrder}>{c.isPlacingOrder ? 'Placing...' : 'Place Order'}<ChevronRight size={18} className="ml-1" /></Button>
+          <Button className="px-8 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 font-bold" size="lg" onClick={() => c.setShowConfirmDialog(true)} disabled={c.isPlacingOrder || c.hasBelowMinimumOrder || c.noPaymentMethodAvailable}>{c.isPlacingOrder ? 'Placing...' : 'Place Order'}<ChevronRight size={18} className="ml-1" /></Button>
         </div>
       </div>
 
