@@ -1,57 +1,36 @@
 
 
-## Problem Analysis
+## Problem
 
-The root cause is in `useOrderDetail.ts` line 97:
+The chat overlay (`OrderChat`) opens full-screen with `fixed inset-0 z-50`, but the bottom navigation bar from `AppLayout` renders on top of the chat's input area, hiding the message input field and send button. The user sees messages but cannot type or send follow-up messages.
 
-```typescript
-const statusOrder: OrderStatus[] = ['placed', 'accepted', 'preparing', 'ready', 'picked_up', 'delivered', 'completed'];
+Confirmed via browser testing: the chat shows the message thread correctly but the input field at the bottom is covered by the `BottomNav` component.
+
+## Root Cause
+
+In `OrderDetailPage.tsx`, the `AppLayout` wraps everything including the chat overlay. The `showNav` prop controls whether the bottom nav renders. When the chat is open, the bottom nav still renders at the same or higher z-index, covering the chat input.
+
+The `BottomNav` component likely uses `z-50` (same as the chat), and since it renders later in the DOM, it paints on top.
+
+## Fix
+
+**File: `src/pages/OrderDetailPage.tsx`**
+
+Update the `showNav` prop on `AppLayout` to also hide the nav when the chat is open:
+
+```
+Current:  showNav={!o.isSellerView || order.status === 'completed' || order.status === 'cancelled'}
+Fixed:    showNav={(!o.isSellerView || order.status === 'completed' || order.status === 'cancelled') && !o.isChatOpen}
 ```
 
-The `'enquired'` status is missing from this array. When `order.status === 'enquired'`:
-- `statusOrder.indexOf('enquired')` returns **-1**
-- `currentStatusIndex` = -1
-- `getNextStatus()` calculates `nextIndex = -1 + 1 = 0` → returns `statusOrder[0]` = **`'placed'`**
+This ensures when the full-screen chat overlay is active, the bottom nav hides and does not cover the chat input.
 
-This is why the seller sees "Mark Placed" — a completely invalid transition. The database trigger correctly rejects it, producing the error.
+**Alternative/additional safety**: Bump the `OrderChat` container z-index from `z-50` to `z-[60]` in `src/components/chat/OrderChat.tsx` to guarantee it renders above all other fixed elements.
 
-Additionally, after clicking "Accept" (which works via a separate code path), the component sets the local order status but `nextStatus` is computed once at render — and since `enquired` is still not in the array, the stale "Mark Placed" button persists.
+## Changes Summary
 
-## Plan
-
-### File 1: `src/hooks/useOrderDetail.ts`
-
-**Change A** — Add `enquired` to the status order array and create a service-appropriate flow:
-
-Replace the single `statusOrder` with logic that checks order type:
-- **Service/enquiry orders** (`order_type === 'enquiry'`): `enquired → accepted → preparing → ready → completed`
-- **Regular orders**: `placed → accepted → preparing → ready → picked_up → delivered → completed`
-
-This removes `picked_up` and `delivered` from service flows (they are food/delivery concepts).
-
-**Change B** — Fix `getNextStatus()`:
-
-For `enquired` status, the next valid status should be `accepted`. The existing reject button logic checks `order.status === 'placed'` — extend it to also show for `enquired`.
-
-### File 2: `src/pages/OrderDetailPage.tsx`
-
-**Change C** — Update the seller action bar:
-
-- Show the Reject button for both `placed` and `enquired` statuses
-- Update `displayStatuses` to be dynamic based on order type (service orders should show `Enquired → Accepted → Preparing → Ready` instead of `Placed → Accepted → Preparing → Ready`)
-
-### File 3: `src/hooks/useStatusLabels.ts` (verify)
-
-Confirm that `getOrderStatus('enquired')` returns a valid label. If not, add it.
-
----
-
-### Summary of Changes
-
-| What | Where | Why |
-|------|-------|-----|
-| Add `enquired` to status flow | `useOrderDetail.ts` | Fixes -1 index → wrong next status |
-| Service-specific status sequence | `useOrderDetail.ts` | Removes irrelevant food/delivery statuses |
-| Show Reject for `enquired` | `OrderDetailPage.tsx` | Seller can reject booking requests |
-| Dynamic timeline labels | `OrderDetailPage.tsx` | Display correct steps for service orders |
+| File | Change |
+|------|--------|
+| `src/pages/OrderDetailPage.tsx` | Add `&& !o.isChatOpen` to `showNav` condition |
+| `src/components/chat/OrderChat.tsx` | Change `z-50` to `z-[60]` for safety |
 
