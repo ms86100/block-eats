@@ -1,14 +1,15 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useContext } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { PushNotifications } from '@capacitor/push-notifications';
 import { supabase } from '@/integrations/supabase/client';
-import { useAuth } from '@/contexts/AuthContext';
+import { IdentityContext } from '@/contexts/auth/contexts';
 import { useNavigate } from 'react-router-dom';
 
 export function usePushNotifications() {
   const [token, setToken] = useState<string | null>(null);
   const [permissionStatus, setPermissionStatus] = useState<'granted' | 'denied' | 'prompt'>('prompt');
-  const { user } = useAuth();
+  const identity = useContext(IdentityContext);
+  const user = identity?.user ?? null;
   const navigate = useNavigate();
 
   const saveTokenToDatabase = useCallback(async (pushToken: string) => {
