@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef, memo } from 'react';
-import { ArrowLeft, Bell, Building, Building2, ChevronDown, ShieldCheck } from 'lucide-react';
+import { ArrowLeft, Bell, Building, Building2, ShieldCheck } from 'lucide-react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { ThemeToggle } from '@/components/ui/theme-toggle';
@@ -98,16 +98,12 @@ function HeaderInner({
                 {settings.headerTagline}
               </p>
               {displaySociety && (
-                <button 
-                  className="flex items-center gap-1 mt-1"
-                  onClick={() => selectionChanged()}
-                >
+                <div className="flex items-center gap-1 mt-1">
                   <Building size={12} className="text-muted-foreground shrink-0" />
                   <span className="text-[11px] font-semibold text-foreground truncate max-w-[65vw]">
                     {displaySociety.name}
                   </span>
-                  <ChevronDown size={12} className="text-muted-foreground shrink-0" />
-                </button>
+                </div>
               )}
             </div>
 

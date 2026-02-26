@@ -2,6 +2,7 @@ import { useState, useMemo, useCallback } from 'react';
 import { useParams, useSearchParams, Link, useNavigate } from 'react-router-dom';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { ProductListingCard, ProductWithSeller } from '@/components/product/ProductListingCard';
+import { ProductDetailSheet } from '@/components/product/ProductDetailSheet';
 import { SellerCard } from '@/components/seller/SellerCard';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
@@ -31,6 +32,29 @@ export default function CategoryGroupPage() {
   const [activeSubCategory, setActiveSubCategory] = useState<ServiceCategory | null>(subCategory);
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState<SortKey>('relevance');
+  const [selectedProduct, setSelectedProduct] = useState<any>(null);
+  const [detailOpen, setDetailOpen] = useState(false);
+  const { configs: categoryConfigs } = useCategoryConfigs();
+
+  const handleProductTap = useCallback((product: ProductWithSeller) => {
+    const catConfig = categoryConfigs.find(c => c.category === product.category);
+    setSelectedProduct({
+      product_id: product.id,
+      product_name: product.name,
+      price: product.price,
+      image_url: product.image_url,
+      is_veg: product.is_veg,
+      category: product.category,
+      description: product.description,
+      seller_id: product.seller_id,
+      seller_name: product.seller_name || 'Seller',
+      seller_rating: product.seller_rating || 0,
+      seller_reviews: product.seller_reviews || 0,
+      _catIcon: catConfig?.icon || '🛍️',
+      _catName: catConfig?.displayName || product.category,
+    });
+    setDetailOpen(true);
+  }, [categoryConfigs]);
 
   const parentGroup = category ? getGroupBySlug(category) : undefined;
   const allSubCategories = category ? groupedConfigs[category] || [] : [];
@@ -248,6 +272,7 @@ export default function CategoryGroupPage() {
                 <ProductListingCard
                   key={product.id}
                   product={product}
+                  onTap={handleProductTap}
                   onNavigate={navigate}
                 />
               ))}
@@ -261,8 +286,8 @@ export default function CategoryGroupPage() {
               {searchQuery ? 'Try a different search' : 'Check back soon for new listings!'}
             </p>
             {!searchQuery && (
-              <Link to="/become-seller">
-                <Button variant="outline" size="sm">Become a Seller</Button>
+              <Link to="/">
+                <Button variant="outline" size="sm">Browse other categories</Button>
               </Link>
             )}
           </div>
@@ -285,6 +310,32 @@ export default function CategoryGroupPage() {
           </div>
         )}
       </div>
+
+      <ProductDetailSheet
+        product={selectedProduct}
+        open={detailOpen}
+        onOpenChange={setDetailOpen}
+        onSelectProduct={(sp) => {
+          const catConfig = categoryConfigs.find(c => c.category === sp.category);
+          setSelectedProduct({
+            product_id: sp.id,
+            product_name: sp.name,
+            price: sp.price,
+            image_url: sp.image_url,
+            is_veg: sp.is_veg ?? true,
+            category: sp.category,
+            description: sp.description || null,
+            seller_id: sp.seller_id,
+            seller_name: sp.seller?.business_name || 'Seller',
+            seller_rating: 0,
+            seller_reviews: 0,
+            _catIcon: catConfig?.icon || '🛍️',
+            _catName: catConfig?.displayName || sp.category,
+          });
+        }}
+        categoryIcon={selectedProduct?._catIcon}
+        categoryName={selectedProduct?._catName}
+      />
     </AppLayout>
   );
 }

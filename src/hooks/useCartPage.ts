@@ -128,6 +128,16 @@ export function useCartPage() {
       }
     } catch (err) {
       console.error('Pre-checkout validation failed:', err);
+      toast.error('Could not verify item availability. Please try again.');
+      setIsPlacingOrder(false);
+      return;
+    }
+
+    // #7: Validate payment method matches seller capabilities
+    if (paymentMethod === 'cod' && !acceptsCod) {
+      toast.error('This seller does not accept Cash on Delivery. Please select UPI.');
+      setIsPlacingOrder(false);
+      return;
     }
 
     if (paymentMethod === 'upi') {

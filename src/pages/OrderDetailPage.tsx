@@ -97,7 +97,7 @@ export default function OrderDetailPage() {
 
           {/* Payment */}
           <div className="bg-card border border-border rounded-xl px-4 py-3 flex items-center justify-between">
-            <div className="flex items-center gap-2.5"><CreditCard size={16} className="text-muted-foreground" /><p className="text-sm font-medium">{order.payment_type === 'cod' ? 'Cash on Delivery' : 'UPI Payment'}</p></div>
+            <div className="flex items-center gap-2.5"><CreditCard size={16} className="text-muted-foreground" /><p className="text-sm font-medium">{((order as any).payment_method || (order as any).payment_type) === 'cod' ? 'Cash on Delivery' : 'UPI Payment'}</p></div>
             <span className={`text-[11px] px-2 py-0.5 rounded-full ${paymentStatusInfo.color}`}>{paymentStatusInfo.label}</span>
           </div>
 
@@ -132,7 +132,9 @@ export default function OrderDetailPage() {
                 <p className="text-sm font-semibold">{o.isSellerView ? buyer?.name : seller?.business_name}</p>
                 <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5"><MapPin size={11} />Block {o.isSellerView ? buyer?.block : sellerProfile?.block}, {o.isSellerView ? buyer?.flat_number : sellerProfile?.flat_number}</p>
               </div>
-              <a href={`tel:${o.isSellerView ? buyer?.phone : sellerProfile?.phone}`} className="w-9 h-9 rounded-full bg-accent/10 flex items-center justify-center"><Phone size={16} className="text-accent" /></a>
+              {(o.isSellerView ? buyer?.phone : sellerProfile?.phone) && (
+                <a href={`tel:${o.isSellerView ? buyer?.phone : sellerProfile?.phone}`} className="w-9 h-9 rounded-full bg-accent/10 flex items-center justify-center"><Phone size={16} className="text-accent" /></a>
+              )}
             </div>
           </div>
 

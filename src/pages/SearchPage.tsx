@@ -35,7 +35,7 @@ function toProductWithSeller(p: ProductSearchResult): ProductWithSeller {
 
 export default function SearchPage() {
   const s = useSearchPage();
-  const [selectedProduct, setSelectedProduct] = useState<ProductDetail | null>(null);
+  const [selectedProduct, setSelectedProduct] = useState<any>(null);
   const [detailOpen, setDetailOpen] = useState(false);
 
   const handleProductTap = (product: ProductWithSeller) => {
@@ -149,6 +149,21 @@ export default function SearchPage() {
           product={selectedProduct}
           open={detailOpen}
           onOpenChange={setDetailOpen}
+          onSelectProduct={(sp) => {
+            setSelectedProduct({
+              product_id: sp.id,
+              product_name: sp.name,
+              price: sp.price,
+              image_url: sp.image_url,
+              is_veg: sp.is_veg ?? true,
+              category: sp.category,
+              description: sp.description || null,
+              seller_id: sp.seller_id,
+              seller_name: sp.seller?.business_name || 'Seller',
+              seller_rating: 0,
+              seller_reviews: 0,
+            });
+          }}
         />
       </div>
     </AppLayout>

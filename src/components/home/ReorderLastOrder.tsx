@@ -59,6 +59,19 @@ export function ReorderLastOrder() {
 
   const handleReorder = async () => {
     if (!user) return;
+    
+    // Check if cart has existing items and warn user
+    const { data: existingCart } = await supabase
+      .from('cart_items')
+      .select('id')
+      .eq('user_id', user.id)
+      .limit(1);
+
+    if (existingCart && existingCart.length > 0) {
+      const confirmReplace = window.confirm('This will replace your current cart. Continue?');
+      if (!confirmReplace) return;
+    }
+
     setIsLoading(true);
     try {
       const productIds = lastOrder.items.map(i => i.product_id).filter(Boolean);
