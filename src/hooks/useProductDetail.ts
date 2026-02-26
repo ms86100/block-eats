@@ -35,7 +35,7 @@ export function useProductDetail(product: ProductDetail | null, open: boolean) {
   const { data: trustSnapshot } = useSellerTrustSnapshot(product?.seller_id || null);
   const [contactOpen, setContactOpen] = useState(false);
   const [enquiryOpen, setEnquiryOpen] = useState(false);
-  const [showDetails, setShowDetails] = useState(false);
+  const [showDetails, setShowDetails] = useState(true);
   const [reportOpen, setReportOpen] = useState(false);
   const [similarProducts, setSimilarProducts] = useState<any[]>([]);
   const [loadedSpecs, setLoadedSpecs] = useState<Record<string, any> | null>(null);
