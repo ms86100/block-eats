@@ -29,6 +29,8 @@ export function useAppLifecycle() {
             queryClient.invalidateQueries({ queryKey: ['cart-items'] });
             queryClient.invalidateQueries({ queryKey: ['unread-notifications'] });
             queryClient.invalidateQueries({ queryKey: ['products-by-category'] });
+            queryClient.invalidateQueries({ queryKey: ['seller-orders'] });
+            queryClient.invalidateQueries({ queryKey: ['seller-dashboard-stats'] });
           }
         });
         cleanup = () => listener.remove();

@@ -212,6 +212,26 @@ export function usePushNotifications() {
     }
   }, [user, token, saveTokenToDatabase]);
 
+  // ── Diagnostic: check if current user has any saved tokens ──
+  useEffect(() => {
+    if (!user) return;
+    (async () => {
+      try {
+        const { data, error } = await supabase
+          .from('device_tokens')
+          .select('id, token, platform, updated_at')
+          .eq('user_id', user.id);
+        if (error) {
+          console.error('[Push][Diag] Error querying device_tokens:', error.message);
+        } else {
+          console.log(`[Push][Diag] User ${user.id} has ${data?.length || 0} registered token(s)`, data);
+        }
+      } catch (e) {
+        console.error('[Push][Diag] Exception:', e);
+      }
+    })();
+  }, [user]);
+
   return {
     token,
     permissionStatus,

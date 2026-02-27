@@ -4,11 +4,12 @@ import { Button } from '@/components/ui/button';
 import { Bell, ShoppingBag, ArrowRight } from 'lucide-react';
 import { useCurrency } from '@/hooks/useCurrency';
 import { motion, AnimatePresence } from 'framer-motion';
+import type { NewOrder } from '@/hooks/useNewOrderAlert';
 
 const AUTO_DISMISS_SECONDS = 30;
 
 interface NewOrderAlertOverlayProps {
-  order: { id: string; status: string; total_amount: number } | null;
+  orders: NewOrder[];
   onDismiss: () => void;
   onSnooze?: () => void;
 }
@@ -22,10 +23,13 @@ function statusLabel(status: string): string {
   }
 }
 
-export function NewOrderAlertOverlay({ order, onDismiss, onSnooze }: NewOrderAlertOverlayProps) {
+export function NewOrderAlertOverlay({ orders, onDismiss, onSnooze }: NewOrderAlertOverlayProps) {
   const navigate = useNavigate();
   const { formatPrice } = useCurrency();
   const [countdown, setCountdown] = useState(AUTO_DISMISS_SECONDS);
+
+  const order = orders.length > 0 ? orders[0] : null;
+  const queueCount = orders.length;
 
   // Auto-dismiss countdown
   useEffect(() => {
@@ -45,7 +49,7 @@ export function NewOrderAlertOverlay({ order, onDismiss, onSnooze }: NewOrderAle
       });
     }, 1000);
     return () => clearInterval(interval);
-  }, [order, onDismiss]);
+  }, [order?.id, onDismiss]);
 
   const handleView = () => {
     onDismiss();
@@ -69,12 +73,11 @@ export function NewOrderAlertOverlay({ order, onDismiss, onSnooze }: NewOrderAle
     <AnimatePresence mode="wait">
       {order && (
         <motion.div
-          key="new-order-alert"
+          key={`new-order-alert-${order.id}`}
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           className="fixed inset-0 z-[100] bg-black/60 flex items-center justify-center p-6"
-          // No onClick={onDismiss} — backdrop does NOT dismiss
         >
           <motion.div
             initial={{ scale: 0.8, y: 40 }}
@@ -84,8 +87,8 @@ export function NewOrderAlertOverlay({ order, onDismiss, onSnooze }: NewOrderAle
             className="bg-background rounded-2xl p-6 w-full max-w-sm shadow-2xl space-y-4"
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Pulsing bell icon */}
-            <div className="flex justify-center">
+            {/* Pulsing bell icon + queue badge */}
+            <div className="flex justify-center relative">
               <motion.div
                 animate={{ scale: [1, 1.2, 1] }}
                 transition={{ repeat: Infinity, duration: 0.8 }}
@@ -93,6 +96,11 @@ export function NewOrderAlertOverlay({ order, onDismiss, onSnooze }: NewOrderAle
               >
                 <Bell size={32} className="text-accent" />
               </motion.div>
+              {queueCount > 1 && (
+                <span className="absolute -top-1 -right-1 bg-destructive text-destructive-foreground text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center">
+                  {queueCount}
+                </span>
+              )}
             </div>
 
             <div className="text-center space-y-1">
@@ -100,10 +108,13 @@ export function NewOrderAlertOverlay({ order, onDismiss, onSnooze }: NewOrderAle
               {order.total_amount > 0 && (
                 <p className="text-2xl font-bold text-accent tabular-nums">{formatPrice(order.total_amount)}</p>
               )}
-              <p className="text-sm text-muted-foreground">Tap below to view and respond</p>
+              <p className="text-sm text-muted-foreground">
+                {queueCount > 1
+                  ? `${queueCount} orders waiting — tap to view this one`
+                  : 'Tap below to view and respond'}
+              </p>
             </div>
 
-            {/* Single View Order button */}
             <Button
               className="w-full h-12 text-base bg-accent hover:bg-accent/90 text-accent-foreground gap-2"
               onClick={handleView}
@@ -113,7 +124,6 @@ export function NewOrderAlertOverlay({ order, onDismiss, onSnooze }: NewOrderAle
               <ArrowRight size={16} />
             </Button>
 
-            {/* Snooze link + countdown */}
             <div className="flex items-center justify-between">
               <button
                 onClick={handleSnooze}

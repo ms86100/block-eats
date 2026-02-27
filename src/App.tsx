@@ -296,9 +296,9 @@ function GlobalSellerAlert() {
   const seller = React.useContext(SellerCtx);
   const isSeller = seller?.isSeller ?? false;
   const currentSellerId = seller?.currentSellerId ?? null;
-  const { pendingAlert, dismiss, snooze } = useNewOrderAlert(isSeller ? currentSellerId : null);
+  const { pendingAlerts, dismiss, snooze } = useNewOrderAlert(isSeller ? currentSellerId : null);
   if (!identity) return null;
-  return <NewOrderAlertOverlay order={pendingAlert} onDismiss={dismiss} onSnooze={snooze} />;
+  return <NewOrderAlertOverlay orders={pendingAlerts} onDismiss={dismiss} onSnooze={snooze} />;
 }
 
 /** Error boundary that silently swallows GlobalSellerAlert crashes */

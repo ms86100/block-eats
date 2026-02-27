@@ -22,7 +22,7 @@ function createAlarmSound(audioContext: AudioContext) {
   }
 }
 
-interface NewOrder {
+export interface NewOrder {
   id: string;
   status: string;
   created_at: string;
@@ -37,10 +37,9 @@ const LOOKBACK_MS = 5 * 60 * 1000; // 5 minutes
 
 export function useNewOrderAlert(sellerId: string | null) {
   const queryClient = useQueryClient();
-  const [pendingAlert, setPendingAlert] = useState<NewOrder | null>(null);
+  const [pendingAlerts, setPendingAlerts] = useState<NewOrder[]>([]);
   const audioCtxRef = useRef<AudioContext | null>(null);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  // Look back 5 minutes to catch orders placed while the app was closed
   const lastSeenAtRef = useRef<string>(new Date(Date.now() - LOOKBACK_MS).toISOString());
   const pollDelayRef = useRef(MIN_POLL_MS);
   const pollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -52,7 +51,6 @@ export function useNewOrderAlert(sellerId: string | null) {
     if (seenIdsRef.current.has(order.id)) return;
     if (dismissedIdsRef.current.has(order.id)) return;
     if (!ACTIONABLE_STATUSES.includes(order.status as typeof ACTIONABLE_STATUSES[number])) return;
-    // Check snooze
     const snoozedUntil = snoozedUntilRef.current[order.id];
     if (snoozedUntil && Date.now() < snoozedUntil) return;
     seenIdsRef.current.add(order.id);
@@ -60,7 +58,7 @@ export function useNewOrderAlert(sellerId: string | null) {
       lastSeenAtRef.current = order.created_at;
     }
     pollDelayRef.current = MIN_POLL_MS;
-    setPendingAlert(order);
+    setPendingAlerts(prev => [...prev, order]);
     queryClient.invalidateQueries({ queryKey: ['seller-orders', sellerId] });
     queryClient.invalidateQueries({ queryKey: ['seller-dashboard-stats', sellerId] });
   }, [sellerId, queryClient]);
@@ -102,22 +100,26 @@ export function useNewOrderAlert(sellerId: string | null) {
   }, []);
 
   const dismiss = useCallback(() => {
-    if (pendingAlert) {
-      dismissedIdsRef.current.add(pendingAlert.id);
-    }
-    stopBuzzing();
-    setPendingAlert(null);
-  }, [stopBuzzing, pendingAlert]);
+    setPendingAlerts(prev => {
+      if (prev.length === 0) return prev;
+      dismissedIdsRef.current.add(prev[0].id);
+      const remaining = prev.slice(1);
+      if (remaining.length === 0) stopBuzzing();
+      return remaining;
+    });
+  }, [stopBuzzing]);
 
   const snooze = useCallback(() => {
-    if (pendingAlert) {
-      // Remove from seen so it can re-trigger after snooze period
-      seenIdsRef.current.delete(pendingAlert.id);
-      snoozedUntilRef.current[pendingAlert.id] = Date.now() + SNOOZE_MS;
-    }
-    stopBuzzing();
-    setPendingAlert(null);
-  }, [stopBuzzing, pendingAlert]);
+    setPendingAlerts(prev => {
+      if (prev.length === 0) return prev;
+      const current = prev[0];
+      seenIdsRef.current.delete(current.id);
+      snoozedUntilRef.current[current.id] = Date.now() + SNOOZE_MS;
+      const remaining = prev.slice(1);
+      if (remaining.length === 0) stopBuzzing();
+      return remaining;
+    });
+  }, [stopBuzzing]);
 
   // ── Realtime subscription (primary, instant) ──
   useEffect(() => {
@@ -148,7 +150,7 @@ export function useNewOrderAlert(sellerId: string | null) {
     return () => { supabase.removeChannel(channel); };
   }, [sellerId, handleNewOrder]);
 
-  // ── Polling fallback ──
+  // ── Polling fallback — fetches ALL actionable orders ──
   useEffect(() => {
     if (!sellerId) return;
 
@@ -163,11 +165,10 @@ export function useNewOrderAlert(sellerId: string | null) {
           .eq('seller_id', sellerId)
           .gt('created_at', lastSeenAtRef.current)
           .in('status', ACTIONABLE_STATUSES)
-          .order('created_at', { ascending: false })
-          .limit(1);
+          .order('created_at', { ascending: true });
 
         if (data && data.length > 0) {
-          handleNewOrder(data[0] as NewOrder);
+          data.forEach(order => handleNewOrder(order as NewOrder));
         } else {
           pollDelayRef.current = Math.min(pollDelayRef.current * BACKOFF_FACTOR, MAX_POLL_MS);
         }
@@ -180,7 +181,6 @@ export function useNewOrderAlert(sellerId: string | null) {
       }
     };
 
-    // Immediate poll on mount to catch orders from while app was closed
     pollTimerRef.current = setTimeout(poll, 0);
 
     return () => {
@@ -189,15 +189,15 @@ export function useNewOrderAlert(sellerId: string | null) {
     };
   }, [sellerId, handleNewOrder]);
 
-  // ── Start/stop buzzing based on pendingAlert ──
+  // ── Start/stop buzzing based on pendingAlerts ──
   useEffect(() => {
-    if (pendingAlert) {
+    if (pendingAlerts.length > 0) {
       startBuzzing();
     } else {
       stopBuzzing();
     }
     return () => stopBuzzing();
-  }, [pendingAlert, startBuzzing, stopBuzzing]);
+  }, [pendingAlerts.length, startBuzzing, stopBuzzing]);
 
   // ── Cleanup on unmount or sellerId change ──
   useEffect(() => {
@@ -206,5 +206,5 @@ export function useNewOrderAlert(sellerId: string | null) {
     };
   }, [sellerId, stopBuzzing]);
 
-  return { pendingAlert, dismiss, snooze };
+  return { pendingAlerts, dismiss, snooze };
 }
