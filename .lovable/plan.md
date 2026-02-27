@@ -1,43 +1,48 @@
 
 
-## Three Bugs Identified
+## Root Cause: No Device Tokens = No Push Notifications
 
-### Bug 1: Buzzing sound never stops after accepting an order
-**Root cause:** The seller navigates to the bell icon or elsewhere without clicking "Dismiss" or "View" on the overlay. The `dismiss()` function (which calls `stopBuzzing`) is never invoked. The buzzing interval runs forever.
+The `device_tokens` table is **completely empty**. This means:
+- The seller's phone has **never successfully registered** an FCM push token
+- The `send-push-notification` function returns "No device tokens found for user" and sends 0 notifications
+- Even though the notification_queue processes correctly (logs show "Processing 1 queued notifications"), the push never reaches the phone
 
-Additionally, the polling fallback queries ALL orders newer than `lastSeenAt` regardless of status. So even after an order is accepted, it still matches the poll query (though `seenIdsRef` prevents re-alerting for the same ID, the original buzzing interval from the first detection was never cleared).
+The backend pipeline works correctly: order -> DB trigger -> notification_queue -> process-notification-queue -> send-push-notification. But the last step silently fails because there are no tokens.
 
-**Fix in `useNewOrderAlert.ts`:**
-- Filter polling to only fetch orders in actionable statuses: `status IN ('placed', 'enquired', 'quoted')`
-- Add cleanup: when the hook unmounts or `sellerId` changes, call `stopBuzzing` to clear the interval
-- Ensure `stopBuzzing` also suspends/closes the AudioContext to fully silence audio
+### Why tokens are not being saved
 
-### Bug 2: "New order arrived" popup reappears for already-accepted orders
-**Root cause:** The polling doesn't filter by order status. Even though `seenIdsRef` deduplicates, if the component ever remounts (HMR, error boundary recovery, etc.), the `seenIdsRef` Set resets to empty and `lastSeenAtRef` resets to `new Date()`. On the next poll cycle, it can re-detect orders.
+The `usePushNotifications` hook only runs on native platforms (`Capacitor.isNativePlatform()`). Since you are running in **dev mode** with the Capacitor WebView pointing to the Lovable sandbox URL, the WebView likely loads the app as a web context where `Capacitor.isNativePlatform()` may return false, OR the FCM registration succeeds but the token save fails silently due to the RLS policy requiring the user to be authenticated at the exact moment the token is saved.
 
-**Fix in `useNewOrderAlert.ts`:**
-- Add `.in('status', ['placed', 'enquired', 'quoted'])` to the polling query so accepted/completed orders are never picked up
+Additionally, the `pushNotificationReceived` listener (foreground notifications) does **nothing** -- it just logs. No toast, no sound, no UI update. So even if push worked, the user would not see anything while the app is open.
 
-### Bug 3: Clicking "View" on overlay → crash → reload → logout
-**Root cause:** The `NewOrderAlertOverlay` navigates to `/orders/${order.id}`. If this happens after a code deployment (stale chunk) or if the order data is in an unexpected state, the lazy-loaded `OrderDetailPage` module fails to load. The existing chunk-error handler in `main.tsx` reloads the page, which clears the auth session and redirects to login.
+### Why the in-app popup is not appearing
 
-**Fix in `NewOrderAlertOverlay.tsx`:**
-- Wrap navigation in a try-catch
-- Use `navigate()` with a fallback
+The `GlobalSellerAlert` component uses `useNewOrderAlert` which relies on Supabase Realtime. The Capacitor app in dev mode connects to the sandbox URL. If the WebSocket connection drops (which happens frequently on mobile networks), realtime events are missed. The polling fallback should catch it, but it initializes `lastSeenAtRef` to `new Date().toISOString()` -- so if the app was closed and reopened, it only checks for orders newer than the reopen time, potentially missing the order that was placed while the app was closed.
 
-**Fix in `main.tsx`:**
-- The chunk reload handler should NOT clear session — just reload without the `sessionStorage` flag causing issues
+### Plan (3 fixes)
+
+**1. Fix in-app foreground notification handling** (`src/hooks/usePushNotifications.ts`)
+- In the `pushNotificationReceived` listener, show a toast with sound/haptic and navigate to order
+- This ensures sellers see notifications even when the app is in the foreground
+
+**2. Fix the in-app popup when reopening the app** (`src/hooks/useNewOrderAlert.ts`)
+- Change `lastSeenAtRef` initialization to look back 5 minutes instead of "right now"
+- This ensures orders placed while the app was backgrounded/closed are detected on reopen
+- Add an immediate poll on mount (delay 0) instead of waiting MIN_POLL_MS
+
+**3. Debug token registration** (`src/hooks/usePushNotifications.ts`)
+- Add more detailed logging for the registration flow
+- Log whether `isNativePlatform()` returns true
+- Log the token save result
+- Handle the case where user auth may not be ready when registration fires
+
+**4. Capacitor rebuild requirement**
+- After these changes you MUST rebuild: `git pull` -> `npm install` -> `npm run build` -> `npx cap sync` -> `npx cap run ios`
+- The current build has the old code where foreground push does nothing
 
 ### Files to modify
 
-1. **`src/hooks/useNewOrderAlert.ts`**
-   - Add status filter to polling query: `.in('status', ['placed', 'enquired', 'quoted'])`
-   - Ensure cleanup on unmount closes AudioContext and clears interval
-   - Add a `dismissedIdsRef` to track dismissed orders and skip them even if re-detected
-
-2. **`src/components/seller/NewOrderAlertOverlay.tsx`**
-   - Wrap `handleView` navigation in try-catch with fallback to `/orders`
-
-3. **`src/App.tsx`** (GlobalSellerAlert)
-   - No changes needed — the fix is in the hook
+1. `src/hooks/usePushNotifications.ts` -- Handle foreground push notifications with toast/sound/haptic; add debug logging for token registration
+2. `src/hooks/useNewOrderAlert.ts` -- Initialize lastSeenAtRef to 5 minutes ago; trigger immediate poll on mount
+3. `src/components/notifications/PushNotificationProvider.tsx` -- No changes needed
 
