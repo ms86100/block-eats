@@ -1,78 +1,60 @@
 
 
-## Root Cause Analysis: Push Notifications Not Working on iOS
+## Why Sociva Is Missing Permissions in iOS Settings
 
-### The Problem
+### Root Cause
 
-The `device_tokens` table is empty (verified: 0 rows) despite the app being rebuilt and notifications being granted. The notification queue IS working — `notification_queue` and `user_notifications` tables show processed entries (e.g., "New Order Received!"). But `send-push-notification` finds 0 device tokens, so push delivery silently fails.
+iOS Settings only displays permissions that have been requested through **native iOS APIs**. Sociva currently uses:
 
-### TRUE Root Cause: Missing AppDelegate.swift Forwarding Methods
+- `navigator.geolocation` (web API) for location — invisible to Settings
+- `navigator.mediaDevices.getUserMedia()` (web API) for camera — invisible to Settings  
+- `<input type="file">` (web API) for photo library — invisible to Settings
 
-**This is a native iOS bridge issue, not a code bug.**
+Apps like Zomato and mygate use native SDKs, so their permissions appear in Settings and persist across sessions.
 
-The Capacitor Push Notifications plugin requires two methods in `AppDelegate.swift` to forward the APNs device token to the JavaScript layer:
+### Impact
 
-```text
-AppDelegate.swift (REQUIRED by @capacitor/push-notifications):
-
-func application(_ application: UIApplication,
-  didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
-    NotificationCenter.default.post(
-      name: .capacitorDidRegisterForRemoteNotifications,
-      object: deviceToken)
-}
-
-func application(_ application: UIApplication,
-  didFailToRegisterForRemoteNotificationsWithError error: Error) {
-    NotificationCenter.default.post(
-      name: .capacitorDidFailToRegisterForRemoteNotifications,
-      object: error)
-}
-```
-
-**Without these methods:**
-1. `PushNotifications.register()` calls iOS to request an APNs token (succeeds)
-2. iOS returns the token to `AppDelegate.didRegisterForRemoteNotifications...`
-3. But nobody forwards it to Capacitor's notification center
-4. The `registration` event in JavaScript **never fires**
-5. Token is never captured, never saved to `device_tokens`
-6. All push notifications fail with "No device tokens found for user"
-
-The `codemagic.yaml` CI pipeline correctly:
-- Adds Push Notifications entitlement (aps-environment: production)
-- Adds Background Modes (remote-notification, fetch)
-- Copies GoogleService-Info.plist
-
-But it does **NOT** modify `AppDelegate.swift` to add the required forwarding methods.
-
-### Why There's No Buzzing When App Is Closed/Background
-
-Background and closed-app notifications are delivered via FCM push. Since there are 0 device tokens, FCM has no destination to send to. The in-app buzzing (`useNewOrderAlert`) only works when the app is in the foreground and uses Supabase Realtime + polling — it cannot work when the app is closed.
+1. **Location**: Web geolocation prompts every session; user can't pre-authorize in Settings
+2. **Camera**: WebView camera access doesn't appear in Settings; harder to troubleshoot
+3. **Photos**: File picker works but isn't listed as a permission in Settings
 
 ### Fix Plan
 
-**Single change: Add a Codemagic build step that injects the required AppDelegate.swift methods.**
+**Install native Capacitor plugins and replace web API calls with native equivalents:**
 
-This modifies `codemagic.yaml` to add a script step (in both `ios-release` and `release-all` workflows) that uses `sed` to inject the two required methods into the Capacitor-generated `AppDelegate.swift` file after `npx cap sync ios`.
+#### Step 1: Install plugins
+- `@capacitor/camera` — handles both camera capture and photo library picking
+- `@capacitor/geolocation` — native location access
 
-**Files changed:**
-- `codemagic.yaml` — Add build script step "Patch AppDelegate for Push Notifications" after the "Add iOS platform" step in both iOS workflows
+#### Step 2: Replace web API calls with native plugin calls
 
-**What the script does:**
-- Locates `ios/App/App/AppDelegate.swift`
-- Injects the two required forwarding methods before the closing brace of the class
-- Only injects if not already present (idempotent)
+**File: `src/hooks/useAuthPage.ts`** (location verification)
+- Replace `navigator.geolocation.getCurrentPosition()` with `Geolocation.getCurrentPosition()` from `@capacitor/geolocation`
+- Wrap in platform check: use native on iOS/Android, keep web fallback for browser
 
-**What is NOT touched:**
-- No changes to `usePushNotifications.ts` (client code is correct)
-- No changes to `PushNotificationProvider.tsx`
-- No changes to edge functions
-- No changes to database tables or RLS policies
-- No changes to `capacitor.config.ts`
+**File: `src/components/workforce/LiveCameraCapture.tsx`** (worker photo capture)
+- On native platforms, use `Camera.getPhoto({ source: CameraSource.Camera })` instead of `navigator.mediaDevices.getUserMedia`
+- Keep web fallback for browser preview
 
-After this fix is deployed and the app is rebuilt via Codemagic, the flow will be:
-1. App opens → user signs in → `usePushNotifications` calls `PushNotifications.register()`
-2. iOS requests APNs token → AppDelegate forwards to Capacitor bridge
-3. `registration` event fires → token saved to `device_tokens`
-4. Push notifications now work for foreground, background, and closed app states
+**File: `src/components/ui/image-upload.tsx`** and `src/components/ui/croppable-image-upload.tsx` (product/profile images)
+- On native platforms, use `Camera.getPhoto({ source: CameraSource.Photos })` for gallery or `CameraSource.Prompt` to let user choose
+- Keep `<input type="file">` as web fallback
+
+#### Step 3: Update Codemagic CI (`codemagic.yaml`)
+- Add `NSPhotoLibraryAddUsageDescription` to Info.plist (required by `@capacitor/camera` for saving)
+- The existing `NSCameraUsageDescription`, `NSPhotoLibraryUsageDescription`, `NSLocationWhenInUseUsageDescription` in `capacitor.config.ts` plistOverrides are already correct
+
+#### Step 4: Create a native utility wrapper
+- New file: `src/lib/native-media.ts` — wraps Camera plugin with web fallback
+- New file: `src/lib/native-location.ts` — wraps Geolocation plugin with web fallback
+- Both auto-detect platform and use native or web accordingly
+
+### What is NOT touched
+- Push notification logic (already handled separately)
+- Existing UI components layout/styling
+- Database schema or RLS policies
+- Edge functions
+
+### Result after fix
+Sociva's iOS Settings page will show: Location, Camera, Photos, Notifications, Background App Refresh, Mobile Data — matching the experience of Zomato and mygate.
 
