@@ -38,7 +38,7 @@ export default function SellerDashboardPage() {
   const [renderError, setRenderError] = useState<string | null>(null);
 
   const activeSellerId = currentSellerId || (Array.isArray(sellerProfiles) && sellerProfiles.length > 0 ? sellerProfiles[0].id : null);
-  const { pendingAlert, dismiss: dismissAlert } = useNewOrderAlert(activeSellerId);
+  const { pendingAlert, dismiss: dismissAlert, snooze: snoozeAlert } = useNewOrderAlert(activeSellerId);
 
   // Debug: log auth state for seller dashboard
   useEffect(() => {
@@ -167,7 +167,7 @@ export default function SellerDashboardPage() {
 
   return (
     <AppLayout headerTitle="Seller Dashboard" showLocation={false}>
-      <NewOrderAlertOverlay order={pendingAlert} onDismiss={dismissAlert} />
+      <NewOrderAlertOverlay order={pendingAlert} onDismiss={dismissAlert} onSnooze={snoozeAlert} />
       <div className="p-4 space-y-5">
         <StoreStatusCard
           sellerProfile={sellerProfile}

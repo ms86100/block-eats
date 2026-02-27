@@ -3,11 +3,6 @@ import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { hapticVibrate, hapticNotification } from '@/lib/haptics';
 
-/**
- * Continuous buzzing alert for sellers when a new order/booking/enquiry arrives.
- * Uses Supabase Realtime as primary + smart polling fallback to ensure no order is missed.
- */
-
 const ACTIONABLE_STATUSES = ['placed', 'enquired', 'quoted'] as const;
 
 function createAlarmSound(audioContext: AudioContext) {
@@ -37,6 +32,7 @@ interface NewOrder {
 const MIN_POLL_MS = 3000;
 const MAX_POLL_MS = 30000;
 const BACKOFF_FACTOR = 1.5;
+const SNOOZE_MS = 60000;
 
 export function useNewOrderAlert(sellerId: string | null) {
   const queryClient = useQueryClient();
@@ -48,11 +44,15 @@ export function useNewOrderAlert(sellerId: string | null) {
   const pollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const seenIdsRef = useRef<Set<string>>(new Set());
   const dismissedIdsRef = useRef<Set<string>>(new Set());
+  const snoozedUntilRef = useRef<Record<string, number>>({});
 
   const handleNewOrder = useCallback((order: NewOrder) => {
     if (seenIdsRef.current.has(order.id)) return;
     if (dismissedIdsRef.current.has(order.id)) return;
     if (!ACTIONABLE_STATUSES.includes(order.status as typeof ACTIONABLE_STATUSES[number])) return;
+    // Check snooze
+    const snoozedUntil = snoozedUntilRef.current[order.id];
+    if (snoozedUntil && Date.now() < snoozedUntil) return;
     seenIdsRef.current.add(order.id);
     if (order.created_at > lastSeenAtRef.current) {
       lastSeenAtRef.current = order.created_at;
@@ -68,7 +68,6 @@ export function useNewOrderAlert(sellerId: string | null) {
       clearInterval(intervalRef.current);
       intervalRef.current = null;
     }
-    // Close AudioContext to fully silence
     try {
       if (audioCtxRef.current && audioCtxRef.current.state !== 'closed') {
         audioCtxRef.current.close();
@@ -108,6 +107,16 @@ export function useNewOrderAlert(sellerId: string | null) {
     setPendingAlert(null);
   }, [stopBuzzing, pendingAlert]);
 
+  const snooze = useCallback(() => {
+    if (pendingAlert) {
+      // Remove from seen so it can re-trigger after snooze period
+      seenIdsRef.current.delete(pendingAlert.id);
+      snoozedUntilRef.current[pendingAlert.id] = Date.now() + SNOOZE_MS;
+    }
+    stopBuzzing();
+    setPendingAlert(null);
+  }, [stopBuzzing, pendingAlert]);
+
   // ── Realtime subscription (primary, instant) ──
   useEffect(() => {
     if (!sellerId) return;
@@ -137,7 +146,7 @@ export function useNewOrderAlert(sellerId: string | null) {
     return () => { supabase.removeChannel(channel); };
   }, [sellerId, handleNewOrder]);
 
-  // ── Polling fallback (catches missed Realtime events) ──
+  // ── Polling fallback ──
   useEffect(() => {
     if (!sellerId) return;
 
@@ -194,5 +203,5 @@ export function useNewOrderAlert(sellerId: string | null) {
     };
   }, [sellerId, stopBuzzing]);
 
-  return { pendingAlert, dismiss };
+  return { pendingAlert, dismiss, snooze };
 }

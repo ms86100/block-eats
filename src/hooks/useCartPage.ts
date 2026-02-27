@@ -218,6 +218,8 @@ export function useCartPage() {
       await clearCart();
       await refresh();
       hapticNotification('success');
+      // Trigger immediate push notification to seller (fire-and-forget)
+      supabase.functions.invoke('process-notification-queue').catch(() => {});
       if (orderIds.length === 1) {
         toast.success('Order placed successfully!');
         navigate(`/orders/${orderIds[0]}`);
