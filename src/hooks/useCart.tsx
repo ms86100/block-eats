@@ -44,7 +44,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
         .select(`*, product:products(*, seller:seller_profiles(*))`)
         .eq('user_id', user.id);
       if (error) throw error;
-      return (data as any as (CartItem & { product: Product })[]) || [];
+      const items = (data as any as (CartItem & { product: Product })[]) || [];
+      return items.filter(item => item.product?.is_available !== false);
     },
     enabled: !!user,
     staleTime: 30 * 1000, // 30s — keep cart fresh after order clears it
