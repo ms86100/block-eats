@@ -19,6 +19,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { ApiKeySettings } from '@/components/admin/ApiKeySettings';
 import { AppNavigator } from '@/components/admin/AppNavigator';
 import { SellerApplicationReview } from '@/components/admin/SellerApplicationReview';
+import { AdminProductApprovals } from '@/components/admin/AdminProductApprovals';
 import { AdminDisputesTab } from '@/components/admin/AdminDisputesTab';
 import { EmergencyBroadcastSheet } from '@/components/admin/EmergencyBroadcastSheet';
 import { SocietySwitcher } from '@/components/admin/SocietySwitcher';
@@ -161,6 +162,9 @@ export default function AdminPage() {
             {/* ── SELLERS ── */}
             <TabsContent value="sellers" className="mt-5">
               <SellerApplicationReview />
+              <div className="mt-6">
+                <AdminProductApprovals />
+              </div>
             </TabsContent>
 
 
