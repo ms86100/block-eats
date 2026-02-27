@@ -1,48 +1,62 @@
 
 
-## Root Cause: No Device Tokens = No Push Notifications
+## Revised Fulfillment Mode Redesign
 
-The `device_tokens` table is **completely empty**. This means:
-- The seller's phone has **never successfully registered** an FCM push token
-- The `send-push-notification` function returns "No device tokens found for user" and sends 0 notifications
-- Even though the notification_queue processes correctly (logs show "Processing 1 queued notifications"), the push never reaches the phone
+**Core principle**: Delivery fee is ALWAYS set by admin (system_settings), never by the seller. This prevents sellers from inflating delivery charges.
 
-The backend pipeline works correctly: order -> DB trigger -> notification_queue -> process-notification-queue -> send-push-notification. But the last step silently fails because there are no tokens.
+### New Fulfillment Modes (5 options for seller)
 
-### Why tokens are not being saved
+| Mode value | Seller label | Who delivers | Fee source | Buyer choice? |
+|---|---|---|---|---|
+| `self_pickup` | Self Pickup Only | N/A | Free | No choice needed |
+| `seller_delivery` | I Deliver | Seller | Admin fee | No choice — delivery forced |
+| `platform_delivery` | Delivery Partner | Platform rider | Admin fee | No choice — delivery forced |
+| `pickup_and_seller_delivery` | Pickup + I Deliver | Seller | Admin fee | Buyer picks: pickup or delivery |
+| `pickup_and_platform_delivery` | Pickup + Delivery Partner | Platform rider | Admin fee | Buyer picks: pickup or delivery |
 
-The `usePushNotifications` hook only runs on native platforms (`Capacitor.isNativePlatform()`). Since you are running in **dev mode** with the Capacitor WebView pointing to the Lovable sandbox URL, the WebView likely loads the app as a web context where `Capacitor.isNativePlatform()` may return false, OR the FCM registration succeeds but the token save fails silently due to the RLS policy requiring the user to be authenticated at the exact moment the token is saved.
+**Key difference from previous plan**: No `seller_delivery_fee` column. ALL delivery fees come from admin `system_settings` (`baseDeliveryFee` / `freeDeliveryThreshold`).
 
-Additionally, the `pushNotificationReceived` listener (foreground notifications) does **nothing** -- it just logs. No toast, no sound, no UI update. So even if push worked, the user would not see anything while the app is open.
+### Database Changes
 
-### Why the in-app popup is not appearing
+1. **Add `delivery_handled_by` column** to `seller_profiles` — values: `'seller'` or `'platform'` (nullable, derived from fulfillment_mode for query convenience)
+2. **Migrate existing data**: `delivery` → `seller_delivery`, `both` → `pickup_and_seller_delivery` (preserves current sellers' intent)
+3. **Add `delivery_handled_by` column** to `orders` table — so the system knows whether to auto-assign a delivery partner for that specific order
 
-The `GlobalSellerAlert` component uses `useNewOrderAlert` which relies on Supabase Realtime. The Capacitor app in dev mode connects to the sandbox URL. If the WebSocket connection drops (which happens frequently on mobile networks), realtime events are missed. The polling fallback should catch it, but it initializes `lastSeenAtRef` to `new Date().toISOString()` -- so if the app was closed and reopened, it only checks for orders newer than the reopen time, potentially missing the order that was placed while the app was closed.
+### Frontend Changes
 
-### Plan (3 fixes)
+**1. Seller Settings (`SellerSettingsPage.tsx`) + Onboarding (`BecomeSellerPage.tsx`)**
+- Replace 3 radio options with 5
+- When any delivery mode is selected, show info: "Delivery fee is managed by the platform"
+- When `platform_delivery` or `pickup_and_platform_delivery` is selected, show note: "A delivery partner will be assigned when order is ready"
+- Keep delivery_note input for seller_delivery modes
+- Update `FULFILLMENT_OPTIONS` constant and `useSellerSettings.ts` form data
 
-**1. Fix in-app foreground notification handling** (`src/hooks/usePushNotifications.ts`)
-- In the `pushNotificationReceived` listener, show a toast with sound/haptic and navigate to order
-- This ensures sellers see notifications even when the app is in the foreground
+**2. `FulfillmentSelector.tsx` (buyer cart)**
+- Only show pickup/delivery choice when mode is `pickup_and_*`
+- For `seller_delivery` or `platform_delivery` — force delivery, no choice shown
+- For `self_pickup` — force pickup, no choice shown
+- Fee always from admin system_settings (already the case — no change needed here)
 
-**2. Fix the in-app popup when reopening the app** (`src/hooks/useNewOrderAlert.ts`)
-- Change `lastSeenAtRef` initialization to look back 5 minutes instead of "right now"
-- This ensures orders placed while the app was backgrounded/closed are detected on reopen
-- Add an immediate poll on mount (delay 0) instead of waiting MIN_POLL_MS
+**3. `useCartPage.ts`**
+- Derive `delivery_handled_by` from seller's `fulfillment_mode` and pass it to order creation
+- Fee calculation stays the same (admin settings) — no change needed
 
-**3. Debug token registration** (`src/hooks/usePushNotifications.ts`)
-- Add more detailed logging for the registration flow
-- Log whether `isNativePlatform()` returns true
-- Log the token save result
-- Handle the case where user auth may not be ready when registration fires
+**4. Order creation RPC / orders table**
+- Store `delivery_handled_by` on the order so the delivery assignment trigger knows whether to create a `delivery_assignments` row
 
-**4. Capacitor rebuild requirement**
-- After these changes you MUST rebuild: `git pull` -> `npm install` -> `npm run build` -> `npx cap sync` -> `npx cap run ios`
-- The current build has the old code where foreground push does nothing
+**5. Delivery assignment trigger**
+- Only auto-create `delivery_assignments` when `delivery_handled_by = 'platform'` and order status = `ready`
+
+**6. Test helpers**
+- Update `VALID_FULFILLMENT_MODES` in `business-rules.ts`
 
 ### Files to modify
 
-1. `src/hooks/usePushNotifications.ts` -- Handle foreground push notifications with toast/sound/haptic; add debug logging for token registration
-2. `src/hooks/useNewOrderAlert.ts` -- Initialize lastSeenAtRef to 5 minutes ago; trigger immediate poll on mount
-3. `src/components/notifications/PushNotificationProvider.tsx` -- No changes needed
+1. **Database migration** — add `delivery_handled_by` to `seller_profiles` and `orders`, migrate existing fulfillment_mode values
+2. `src/pages/SellerSettingsPage.tsx` — 5 radio options with contextual info
+3. `src/pages/BecomeSellerPage.tsx` — update `FULFILLMENT_OPTIONS` array to 5 options
+4. `src/hooks/useSellerSettings.ts` — handle new mode values
+5. `src/components/delivery/FulfillmentSelector.tsx` — conditionally show/hide options based on mode
+6. `src/hooks/useCartPage.ts` — pass `delivery_handled_by` to order creation
+7. `src/test/helpers/business-rules.ts` — update valid modes list
 
