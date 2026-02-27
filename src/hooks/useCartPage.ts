@@ -14,7 +14,7 @@ import { friendlyError } from '@/lib/utils';
 export function useCartPage() {
   const navigate = useNavigate();
   const { user, profile, society } = useAuth();
-  const { items, totalAmount, sellerGroups, updateQuantity, removeItem, clearCart, refresh, addItem } = useCart();
+  const { items, totalAmount, sellerGroups, updateQuantity, removeItem, clearCart, refresh, addItem, isLoading } = useCart();
   const [notes, setNotes] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cod');
   const [isPlacingOrder, setIsPlacingOrder] = useState(false);
@@ -273,7 +273,7 @@ export function useCartPage() {
   };
 
   return {
-    user, profile, society, items, totalAmount, sellerGroups, updateQuantity, removeItem, clearCart, addItem,
+    user, profile, society, items, totalAmount, sellerGroups, updateQuantity, removeItem, clearCart, addItem, isLoading,
     notes, setNotes, paymentMethod, setPaymentMethod,
     isPlacingOrder, showRazorpayCheckout, pendingOrderIds,
     appliedCoupon, setAppliedCoupon, showConfirmDialog, setShowConfirmDialog,

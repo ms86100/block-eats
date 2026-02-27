@@ -47,7 +47,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
       return (data as any as (CartItem & { product: Product })[]) || [];
     },
     enabled: !!user,
-    staleTime: 10 * 60 * 1000, // 10 min — cart rarely changes from other devices
+    staleTime: 30 * 1000, // 30s — keep cart fresh after order clears it
     gcTime: 60 * 60 * 1000,
   });
 
