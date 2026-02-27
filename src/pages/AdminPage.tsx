@@ -1,7 +1,6 @@
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Switch } from '@/components/ui/switch';
 import { Input } from '@/components/ui/input';
@@ -11,14 +10,14 @@ import { Badge } from '@/components/ui/badge';
 import { PaymentStatus } from '@/types/database';
 import {
   Check, X, Users, Store, Package, Star, Award, Eye, EyeOff,
-  DollarSign, Flag, Building2, TrendingUp, ShieldCheck, CreditCard,
-  Layers, Settings2, LayoutGrid, AlertCircle, Megaphone, Navigation, Bot,
+  DollarSign, Flag, Building2, ShieldCheck, CreditCard,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { Textarea } from '@/components/ui/textarea';
 import { ApiKeySettings } from '@/components/admin/ApiKeySettings';
 import { AppNavigator } from '@/components/admin/AppNavigator';
 import { AdminAIReviewLog } from '@/components/admin/AdminAIReviewLog';
+import { AdminSidebarNav } from '@/components/admin/AdminSidebarNav';
 import { SellerApplicationReview } from '@/components/admin/SellerApplicationReview';
 import { AdminProductApprovals } from '@/components/admin/AdminProductApprovals';
 import { AdminDisputesTab } from '@/components/admin/AdminDisputesTab';
@@ -76,21 +75,7 @@ function SectionHeader({ icon: Icon, title, count, action, color = 'bg-primary/1
   );
 }
 
-const TAB_CONFIG = [
-  { value: 'sellers', label: 'Sellers', icon: Store },
-  { value: 'users', label: 'Users', icon: Users },
-  { value: 'societies', label: 'Societies', icon: Building2 },
-  { value: 'disputes', label: 'Disputes', icon: AlertCircle },
-  { value: 'catalog', label: 'Catalog', icon: LayoutGrid },
-  { value: 'reports', label: 'Reports', icon: Flag },
-  { value: 'payments', label: 'Payments', icon: CreditCard },
-  { value: 'reviews', label: 'Reviews', icon: Star },
-  { value: 'featured', label: 'Featured', icon: Megaphone },
-  { value: 'features', label: 'Features', icon: Layers },
-  { value: 'settings', label: 'Settings', icon: Settings2 },
-  { value: 'ai-review', label: 'AI Review', icon: Bot },
-  { value: 'navigator', label: 'Navigate', icon: Navigation },
-];
+// TAB_CONFIG removed — nav is now in AdminSidebarNav
 
 export default function AdminPage() {
   const admin = useAdminData();
@@ -140,38 +125,22 @@ export default function AdminPage() {
           </div>
         </div>
 
-        {/* ═══ TABS ═══ */}
+        {/* ═══ SIDEBAR NAV ═══ */}
+        <div className="px-4 mb-5">
+          <AdminSidebarNav activeTab={admin.activeTab} onTabChange={admin.setActiveTab} />
+        </div>
+
+        {/* ═══ CONTENT ═══ */}
         <div className="px-4">
-          <Tabs value={admin.activeTab} onValueChange={admin.setActiveTab}>
-            <div className="overflow-x-auto scrollbar-hide -mx-4 px-4 pb-2">
-              <TabsList className="inline-flex w-auto gap-0.5 bg-muted/60 p-1 rounded-2xl backdrop-blur-sm">
-                {TAB_CONFIG.map(tab => {
-                  const TabIcon = tab.icon;
-                  return (
-                    <TabsTrigger
-                      key={tab.value}
-                      value={tab.value}
-                      className="text-[11px] px-3 py-2 rounded-xl whitespace-nowrap gap-1.5 data-[state=active]:bg-background data-[state=active]:shadow-[var(--shadow-sm)] data-[state=active]:text-foreground data-[state=active]:font-semibold transition-all duration-200"
-                    >
-                      <TabIcon size={12} />
-                      {tab.label}
-                    </TabsTrigger>
-                  );
-                })}
-              </TabsList>
-            </div>
-
-            {/* ── SELLERS ── */}
-            <TabsContent value="sellers" className="mt-5">
+          {admin.activeTab === 'sellers' && (
+            <div className="space-y-6">
               <SellerApplicationReview />
-              <div className="mt-6">
-                <AdminProductApprovals />
-              </div>
-            </TabsContent>
+              <AdminProductApprovals />
+            </div>
+          )}
 
-
-            {/* ── USERS ── */}
-            <TabsContent value="users" className="mt-5 space-y-3">
+          {admin.activeTab === 'users' && (
+            <div className="space-y-3">
               <SectionHeader icon={Users} title="Pending Users" count={admin.pendingUsers.length} color="bg-blue-500/10 text-blue-600" />
               {admin.pendingUsers.length > 0 ? admin.pendingUsers.map((user) => (
                 <motion.div key={user.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
@@ -202,10 +171,11 @@ export default function AdminPage() {
               )) : (
                 <EmptyState message="No pending users" />
               )}
-            </TabsContent>
+            </div>
+          )}
 
-            {/* ── SOCIETIES ── */}
-            <TabsContent value="societies" className="mt-5 space-y-3">
+          {admin.activeTab === 'societies' && (
+            <div className="space-y-3">
               <SectionHeader
                 icon={Building2}
                 title="Societies"
@@ -280,15 +250,13 @@ export default function AdminPage() {
                   </Card>
                 </motion.div>
               ))}
-            </TabsContent>
+            </div>
+          )}
 
-            {/* ── DISPUTES ── */}
-            <TabsContent value="disputes" className="mt-5">
-              <AdminDisputesTab />
-            </TabsContent>
+          {admin.activeTab === 'disputes' && <AdminDisputesTab />}
 
-            {/* ── PAYMENTS ── */}
-            <TabsContent value="payments" className="mt-5 space-y-3">
+          {admin.activeTab === 'payments' && (
+            <div className="space-y-3">
               <div className="flex items-center justify-between mb-1">
                 <SectionHeader icon={CreditCard} title="Payments" color="bg-emerald-500/10 text-emerald-600" />
                 <Select value={admin.paymentFilter} onValueChange={admin.setPaymentFilter}>
@@ -336,10 +304,11 @@ export default function AdminPage() {
                   {admin.isLoadingMore ? 'Loading…' : 'Load More'}
                 </Button>
               )}
-            </TabsContent>
+            </div>
+          )}
 
-            {/* ── REPORTS ── */}
-            <TabsContent value="reports" className="mt-5 space-y-3">
+          {admin.activeTab === 'reports' && (
+            <div className="space-y-3">
               <SectionHeader icon={Flag} title="Abuse Reports" color="bg-rose-500/10 text-rose-600" />
               {admin.reports.length > 0 ? admin.reports.map((report) => {
                 const statusColors: Record<string, string> = {
@@ -385,10 +354,11 @@ export default function AdminPage() {
                   {admin.isLoadingMore ? 'Loading…' : 'Load More'}
                 </Button>
               )}
-            </TabsContent>
+            </div>
+          )}
 
-            {/* ── REVIEWS ── */}
-            <TabsContent value="reviews" className="mt-5 space-y-3">
+          {admin.activeTab === 'reviews' && (
+            <div className="space-y-3">
               <SectionHeader icon={Star} title="Review Moderation" color="bg-amber-500/10 text-amber-600" />
               {admin.reviews.map((review) => (
                 <Card key={review.id} className={cn('border-0 shadow-[var(--shadow-card)] hover:shadow-[var(--shadow-md)] transition-all duration-300 rounded-2xl', review.is_hidden && 'opacity-50')}>
@@ -419,10 +389,11 @@ export default function AdminPage() {
                   {admin.isLoadingMore ? 'Loading…' : 'Load More'}
                 </Button>
               )}
-            </TabsContent>
+            </div>
+          )}
 
-            {/* ── FEATURED ── */}
-            <TabsContent value="featured" className="mt-5 space-y-6">
+          {admin.activeTab === 'featured' && (
+            <div className="space-y-6">
               <AdminBannerManager />
               <div className="border-t border-border/30 pt-5">
                 <SectionHeader icon={Award} title="Featured Sellers" color="bg-amber-500/10 text-amber-600" />
@@ -447,37 +418,24 @@ export default function AdminPage() {
                   ))}
                 </div>
               </div>
-            </TabsContent>
+            </div>
+          )}
 
-            {/* ── FEATURES ── */}
-            <TabsContent value="features" className="mt-5">
-              <FeatureManagement />
-            </TabsContent>
+          {admin.activeTab === 'features' && <FeatureManagement />}
+          {admin.activeTab === 'catalog' && <AdminCatalogManager />}
 
-            {/* ── CATALOG ── */}
-            <TabsContent value="catalog" className="mt-5">
-              <AdminCatalogManager />
-            </TabsContent>
-
-            {/* ── SETTINGS ── */}
-            <TabsContent value="settings" className="mt-5 space-y-5">
+          {admin.activeTab === 'settings' && (
+            <div className="space-y-5">
               <NotificationDiagnostics />
               <PlatformSettingsManager />
               <ApiKeySettings />
               <PurgeDataButton />
               <ResetAndSeedButton />
-            </TabsContent>
+            </div>
+          )}
 
-            {/* ── AI REVIEW ── */}
-            <TabsContent value="ai-review" className="mt-5">
-              <AdminAIReviewLog />
-            </TabsContent>
-
-            {/* ── NAVIGATOR ── */}
-            <TabsContent value="navigator" className="mt-5">
-              <AppNavigator />
-            </TabsContent>
-          </Tabs>
+          {admin.activeTab === 'ai-review' && <AdminAIReviewLog />}
+          {admin.activeTab === 'navigator' && <AppNavigator />}
         </div>
 
         {/* ═══ DIALOGS ═══ */}
