@@ -64,6 +64,60 @@ workflows:
             echo "ℹ️ AppDelegate already contains push notification methods — skipping"
           fi
           
+      - name: Add Privacy Manifest
+        script: |
+          PRIVACY_FILE="ios/App/App/PrivacyInfo.xcprivacy"
+          cat > "$PRIVACY_FILE" << 'PLIST'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>NSPrivacyCollectedDataTypes</key>
+            <array/>
+            <key>NSPrivacyTracking</key>
+            <false/>
+            <key>NSPrivacyTrackingDomains</key>
+            <array/>
+            <key>NSPrivacyAccessedAPITypes</key>
+            <array>
+              <dict>
+                <key>NSPrivacyAccessedAPIType</key>
+                <string>NSPrivacyAccessedAPICategoryUserDefaults</string>
+                <key>NSPrivacyAccessedAPITypeReasons</key>
+                <array>
+                  <string>CA92.1</string>
+                </array>
+              </dict>
+              <dict>
+                <key>NSPrivacyAccessedAPIType</key>
+                <string>NSPrivacyAccessedAPICategoryFileTimestamp</string>
+                <key>NSPrivacyAccessedAPITypeReasons</key>
+                <array>
+                  <string>C617.1</string>
+                </array>
+              </dict>
+              <dict>
+                <key>NSPrivacyAccessedAPIType</key>
+                <string>NSPrivacyAccessedAPICategoryDiskSpace</string>
+                <key>NSPrivacyAccessedAPITypeReasons</key>
+                <array>
+                  <string>E174.1</string>
+                </array>
+              </dict>
+              <dict>
+                <key>NSPrivacyAccessedAPIType</key>
+                <string>NSPrivacyAccessedAPICategorySystemBootTime</string>
+                <key>NSPrivacyAccessedAPITypeReasons</key>
+                <array>
+                  <string>35F9.1</string>
+                </array>
+              </dict>
+            </array>
+          </dict>
+          </plist>
+          PLIST
+          echo "✅ PrivacyInfo.xcprivacy created"
+
       - name: Copy Firebase config
         script: |
           cp ios-config/GoogleService-Info.plist ios/App/App/GoogleService-Info.plist
@@ -248,6 +302,60 @@ workflows:
           else
             echo "ℹ️ AppDelegate already contains push notification methods — skipping"
           fi
+
+      - name: Add Privacy Manifest
+        script: |
+          PRIVACY_FILE="ios/App/App/PrivacyInfo.xcprivacy"
+          cat > "$PRIVACY_FILE" << 'PLIST'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>NSPrivacyCollectedDataTypes</key>
+            <array/>
+            <key>NSPrivacyTracking</key>
+            <false/>
+            <key>NSPrivacyTrackingDomains</key>
+            <array/>
+            <key>NSPrivacyAccessedAPITypes</key>
+            <array>
+              <dict>
+                <key>NSPrivacyAccessedAPIType</key>
+                <string>NSPrivacyAccessedAPICategoryUserDefaults</string>
+                <key>NSPrivacyAccessedAPITypeReasons</key>
+                <array>
+                  <string>CA92.1</string>
+                </array>
+              </dict>
+              <dict>
+                <key>NSPrivacyAccessedAPIType</key>
+                <string>NSPrivacyAccessedAPICategoryFileTimestamp</string>
+                <key>NSPrivacyAccessedAPITypeReasons</key>
+                <array>
+                  <string>C617.1</string>
+                </array>
+              </dict>
+              <dict>
+                <key>NSPrivacyAccessedAPIType</key>
+                <string>NSPrivacyAccessedAPICategoryDiskSpace</string>
+                <key>NSPrivacyAccessedAPITypeReasons</key>
+                <array>
+                  <string>E174.1</string>
+                </array>
+              </dict>
+              <dict>
+                <key>NSPrivacyAccessedAPIType</key>
+                <string>NSPrivacyAccessedAPICategorySystemBootTime</string>
+                <key>NSPrivacyAccessedAPITypeReasons</key>
+                <array>
+                  <string>35F9.1</string>
+                </array>
+              </dict>
+            </array>
+          </dict>
+          </plist>
+          PLIST
+          echo "✅ PrivacyInfo.xcprivacy created"
 
       - name: Copy Firebase config (iOS)
         script: |
