@@ -1,45 +1,65 @@
 
 
-## Why the Seller Didn't Get the In-App Notification
+## Problems Identified and Fixes
 
-### Root Cause
+### Problem 1: No post-submission confirmation + "Edit" button redirects to home
 
-The seller notification system (`useNewOrderAlert`) relies **exclusively** on Supabase Realtime subscriptions to detect new orders. There is no fallback. Realtime can silently fail due to:
+**Root cause:**
+- After `handleSubmit` in `useSellerApplication.ts` (line 269-270), it shows a brief toast and navigates to `/profile`. No dedicated confirmation screen.
+- The "Edit Kitchen" button on the "Already Registered" screen (line 111 in `BecomeSellerPage.tsx`) uses `window.location.href = '#/seller/settings'`. This works, but only if the user has the `seller` role. If the seller is still `pending`, `SellerRoute` redirects them to `/` because `isSeller` is false (the role isn't granted until admin approves).
 
-1. **RLS + filter complexity**: The `orders` table SELECT policy uses a subquery (`EXISTS (SELECT 1 FROM seller_profiles WHERE ...)`) to authorize sellers. Realtime with row-level filters combined with subquery-based RLS policies is known to be unreliable — events can be silently dropped.
-2. **Channel subscription timing**: If the WebSocket connection drops momentarily or the subscription hasn't fully established, INSERT events are lost forever.
-3. **No recovery mechanism**: Once a Realtime event is missed, the seller never learns about it until they manually refresh or navigate to the orders page.
+**Fix:**
+1. **`useSellerApplication.ts`**: After successful submission, navigate to a new confirmation state instead of `/profile`. Add a `submissionComplete` state flag.
+2. **`BecomeSellerPage.tsx`**: Add a Step 7 / success screen that shows: "Your store has been submitted for review. You'll be notified once approved." with a button to go home.
+3. **`BecomeSellerPage.tsx` line 111**: For the "Edit" button on "Already Registered", check `verification_status`. If `pending`, show "Your application is under review" instead of an edit button. If `approved`, navigate to `/seller/settings`. If `rejected`, show the resubmit flow (already handled).
 
-### Fix Plan
+### Problem 2: Two separate approval actions in admin (product-level + seller-level)
 
-**Add a polling fallback** to `useNewOrderAlert.ts` that runs alongside the Realtime subscription, ensuring no order is ever missed.
+**Root cause:** The `SellerApplicationReview` component renders:
+- Per-product Approve/Reject buttons (lines 234-242) for each product with `approval_status === 'pending'`
+- Seller-level Approve/Reject buttons (lines 267-271) for sellers with `verification_status === 'pending'`
 
-#### Changes to `src/hooks/useNewOrderAlert.ts`:
+This is confusing because approving the seller already cascades to approve all pending products (line 157 in `useSellerApplicationReview.ts`).
 
-1. Add a polling loop that checks for new orders created after the hook initialized
-2. Use exponential backoff (2s → 30s) to minimize server load when idle
-3. Reset backoff to 2s whenever a new order arrives (via Realtime or polling)
-4. Deduplicate: track the last seen order timestamp to avoid re-alerting
-5. Keep the existing Realtime subscription as the primary fast path
+**Fix:**
+1. Remove individual product approve/reject buttons when the seller itself is still `pending`. Show products as read-only preview in that case.
+2. Only show per-product approve/reject when the seller is already `approved` but has new pending products (post-approval product additions).
+3. Add a clear label: "Approving the seller will also approve all pending products."
 
-```text
-Architecture:
-┌─────────────────────────┐
-│  useNewOrderAlert hook  │
-├─────────────────────────┤
-│ Primary: Realtime sub   │──→ Instant alert
-│ Fallback: Smart polling │──→ Catches missed events
-│ Dedup: lastSeenAt track │──→ No duplicate alerts
-└─────────────────────────┘
-```
+### Problem 3: "Add Product" error after approval notification click
 
-#### Implementation details:
+**Root cause:** The congrats banner in `HomePage.tsx` (line 100) links to `/seller/products`. This route is wrapped in `SellerRoute` which checks `isSeller` from `useAuth`. After admin approval:
+- The `user_roles` table gets updated server-side
+- But the seller's browser session hasn't refreshed its auth context
+- `isSeller` is still `false` in the client, so `SellerRoute` redirects to `/`
+- The `RouteErrorBoundary` with `sectionName="Products"` catches this as an error
 
-- Poll query: `SELECT id, status, total_amount, created_at FROM orders WHERE seller_id = $sellerId AND created_at > $lastSeenAt ORDER BY created_at DESC LIMIT 1`
-- On mount, set `lastSeenAt` to current time (don't alert for old orders)
-- When Realtime fires, update `lastSeenAt` to skip that order in polling
-- When polling finds a new order, trigger the same `setPendingAlert` + update `lastSeenAt`
-- Backoff: start at 3s, multiply by 1.5 each empty poll, cap at 30s, reset on new order
+**Fix:**
+1. **`HomePage.tsx`**: When the congrats banner's "Add Products" link is clicked, trigger a profile/role refresh before navigating.
+2. **`AuthProvider`**: Ensure `refreshProfile()` is called when the seller congrats banner appears, so roles are up-to-date.
+3. Alternative simpler fix: In the congrats banner `onClick`, call `refreshProfile()` then navigate programmatically after the refresh completes.
 
-No database changes needed. Single file edit to `src/hooks/useNewOrderAlert.ts`.
+### Problem 4: Products show as "Draft" with Submit button after admin already approved
+
+**Root cause:** There are two code paths creating products:
+- **Onboarding** (`handleSubmit` in `useSellerApplication.ts` line 265): transitions products from `draft` to `pending`
+- **Post-approval product creation** (`handleSave` in `useSellerProducts.ts` line 182): new products are always created with `approval_status: 'draft'`
+
+When admin approves the seller, the cascade (line 157) updates products `IN ('pending', 'draft')` to `approved`. But if the seller adds products **after** approval, they're created as `draft` -- which is correct behavior for the edit-then-submit workflow. However, the admin filter in `SellerApplicationReview` (line 134) only shows sellers with `pending` products, not `draft` products.
+
+The actual issue: After admin approves seller and products, the seller's `useSellerProducts` hook re-fetches data. But if the seller's client hasn't refreshed, the old product data (pre-approval) might still show `draft` status. Additionally, new products added post-approval are intentionally `draft` until submitted.
+
+**Fix:**
+1. For approved sellers, new products should default to `approved` status instead of `draft` (skip the review cycle for already-approved sellers). This matches the memory note about the access lifecycle.
+2. Update `useSellerProducts.ts` line 182: if seller's `verification_status === 'approved'`, set `approval_status: 'approved'` instead of `'draft'`.
+3. Remove the "Submit for Approval" button and draft banner from `SellerProductsPage.tsx` for approved sellers, since their products go live immediately.
+
+### Files to modify
+
+1. **`src/hooks/useSellerApplication.ts`** -- Add `submissionComplete` state, change post-submit behavior
+2. **`src/pages/BecomeSellerPage.tsx`** -- Add submission success screen, fix "Edit" button for pending sellers
+3. **`src/components/admin/SellerApplicationReview.tsx`** -- Hide per-product approval when seller is pending, add cascade label
+4. **`src/hooks/useSellerProducts.ts`** -- Auto-approve products for approved sellers
+5. **`src/pages/SellerProductsPage.tsx`** -- Remove draft submit UI for approved sellers
+6. **`src/pages/HomePage.tsx`** -- Refresh auth before navigating to seller products
 
