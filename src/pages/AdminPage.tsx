@@ -27,6 +27,7 @@ import { PlatformSettingsManager } from '@/components/admin/PlatformSettingsMana
 import { AdminCatalogManager } from '@/components/admin/AdminCatalogManager';
 import { AdminBannerManager } from '@/components/admin/AdminBannerManager';
 import { ResetAndSeedButton } from '@/components/admin/ResetAndSeedButton';
+import { PurgeDataButton } from '@/components/admin/PurgeDataButton';
 import { NotificationDiagnostics } from '@/components/admin/NotificationDiagnostics';
 import { useAdminData } from '@/hooks/useAdminData';
 import { supabase } from '@/integrations/supabase/client';
@@ -457,6 +458,7 @@ export default function AdminPage() {
               <NotificationDiagnostics />
               <PlatformSettingsManager />
               <ApiKeySettings />
+              <PurgeDataButton />
               <ResetAndSeedButton />
             </TabsContent>
 
