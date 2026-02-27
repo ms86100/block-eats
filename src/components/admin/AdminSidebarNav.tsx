@@ -1,11 +1,12 @@
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
+import { useNavigate } from 'react-router-dom';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   Store, Users, Building2, AlertCircle, LayoutGrid, Flag,
   CreditCard, Star, Megaphone, Layers, Settings2, Bot, Navigation,
-  Menu, ChevronRight,
+  Menu, ChevronRight, FileCode,
 } from 'lucide-react';
 import { useState } from 'react';
 
@@ -35,6 +36,7 @@ const NAV_GROUPS = [
       { value: 'features', label: 'Features', icon: Layers },
       { value: 'ai-review', label: 'AI Review', icon: Bot },
       { value: 'settings', label: 'Settings', icon: Settings2 },
+      { value: 'api-docs', label: 'API Docs', icon: FileCode },
       { value: 'navigator', label: 'Navigate', icon: Navigation },
     ],
   },
@@ -47,7 +49,9 @@ interface AdminSidebarNavProps {
 
 export function AdminSidebarNav({ activeTab, onTabChange }: AdminSidebarNavProps) {
   const [open, setOpen] = useState(false);
+  const navigate = useNavigate();
 
+  const ROUTE_ITEMS: Record<string, string> = { 'api-docs': '/api-docs' };
   const activeItem = NAV_GROUPS.flatMap(g => g.items).find(i => i.value === activeTab);
 
   const navContent = (
@@ -66,7 +70,11 @@ export function AdminSidebarNav({ activeTab, onTabChange }: AdminSidebarNavProps
                   <button
                     key={item.value}
                     onClick={() => {
-                      onTabChange(item.value);
+                      if (ROUTE_ITEMS[item.value]) {
+                        navigate(ROUTE_ITEMS[item.value]);
+                      } else {
+                        onTabChange(item.value);
+                      }
                       setOpen(false);
                     }}
                     className={cn(
