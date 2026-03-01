@@ -1,75 +1,500 @@
+# Codemagic CI/CD Configuration for Sociva
+# Builds iOS and Android apps in the cloud - no Mac required!
+#
+# Setup Instructions:
+# 1. Connect this repo to Codemagic (codemagic.io)
+# 2. Add required environment variables (see below)
+# 3. Trigger a build!
+
 workflows:
-    ios-workflow:
-      name: iOS Workflow
-      environment:
-        groups:
-        # Add the group environment variables in Codemagic UI (either in Application/Team variables) - https://docs.codemagic.io/variables/environment-variable-groups/
-          - app_store_credentials # <-- (APP_STORE_CONNECT_ISSUER_ID, APP_STORE_CONNECT_KEY_IDENTIFIER, APP_STORE_CONNECT_PRIVATE_KEY)
-            # APP_STORE_CONNECT_ISSUER_ID <-- Put your App Store Connect Issuer Id here 
-            # APP_STORE_CONNECT_KEY_IDENTIFIER <-- Put your App Store Connect Key Identifier here 
-            # APP_STORE_CONNECT_PRIVATE_KEY <-- Put your App Store Connect Private Key here
-            # See the following link for more details - https://docs.codemagic.io/code-signing-yaml/signing-ios/
-            # https://appstoreconnect.apple.com/access/api
-          - certificate_credentials # <-- (CERTIFICATE_PRIVATE_KEY - Put your Certificate Private Key here)
-          - other
-        vars:
-          XCODE_WORKSPACE: "swiftly.xcworkspace" # <-- Put the name of your workspace here.
-          XCODE_SCHEME: "swiftly" # <-- Put the name of your scheme here.
-          BUNDLE_ID: "io.codemagic.swiftly" # <-- Put your Bundle Id here.
-          APP_STORE_APPLE_ID: 1555555551 # <-- Put the app id number here. This is found in App Store Connect > App > General > App Information
-        xcode: latest # <-- set to specific version e.g. 14.3, 15.0 to avoid unexpected updates.
-        cocoapods: default
-      triggering:
-        events:
-          - push
-          - tag
-          - pull_request
-        branch_patterns:
-          - pattern: 'develop'
-            include: true
-            source: true
-      scripts:
-        - name: Set up keychain to be used for codesigning using Codemagic CLI 'keychain' command
-          script: |
-            keychain initialize
-        - name: Fetch signing files
-          script: |
-            app-store-connect fetch-signing-files $BUNDLE_ID --type IOS_APP_STORE --create
-        - name: Use system default keychain
-          script: |
-            keychain add-certificates
-        - name: Set up code signing settings on Xcode project
-          script: |
-            xcode-project use-profiles
-        - name: Increment build number
-          script: |
-            # agvtool new-version -all $(($BUILD_NUMBER + 1))
-            agvtool new-version -all $(($(app-store-connect get-latest-testflight-build-number "$APP_STORE_APPLE_ID") + 1))
-        - name: Build ipa for distribution
-          script: |
-            xcode-project build-ipa --workspace "$XCODE_WORKSPACE" --scheme "$XCODE_SCHEME"
-      artifacts:
-        - build/ios/ipa/*.ipa
-        - $HOME/Library/Developer/Xcode/DerivedData/**/Build/**/*.dSYM
-      publishing:
-        app_store_connect:   # https://docs.codemagic.io/publishing-yaml/distribution              
-            api_key: $APP_STORE_CONNECT_PRIVATE_KEY         # Contents of the API key, can also reference environment variable such as $APP_STORE_CONNECT_PRIVATE_KEY
-            key_id: $APP_STORE_CONNECT_KEY_IDENTIFIER       # Alphanumeric value that identifies the API key, can also reference environment variable such as $APP_STORE_CONNECT_KEY_IDENTIFIER
-            issuer_id: $APP_STORE_CONNECT_ISSUER_ID         # Alphanumeric value that identifies who created the API key, can also reference environment variable such as $APP_STORE_CONNECT_ISSUER_ID
-            submit_to_testflight: false                     # Optional boolean, defaults to false. Whether or not to submit the uploaded build to TestFlight beta review. Required for distributing to beta groups. Note: This action is performed during post-processing.
-            # beta_groups:                                  # Specify the names of beta tester groups that will get access to the build once it has passed beta review. 
-            #       - group name 1
-            #       - group name 2
-        email:
-            recipients:
-              - user1@example.com
-              - user2@example.com
-            notify:
-              success: true
-              failure: true
-        slack:
-            channel: '#builds'
-            notify_on_build_start: true    # To receive a notification when a build starts
-            notify:
-              success: false               # To not receive a notification when a build succeeds
-              failure: false               # To not receive a notification when a build fails
+  ios-release:
+    name: iOS Release
+    max_build_duration: 60
+    instance_type: mac_mini_m2
+
+    integrations:
+      app_store_connect: Sociva App Store Connect
+
+    environment:
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: app.sociva.community
+      vars:
+        BUNDLE_ID: "app.sociva.community"
+        APP_NAME: "Sociva"
+        CAPACITOR_ENV: "production"
+      node: 22
+      xcode: latest
+      cocoapods: default
+
+    scripts:
+      - name: Install dependencies
+        script: npm install --legacy-peer-deps
+
+      - name: Build web app
+        script: npm run build
+
+      - name: Add iOS platform
+        script: |
+          npx cap add ios || true
+          npx cap sync ios
+
+      - name: Install Firebase SDK via CocoaPods
+        script: |
+          cd ios/App
+          # Force CocoaPods package manager
+          cat > Podfile << 'PODFILE'
+          platform :ios, '14.0'
+          use_frameworks!
+
+          target 'App' do
+            # Capacitor pods
+            pod 'Capacitor', :path => '../../node_modules/@capacitor/core'
+            pod 'CapacitorCordova', :path => '../../node_modules/@capacitor/core'
+            pod 'CapacitorApp', :path => '../../node_modules/@capacitor/app'
+            pod 'CapacitorCamera', :path => '../../node_modules/@capacitor/camera'
+            pod 'CapacitorGeolocation', :path => '../../node_modules/@capacitor/geolocation'
+            pod 'CapacitorHaptics', :path => '../../node_modules/@capacitor/haptics'
+            pod 'CapacitorKeyboard', :path => '../../node_modules/@capacitor/keyboard'
+            pod 'CapacitorPreferences', :path => '../../node_modules/@capacitor/preferences'
+            pod 'CapacitorPushNotifications', :path => '../../node_modules/@capacitor/push-notifications'
+            pod 'CapacitorSplashScreen', :path => '../../node_modules/@capacitor/splash-screen'
+            pod 'CapacitorStatusBar', :path => '../../node_modules/@capacitor/status-bar'
+            pod 'CapacitorFirebaseMessaging', :path => '../../node_modules/@capacitor-firebase/messaging'
+            pod 'CapacitorRateApp', :path => '../../node_modules/capacitor-rate-app'
+
+            # Firebase
+            pod 'FirebaseCore'
+            pod 'FirebaseMessaging'
+          end
+
+          post_install do |installer|
+            installer.pods_project.targets.each do |target|
+              target.build_configurations.each do |config|
+                config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '14.0'
+              end
+            end
+          end
+          PODFILE
+          pod install
+
+      - name: Patch AppDelegate for Firebase + Capacitor
+        script: |
+          APPDELEGATE="ios/App/App/AppDelegate.swift"
+          cat > "$APPDELEGATE" << 'SWIFT'
+          import UIKit
+          import Capacitor
+          import FirebaseCore
+
+          @UIApplicationMain
+          class AppDelegate: UIResponder, UIApplicationDelegate {
+              var window: UIWindow?
+
+              func application(_ application: UIApplication,
+                               didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
+                  FirebaseApp.configure()
+                  return true
+              }
+
+              // Capacitor URL handling (deep links, OAuth redirects)
+              func application(_ app: UIApplication, open url: URL,
+                               options: [UIApplication.OpenURLOptionsKey: Any] = [:]) -> Bool {
+                  return ApplicationDelegateProxy.shared.application(app, open: url, options: options)
+              }
+
+              // Capacitor Universal Links handling
+              func application(_ application: UIApplication,
+                               continue userActivity: NSUserActivity,
+                               restorationHandler: @escaping ([UIUserActivityRestoring]?) -> Void) -> Bool {
+                  return ApplicationDelegateProxy.shared.application(application,
+                               continue: userActivity, restorationHandler: restorationHandler)
+              }
+
+              // APNs token forwarding to Capacitor
+              func application(_ application: UIApplication,
+                               didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
+                  NotificationCenter.default.post(name: .capacitorDidRegisterForRemoteNotifications, object: deviceToken)
+              }
+
+              func application(_ application: UIApplication,
+                               didFailToRegisterForRemoteNotificationsWithError error: Error) {
+                  NotificationCenter.default.post(name: .capacitorDidFailToRegisterForRemoteNotifications, object: error)
+              }
+          }
+          SWIFT
+
+      - name: Add Push Notification Entitlements
+        script: |
+          cd ios/App
+          # Create entitlements file
+          cat > App/App.entitlements << 'ENTITLEMENTS'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+              <key>aps-environment</key>
+              <string>production</string>
+              <key>com.apple.developer.associated-domains</key>
+              <array>
+                  <string>applinks:block-eats.lovable.app</string>
+              </array>
+          </dict>
+          </plist>
+          ENTITLEMENTS
+
+          # Link entitlements to Xcode project
+          ruby - << 'RUBY'
+          require 'xcodeproj'
+          project = Xcodeproj::Project.open('App.xcodeproj')
+          project.targets.each do |target|
+            next unless target.name == 'App'
+            target.build_configurations.each do |config|
+              config.build_settings['CODE_SIGN_ENTITLEMENTS'] = 'App/App.entitlements'
+            end
+          end
+          project.save
+          RUBY
+
+      - name: Enable Push Notification & Background Modes capabilities
+        script: |
+          cd ios/App
+          # Add UIBackgroundModes to Info.plist
+          /usr/libexec/PlistBuddy -c "Add :UIBackgroundModes array" App/Info.plist 2>/dev/null || true
+          /usr/libexec/PlistBuddy -c "Add :UIBackgroundModes:0 string remote-notification" App/Info.plist 2>/dev/null || true
+          /usr/libexec/PlistBuddy -c "Add :UIBackgroundModes:1 string fetch" App/Info.plist 2>/dev/null || true
+
+      - name: Copy GoogleService-Info.plist
+        script: |
+          # If you have GoogleService-Info.plist in your repo root or ios-config folder
+          if [ -f "ios-config/GoogleService-Info.plist" ]; then
+            cp ios-config/GoogleService-Info.plist ios/App/App/GoogleService-Info.plist
+          elif [ -f "GoogleService-Info.plist" ]; then
+            cp GoogleService-Info.plist ios/App/App/GoogleService-Info.plist
+          fi
+
+          # Link to Xcode project if it exists
+          if [ -f "ios/App/App/GoogleService-Info.plist" ]; then
+            cd ios/App
+            ruby - << 'RUBY'
+            require 'xcodeproj'
+            project = Xcodeproj::Project.open('App.xcodeproj')
+            target = project.targets.find { |t| t.name == 'App' }
+            group = project.main_group.find_subpath('App', false)
+            ref = group.new_file('GoogleService-Info.plist')
+            target.resources_build_phase.add_file_reference(ref)
+            project.save
+            RUBY
+          fi
+
+      - name: Update iOS project settings
+        script: |
+          cd ios/App
+          sed -i '' "s/PRODUCT_BUNDLE_IDENTIFIER = .*;/PRODUCT_BUNDLE_IDENTIFIER = $BUNDLE_ID;/g" App.xcodeproj/project.pbxproj
+
+      - name: Set up code signing
+        script: |
+          keychain initialize
+          app-store-connect fetch-signing-files "app.sociva.community" \
+            --type IOS_APP_STORE \
+            --create
+          keychain add-certificates
+          xcode-project use-profiles
+
+      - name: Set export compliance & increment build number
+        script: |
+          cd ios/App
+          /usr/libexec/PlistBuddy -c "Set :ITSAppUsesNonExemptEncryption false" App/Info.plist || \
+            /usr/libexec/PlistBuddy -c "Add :ITSAppUsesNonExemptEncryption bool false" App/Info.plist
+          BUILD_NUMBER=$(date +%s)
+          echo "Setting build number to $BUILD_NUMBER"
+          agvtool new-version -all $BUILD_NUMBER
+
+      - name: Build iOS app
+        script: |
+          cd ios/App
+          xcode-project build-ipa \
+            --workspace "App.xcworkspace" \
+            --scheme "App" \
+            --config "Release"
+
+    artifacts:
+      - ios/App/build/ios/ipa/*.ipa
+      - ios/App/build/ios/ipa/*.dSYM.zip
+
+    publishing:
+      app_store_connect:
+        auth: integration
+        submit_to_testflight: true
+
+  android-release:
+    name: Android Release
+    max_build_duration: 60
+    instance_type: mac_mini_m2
+
+    environment:
+      android_signing:
+        - sociva_keystore
+      groups:
+        - google_play
+      vars:
+        BUNDLE_ID: "app.sociva.community"
+        APP_NAME: "Sociva"
+        CAPACITOR_ENV: "production"
+      node: 22
+      java: 17
+
+    scripts:
+      - name: Install dependencies
+        script: npm install --legacy-peer-deps
+
+      - name: Build web app
+        script: npm run build
+
+      - name: Add Android platform
+        script: |
+          npx cap add android || true
+          npx cap sync android
+
+      - name: Set Android SDK location
+        script: echo "sdk.dir=$ANDROID_SDK_ROOT" > android/local.properties
+
+      - name: Build Android release bundle
+        script: cd android && ./gradlew bundleRelease
+
+    artifacts:
+      - android/app/build/outputs/**/*.aab
+      - android/app/build/outputs/**/*.apk
+
+    publishing:
+      google_play:
+        credentials: $GCLOUD_SERVICE_ACCOUNT_CREDENTIALS
+        track: internal
+        submit_as_draft: true
+
+  release-all:
+    name: Release All Platforms
+    max_build_duration: 90
+    instance_type: mac_mini_m2
+
+    integrations:
+      app_store_connect: Sociva App Store Connect
+
+    environment:
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: app.sociva.community
+      android_signing:
+        - sociva_keystore
+      groups:
+        - google_play
+      vars:
+        BUNDLE_ID: "app.sociva.community"
+        APP_NAME: "Sociva"
+        CAPACITOR_ENV: "production"
+      node: 22
+      xcode: latest
+      cocoapods: default
+      java: 17
+
+    scripts:
+      - name: Install dependencies
+        script: npm install --legacy-peer-deps
+
+      - name: Build web app
+        script: npm run build
+
+      - name: Add iOS platform
+        script: |
+          npx cap add ios || true
+          npx cap sync ios
+
+      - name: Install Firebase SDK via CocoaPods
+        script: |
+          cd ios/App
+          cat > Podfile << 'PODFILE'
+          platform :ios, '14.0'
+          use_frameworks!
+
+          target 'App' do
+            pod 'Capacitor', :path => '../../node_modules/@capacitor/core'
+            pod 'CapacitorCordova', :path => '../../node_modules/@capacitor/core'
+            pod 'CapacitorApp', :path => '../../node_modules/@capacitor/app'
+            pod 'CapacitorCamera', :path => '../../node_modules/@capacitor/camera'
+            pod 'CapacitorGeolocation', :path => '../../node_modules/@capacitor/geolocation'
+            pod 'CapacitorHaptics', :path => '../../node_modules/@capacitor/haptics'
+            pod 'CapacitorKeyboard', :path => '../../node_modules/@capacitor/keyboard'
+            pod 'CapacitorPreferences', :path => '../../node_modules/@capacitor/preferences'
+            pod 'CapacitorPushNotifications', :path => '../../node_modules/@capacitor/push-notifications'
+            pod 'CapacitorSplashScreen', :path => '../../node_modules/@capacitor/splash-screen'
+            pod 'CapacitorStatusBar', :path => '../../node_modules/@capacitor/status-bar'
+            pod 'CapacitorFirebaseMessaging', :path => '../../node_modules/@capacitor-firebase/messaging'
+            pod 'CapacitorRateApp', :path => '../../node_modules/capacitor-rate-app'
+
+            pod 'FirebaseCore'
+            pod 'FirebaseMessaging'
+          end
+
+          post_install do |installer|
+            installer.pods_project.targets.each do |target|
+              target.build_configurations.each do |config|
+                config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '14.0'
+              end
+            end
+          end
+          PODFILE
+          pod install
+
+      - name: Patch AppDelegate for Firebase + Capacitor
+        script: |
+          APPDELEGATE="ios/App/App/AppDelegate.swift"
+          cat > "$APPDELEGATE" << 'SWIFT'
+          import UIKit
+          import Capacitor
+          import FirebaseCore
+
+          @UIApplicationMain
+          class AppDelegate: UIResponder, UIApplicationDelegate {
+              var window: UIWindow?
+
+              func application(_ application: UIApplication,
+                               didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
+                  FirebaseApp.configure()
+                  return true
+              }
+
+              func application(_ app: UIApplication, open url: URL,
+                               options: [UIApplication.OpenURLOptionsKey: Any] = [:]) -> Bool {
+                  return ApplicationDelegateProxy.shared.application(app, open: url, options: options)
+              }
+
+              func application(_ application: UIApplication,
+                               continue userActivity: NSUserActivity,
+                               restorationHandler: @escaping ([UIUserActivityRestoring]?) -> Void) -> Bool {
+                  return ApplicationDelegateProxy.shared.application(application,
+                               continue: userActivity, restorationHandler: restorationHandler)
+              }
+
+              func application(_ application: UIApplication,
+                               didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
+                  NotificationCenter.default.post(name: .capacitorDidRegisterForRemoteNotifications, object: deviceToken)
+              }
+
+              func application(_ application: UIApplication,
+                               didFailToRegisterForRemoteNotificationsWithError error: Error) {
+                  NotificationCenter.default.post(name: .capacitorDidFailToRegisterForRemoteNotifications, object: error)
+              }
+          }
+          SWIFT
+
+      - name: Add Push Notification Entitlements
+        script: |
+          cd ios/App
+          cat > App/App.entitlements << 'ENTITLEMENTS'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+              <key>aps-environment</key>
+              <string>production</string>
+              <key>com.apple.developer.associated-domains</key>
+              <array>
+                  <string>applinks:block-eats.lovable.app</string>
+              </array>
+          </dict>
+          </plist>
+          ENTITLEMENTS
+
+          ruby - << 'RUBY'
+          require 'xcodeproj'
+          project = Xcodeproj::Project.open('App.xcodeproj')
+          project.targets.each do |target|
+            next unless target.name == 'App'
+            target.build_configurations.each do |config|
+              config.build_settings['CODE_SIGN_ENTITLEMENTS'] = 'App/App.entitlements'
+            end
+          end
+          project.save
+          RUBY
+
+      - name: Enable Push Notification & Background Modes capabilities
+        script: |
+          cd ios/App
+          /usr/libexec/PlistBuddy -c "Add :UIBackgroundModes array" App/Info.plist 2>/dev/null || true
+          /usr/libexec/PlistBuddy -c "Add :UIBackgroundModes:0 string remote-notification" App/Info.plist 2>/dev/null || true
+          /usr/libexec/PlistBuddy -c "Add :UIBackgroundModes:1 string fetch" App/Info.plist 2>/dev/null || true
+
+      - name: Copy GoogleService-Info.plist
+        script: |
+          if [ -f "ios-config/GoogleService-Info.plist" ]; then
+            cp ios-config/GoogleService-Info.plist ios/App/App/GoogleService-Info.plist
+          elif [ -f "GoogleService-Info.plist" ]; then
+            cp GoogleService-Info.plist ios/App/App/GoogleService-Info.plist
+          fi
+
+          if [ -f "ios/App/App/GoogleService-Info.plist" ]; then
+            cd ios/App
+            ruby - << 'RUBY'
+            require 'xcodeproj'
+            project = Xcodeproj::Project.open('App.xcodeproj')
+            target = project.targets.find { |t| t.name == 'App' }
+            group = project.main_group.find_subpath('App', false)
+            ref = group.new_file('GoogleService-Info.plist')
+            target.resources_build_phase.add_file_reference(ref)
+            project.save
+            RUBY
+          fi
+
+      - name: Update iOS project settings
+        script: |
+          cd ios/App
+          sed -i '' "s/PRODUCT_BUNDLE_IDENTIFIER = .*;/PRODUCT_BUNDLE_IDENTIFIER = $BUNDLE_ID;/g" App.xcodeproj/project.pbxproj
+
+      - name: Set up iOS code signing
+        script: |
+          keychain initialize
+          app-store-connect fetch-signing-files "app.sociva.community" \
+            --type IOS_APP_STORE \
+            --create
+          keychain add-certificates
+          xcode-project use-profiles
+
+      - name: Set export compliance & increment build number
+        script: |
+          cd ios/App
+          /usr/libexec/PlistBuddy -c "Set :ITSAppUsesNonExemptEncryption false" App/Info.plist || \
+            /usr/libexec/PlistBuddy -c "Add :ITSAppUsesNonExemptEncryption bool false" App/Info.plist
+          BUILD_NUMBER=$(date +%s)
+          echo "Setting build number to $BUILD_NUMBER"
+          agvtool new-version -all $BUILD_NUMBER
+
+      - name: Build iOS IPA
+        script: |
+          cd ios/App
+          xcode-project build-ipa \
+            --workspace "App.xcworkspace" \
+            --scheme "App" \
+            --config "Release"
+
+      - name: Add Android platform
+        script: |
+          npx cap add android || true
+          npx cap sync android
+
+      - name: Set Android SDK
+        script: echo "sdk.dir=$ANDROID_SDK_ROOT" > android/local.properties
+
+      - name: Build Android AAB
+        script: cd android && ./gradlew bundleRelease
+
+    artifacts:
+      - ios/App/build/ios/ipa/*.ipa
+      - android/app/build/outputs/**/*.aab
+
+    publishing:
+      app_store_connect:
+        auth: integration
+        submit_to_testflight: true
+      google_play:
+        credentials: $GCLOUD_SERVICE_ACCOUNT_CREDENTIALS
+        track: internal
+        submit_as_draft: true
