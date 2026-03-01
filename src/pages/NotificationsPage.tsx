@@ -10,7 +10,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Capacitor } from '@capacitor/core';
-import { setPushStage } from '@/lib/pushPermissionStage';
+import { usePushNotifications } from '@/hooks/usePushNotifications';
 
 interface NotificationPreferences {
   orders: boolean;
@@ -29,6 +29,7 @@ const defaultPreferences: NotificationPreferences = {
 export default function NotificationsPage() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  const { requestFullPermission } = usePushNotifications();
   const [osPermission, setOsPermission] = useState<'granted' | 'denied' | 'prompt' | 'loading'>('loading');
 
   // Check OS-level notification permission on mount and on resume
@@ -187,14 +188,15 @@ export default function NotificationsPage() {
           <button
             onClick={async () => {
               try {
+                // Use the hook's requestFullPermission — this is the ONLY path
+                // that triggers the iOS permission popup and APNs registration.
+                await requestFullPermission();
+                // Re-check after request
                 const { PushNotifications } = await import('@capacitor/push-notifications');
-                const result = await PushNotifications.requestPermissions();
+                const result = await PushNotifications.checkPermissions();
                 setOsPermission(result.receive as 'granted' | 'denied' | 'prompt');
-
                 if (result.receive === 'granted') {
-                  await PushNotifications.register();
-                  await setPushStage('full');
-                  toast.success('Notifications enabled. Your device is now registered.');
+                  toast.success('Notifications enabled!');
                 }
               } catch {
                 toast.error('Could not enable notifications. Please try again.');

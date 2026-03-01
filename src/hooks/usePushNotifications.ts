@@ -8,14 +8,23 @@ import { toast } from 'sonner';
 import { hapticNotification } from '@/lib/haptics';
 import { getPushStage, setPushStage } from '@/lib/pushPermissionStage';
 
-type RegistrationState = 'idle' | 'registering' | 'registered' | 'permission_denied' | 'failed';
+/**
+ * Registration states:
+ * - idle: not yet attempted
+ * - registering: in progress
+ * - registered: token obtained and saved
+ * - failed: exhausted retries (but NOT due to permission — retryable on resume)
+ *
+ * IMPORTANT: We no longer have a terminal 'permission_denied' state.
+ * If permission is not granted, we stay 'idle' so future attempts (resume, user CTA) can retry.
+ */
+type RegistrationState = 'idle' | 'registering' | 'registered' | 'failed';
 
 const MAX_RETRIES = 3;
-const WATCHDOG_TIMEOUT_MS = 8000; // Slightly longer for Firebase token exchange
+const WATCHDOG_TIMEOUT_MS = 8000;
 
 /**
  * Reject 64-char hex strings on iOS — these are raw APNs tokens, not FCM.
- * FCM tokens are typically 100-200+ chars and contain colons or mixed case.
  */
 function isValidFcmToken(token: string, platform: string): boolean {
   if (platform === 'ios' && /^[A-Fa-f0-9]{64}$/.test(token)) {
@@ -24,10 +33,6 @@ function isValidFcmToken(token: string, platform: string): boolean {
   return token.length > 20;
 }
 
-/**
- * Dynamically import @capacitor-firebase/messaging for iOS.
- * Returns null on non-iOS or if the plugin is unavailable.
- */
 async function getFirebaseMessaging() {
   try {
     const { FirebaseMessaging } = await import('@capacitor-firebase/messaging');
@@ -45,7 +50,6 @@ export function usePushNotifications() {
   const user = identity?.user ?? null;
   const navigate = useNavigate();
 
-  // Log on every render so we can trace in native Console.app
   console.log('[Push][INIT] usePushNotifications render — platform:', Capacitor.getPlatform(), 'isNative:', Capacitor.isNativePlatform(), 'userId:', user?.id ?? 'null');
 
   const userRef = useRef(user);
@@ -69,14 +73,11 @@ export function usePushNotifications() {
     }
   }, []);
 
-  // Use a ref for permissionStatus inside emitDiagnostic to break the
-  // dependency cascade: permissionStatus → emitDiagnostic → markFailed →
-  // attemptIosRegistration → attemptRegistration → useEffect teardown.
   const permissionStatusRef = useRef(permissionStatus);
   permissionStatusRef.current = permissionStatus;
 
   const emitDiagnostic = useCallback(() => {
-    console.error('[Push][DIAG] Registration permanently failed', {
+    console.error('[Push][DIAG] Registration failed after retries', {
       userId: userRef.current?.id ?? 'unknown',
       platform: Capacitor.getPlatform(),
       permissionStatus: permissionStatusRef.current,
@@ -84,7 +85,7 @@ export function usePushNotifications() {
       lastError: lastErrorRef.current,
       timestamp: new Date().toISOString(),
     });
-  }, []); // No dependency on permissionStatus — read from ref instead
+  }, []);
 
   const markFailed = useCallback(() => {
     registrationStateRef.current = 'failed';
@@ -130,7 +131,6 @@ export function usePushNotifications() {
     }
   }, []);
 
-  // C2: Use refs to capture userId/token before logout nullifies them
   const userIdForCleanupRef = useRef<string | null>(null);
   useEffect(() => {
     if (user?.id) userIdForCleanupRef.current = user.id;
@@ -158,7 +158,7 @@ export function usePushNotifications() {
     }
   }, []);
 
-  // ── Handle a valid token (shared by iOS Firebase path and Android path) ──
+  // ── Handle a valid token ──
   const handleValidToken = useCallback(async (tokenValue: string) => {
     clearWatchdog();
     registrationStateRef.current = 'registered';
@@ -177,45 +177,48 @@ export function usePushNotifications() {
   const attemptIosRegistration = useCallback(async () => {
     const FirebaseMessaging = await getFirebaseMessaging();
     if (!FirebaseMessaging) {
-      console.error('[Push] FirebaseMessaging plugin not available on iOS — cannot get FCM token');
+      console.error('[Push][iOS] FirebaseMessaging plugin not available — cannot get FCM token');
       markFailed();
       return;
     }
 
     try {
-      // Step 1: force native OS permission flow (ensures iOS Settings → Notifications appears)
+      // Step 1: check native OS permission
       let nativePerm = await PushNotifications.checkPermissions();
-      console.log('[Push][iOS] Native permission:', nativePerm.receive);
+      console.log('[Push][iOS] ▶ checkPermissions result:', nativePerm.receive);
 
       if (nativePerm.receive === 'prompt') {
+        console.log('[Push][iOS] ▶ Calling requestPermissions()…');
         nativePerm = await PushNotifications.requestPermissions();
-        console.log('[Push][iOS] Native permission after request:', nativePerm.receive);
+        console.log('[Push][iOS] ▶ requestPermissions result:', nativePerm.receive);
       }
 
+      // FIX A: Do NOT set terminal state on non-granted.
+      // If user explicitly denied, update UI status but stay 'idle' so CTA/resume can retry.
       if (nativePerm.receive !== 'granted') {
-        setPermissionStatus('denied');
-        registrationStateRef.current = 'permission_denied';
-        console.log('[Push][iOS] Native permission denied — terminal state');
+        const isDenied = nativePerm.receive === 'denied';
+        setPermissionStatus(isDenied ? 'denied' : 'prompt');
+        registrationStateRef.current = 'idle'; // NOT terminal — allows retry
+        console.log(`[Push][iOS] Permission not granted (${nativePerm.receive}) — staying idle for retry`);
         return;
       }
 
       setPermissionStatus('granted');
 
-      // Step 2: register with APNs explicitly (extra reliability on iOS)
+      // Step 2: register with APNs
       try {
+        console.log('[Push][iOS] ▶ Calling PushNotifications.register()…');
         await PushNotifications.register();
-        console.log('[Push][iOS] PushNotifications.register() completed');
+        console.log('[Push][iOS] ✓ PushNotifications.register() completed');
       } catch (registerErr) {
-        // Do not hard-fail here; tokenReceived/getToken may still succeed.
         console.warn('[Push][iOS] PushNotifications.register() warning:', registerErr);
       }
 
-      // Step 3: read FCM token from Firebase Messaging
-      console.log('[Push][iOS] Getting FCM token via FirebaseMessaging.getToken()…');
+      // Step 3: get FCM token
+      console.log('[Push][iOS] ▶ Calling FirebaseMessaging.getToken()…');
       const result = await FirebaseMessaging.getToken();
       const fcmToken = result.token;
-
-      console.log('[Push][iOS] FCM token received:', fcmToken.substring(0, 20) + '…', 'length:', fcmToken.length);
+      console.log('[Push][iOS] ✓ FCM token received:', fcmToken.substring(0, 20) + '…', 'length:', fcmToken.length);
 
       if (!isValidFcmToken(fcmToken, 'ios')) {
         console.warn('[Push][iOS] Token failed FCM validation — rejecting');
@@ -231,32 +234,34 @@ export function usePushNotifications() {
     }
   }, [markFailed, handleValidToken]);
 
-  // ── Android/Web registration via @capacitor/push-notifications ──
+  // ── Android registration ──
   const attemptAndroidRegistration = useCallback(async () => {
     try {
       let permStatus = await PushNotifications.checkPermissions();
-      console.log('[Push][Android] Current permission:', permStatus.receive);
+      console.log('[Push][Android] ▶ checkPermissions:', permStatus.receive);
 
       if (permStatus.receive === 'prompt') {
+        console.log('[Push][Android] ▶ Calling requestPermissions()…');
         permStatus = await PushNotifications.requestPermissions();
-        console.log('[Push][Android] After request:', permStatus.receive);
+        console.log('[Push][Android] ▶ requestPermissions result:', permStatus.receive);
       }
 
+      // FIX A: Same non-terminal treatment for Android
       if (permStatus.receive !== 'granted') {
-        setPermissionStatus('denied');
-        registrationStateRef.current = 'permission_denied';
-        console.log('[Push][Android] Permission denied — terminal state');
+        const isDenied = permStatus.receive === 'denied';
+        setPermissionStatus(isDenied ? 'denied' : 'prompt');
+        registrationStateRef.current = 'idle';
+        console.log(`[Push][Android] Permission not granted (${permStatus.receive}) — staying idle`);
         return;
       }
 
       setPermissionStatus('granted');
       clearWatchdog();
 
-      console.log('[Push][Android] Calling PushNotifications.register()…');
+      console.log('[Push][Android] ▶ Calling PushNotifications.register()…');
       await PushNotifications.register();
-      console.log('[Push][Android] register() completed — starting watchdog');
+      console.log('[Push][Android] ✓ register() completed — starting watchdog');
 
-      // Start watchdog timer
       watchdogTimerRef.current = setTimeout(() => {
         watchdogTimerRef.current = null;
 
@@ -280,18 +285,25 @@ export function usePushNotifications() {
   }, [clearWatchdog, markFailed]);
 
   // ── Core registration dispatcher ──
+  // FIX A: Only skip if already 'registered'. 'failed' can be retried via explicit CTA.
   const attemptRegistration = useCallback(async () => {
     const state = registrationStateRef.current;
 
-    if (state === 'registered' || state === 'failed' || state === 'permission_denied') {
-      console.log(`[Push] attemptRegistration skipped — state: ${state}`);
+    if (state === 'registered') {
+      console.log('[Push] attemptRegistration skipped — already registered');
+      return;
+    }
+
+    // Allow retry from 'failed' state (explicit user action or resume)
+    if (state === 'registering') {
+      console.log('[Push] attemptRegistration skipped — already in progress');
       return;
     }
 
     registrationStateRef.current = 'registering';
     const attempt = retryCountRef.current + 1;
     const platform = Capacitor.getPlatform();
-    console.log(`[Push] attemptRegistration — attempt ${attempt}/${MAX_RETRIES}, platform: ${platform}`);
+    console.log(`[Push] ▶ attemptRegistration — attempt ${attempt}/${MAX_RETRIES}, platform: ${platform}`);
 
     if (!Capacitor.isNativePlatform()) {
       console.log('[Push] Skipping — not a native platform');
@@ -299,8 +311,6 @@ export function usePushNotifications() {
       return;
     }
 
-    // iOS: use @capacitor-firebase/messaging for direct FCM token
-    // Android: use @capacitor/push-notifications (already returns FCM tokens)
     if (platform === 'ios') {
       await attemptIosRegistration();
     } else {
@@ -344,7 +354,7 @@ export function usePushNotifications() {
       })();
     }
 
-    // ── Android: listen for 'registration' event from PushNotifications ──
+    // ── Android: listen for 'registration' event ──
     if (platform === 'android') {
       const registrationListener = PushNotifications.addListener(
         'registration',
@@ -386,13 +396,12 @@ export function usePushNotifications() {
       cleanups.push(() => { registrationErrorListener.then(l => l.remove()).catch(() => {}); });
     }
 
-    // ── Foreground notification: show toast + sound + haptic (both platforms) ──
+    // ── Foreground notification ──
     const notificationReceivedListener = PushNotifications.addListener(
       'pushNotificationReceived',
       (notification) => {
         try {
           console.log('[Push] Foreground notification received:', JSON.stringify(notification));
-
           hapticNotification('warning');
 
           try {
@@ -436,7 +445,7 @@ export function usePushNotifications() {
     );
     cleanups.push(() => { notificationReceivedListener.then(l => l.remove()).catch(() => {}); });
 
-    // Action performed (both platforms)
+    // Action performed
     const notificationActionListener = PushNotifications.addListener(
       'pushNotificationActionPerformed',
       (notification) => {
@@ -455,7 +464,7 @@ export function usePushNotifications() {
     );
     cleanups.push(() => { notificationActionListener.then(l => l.remove()).catch(() => {}); });
 
-    // ── Foreground resume retry ──
+    // ── App resume: re-check permission and retry if now granted ──
     let appListenerCleanup: (() => void) | undefined;
 
     (async () => {
@@ -468,27 +477,21 @@ export function usePushNotifications() {
             const state = registrationStateRef.current;
             console.log(`[Push] App resumed — regState: ${state}, token: ${tokenRef.current ? 'yes' : 'null'}, user: ${userRef.current?.id ?? 'null'}`);
 
-            if (state === 'failed') return;
+            // If already registered, nothing to do
+            if (state === 'registered') return;
 
-            if (state === 'permission_denied') {
-              try {
-                const permStatus = await PushNotifications.checkPermissions();
-                if (permStatus.receive === 'granted') {
-                  console.log('[Push] Permission now granted after resume — resetting state');
-                  setPermissionStatus('granted');
-                  registrationStateRef.current = 'idle';
-                  retryCountRef.current = 0;
-                  attemptRegistration();
-                }
-              } catch (e) {
-                console.warn('[Push] Permission re-check failed:', e);
-              }
-              return;
-            }
+            // On resume, always re-check permission — user may have toggled in Settings
+            const permStatus = await PushNotifications.checkPermissions();
+            console.log(`[Push] Resume permission check: ${permStatus.receive}`);
 
-            if ((state === 'idle' || state === 'registering') && !tokenRef.current && userRef.current) {
+            if (permStatus.receive === 'granted' && userRef.current) {
+              setPermissionStatus('granted');
               registrationStateRef.current = 'idle';
+              retryCountRef.current = 0;
+              console.log('[Push] Permission granted on resume — attempting registration');
               attemptRegistration();
+            } else if (permStatus.receive === 'denied') {
+              setPermissionStatus('denied');
             }
           } catch (err) {
             console.error('[Push] appStateChange listener exception:', err);
@@ -500,21 +503,27 @@ export function usePushNotifications() {
       }
     })();
 
-    // ── Provisional strategy: on first login, defer the prompt ──
-    // Only auto-attempt registration if we're already in 'full' stage.
-    // If stage is 'none' or 'deferred', just set up listeners (no permission prompt).
+    // ── FIX B: Do NOT auto-prompt on login. Only set up listeners. ──
+    // The OS permission prompt is triggered ONLY from:
+    //   1. NotificationsPage CTA (user taps "Enable push notifications")
+    //   2. requestFullPermission() called after first order
+    // This avoids iOS timing suppression during early app lifecycle.
     if (user) {
       setTimeout(async () => {
         const stage = await getPushStage();
-        console.log(`[Push] Push stage: ${stage}`);
+        console.log(`[Push] Push stage on login: ${stage}`);
 
-        if (stage !== 'full') {
-          // First launch or deferred — upgrade to full and prompt immediately
-          await setPushStage('full');
-          console.log('[Push] Upgrading to full stage — requesting permission now');
+        if (stage === 'none') {
+          // First login — set to deferred, do NOT prompt
+          await setPushStage('deferred');
+          console.log('[Push] First login — set stage to deferred (no OS prompt)');
+        } else if (stage === 'full') {
+          // User already granted before — just re-register silently
+          console.log('[Push] Stage is full — attempting silent re-registration');
+          attemptRegistration();
+        } else {
+          console.log('[Push] Stage is deferred — listeners active, waiting for user CTA');
         }
-
-        attemptRegistration();
       }, 500);
     }
 
@@ -533,7 +542,7 @@ export function usePushNotifications() {
     }
   }, [user, token, saveTokenToDatabase]);
 
-  // ── Diagnostic: check if current user has any saved tokens ──
+  // ── Diagnostic ──
   useEffect(() => {
     if (!user) return;
     (async () => {
@@ -554,11 +563,12 @@ export function usePushNotifications() {
   }, [user]);
 
   /**
-   * Explicitly request full notification permission (call on first order).
-   * Upgrades stage from 'deferred' → 'full' and triggers the OS prompt.
+   * FIX B: Explicitly request full notification permission.
+   * Called from NotificationsPage CTA or after first order.
+   * This is the ONLY path that triggers the iOS permission popup.
    */
   const requestFullPermission = useCallback(async () => {
-    console.log('[Push] requestFullPermission called — upgrading to full stage');
+    console.log('[Push] ▶ requestFullPermission called — upgrading to full stage');
     await setPushStage('full');
     registrationStateRef.current = 'idle';
     retryCountRef.current = 0;
