@@ -28,17 +28,20 @@ export function EmergencyBroadcastSheet() {
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
 
+  // For broadcasts, use the viewed society (admin intent) or fall back to own society
+  const targetSocietyId = viewAsSocietyId || profile?.society_id;
+
   const handleSend = async () => {
-    if (!user || !profile?.society_id || !title.trim() || !body.trim()) return;
+    if (!user || !targetSocietyId || !title.trim() || !body.trim()) return;
     setSending(true);
 
     try {
       const cat = BROADCAST_CATEGORIES.find(c => c.value === category);
       const emoji = cat?.emoji || '📢';
 
-      // Save to database
+      // Save to database — use the target society
       const { error } = await supabase.from('emergency_broadcasts').insert({
-        society_id: profile.society_id,
+        society_id: targetSocietyId,
         sent_by: user.id,
         category,
         title: title.trim(),
@@ -47,9 +50,9 @@ export function EmergencyBroadcastSheet() {
 
       if (error) throw error;
 
-      // Send push to ALL society members
+      // Send push to ALL members of the target society
       await notifySocietyMembers(
-        profile.society_id,
+        targetSocietyId,
         `${emoji} ${title.trim()}`,
         body.trim(),
         { type: 'broadcast', category }
@@ -90,7 +93,7 @@ export function EmergencyBroadcastSheet() {
           </SheetTitle>
         </SheetHeader>
         <p className="text-xs text-muted-foreground mt-1">
-          This will send a push notification to ALL residents in your society.
+          This will send a push notification to ALL residents in {viewAsSocietyId ? 'the selected' : 'your'} society.
         </p>
         <div className="space-y-4 mt-4">
           <div>
@@ -124,15 +127,12 @@ export function EmergencyBroadcastSheet() {
           <Button
             variant="destructive"
             onClick={handleSend}
-            disabled={sending || !title.trim() || !body.trim() || !!viewAsSocietyId}
+            disabled={sending || !title.trim() || !body.trim()}
             className="w-full"
           >
             {sending ? <Loader2 className="animate-spin mr-2" size={16} /> : <Megaphone size={16} className="mr-2" />}
             Send to All Residents
           </Button>
-          {viewAsSocietyId && (
-            <p className="text-xs text-muted-foreground text-center">You are viewing another society. Switch back to create content.</p>
-          )}
         </div>
       </SheetContent>
     </Sheet>
