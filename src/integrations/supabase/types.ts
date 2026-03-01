@@ -1369,6 +1369,7 @@ export type Database = {
           rider_phone: string | null
           rider_photo_url: string | null
           society_id: string
+          stalled_notified: boolean | null
           status: string
           updated_at: string
         }
@@ -1404,6 +1405,7 @@ export type Database = {
           rider_phone?: string | null
           rider_photo_url?: string | null
           society_id: string
+          stalled_notified?: boolean | null
           status?: string
           updated_at?: string
         }
@@ -1439,6 +1441,7 @@ export type Database = {
           rider_phone?: string | null
           rider_photo_url?: string | null
           society_id?: string
+          stalled_notified?: boolean | null
           status?: string
           updated_at?: string
         }
@@ -2962,6 +2965,7 @@ export type Database = {
           payment_type: string | null
           razorpay_order_id: string | null
           razorpay_payment_id: string | null
+          ready_at: string | null
           rejection_reason: string | null
           rental_end_date: string | null
           rental_start_date: string | null
@@ -2998,6 +3002,7 @@ export type Database = {
           payment_type?: string | null
           razorpay_order_id?: string | null
           razorpay_payment_id?: string | null
+          ready_at?: string | null
           rejection_reason?: string | null
           rental_end_date?: string | null
           rental_start_date?: string | null
@@ -3034,6 +3039,7 @@ export type Database = {
           payment_type?: string | null
           razorpay_order_id?: string | null
           razorpay_payment_id?: string | null
+          ready_at?: string | null
           rejection_reason?: string | null
           rental_end_date?: string | null
           rental_start_date?: string | null

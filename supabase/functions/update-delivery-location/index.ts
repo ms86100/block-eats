@@ -16,12 +16,35 @@ function haversineDistance(lat1: number, lon1: number, lat2: number, lon2: numbe
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-/** ETA in minutes based on distance + speed */
-function calculateEta(distanceMeters: number, speedKmh: number | null): number {
-  const speed = speedKmh && speedKmh > 2 ? speedKmh : 15; // default 15 km/h
+/** Proximity state based on distance */
+function getProximity(distanceMeters: number): 'at_doorstep' | 'arriving' | 'nearby' | 'en_route' {
+  if (distanceMeters < 50) return 'at_doorstep';
+  if (distanceMeters < 200) return 'arriving';
+  if (distanceMeters < 500) return 'nearby';
+  return 'en_route';
+}
+
+/** ETA in minutes with state-based overrides */
+function calculateEta(distanceMeters: number, speedKmh: number | null, accuracyMeters: number | null): { eta: number | null; skipUpdate: boolean } {
+  // GAP 4: If GPS accuracy is terrible, skip ETA update to avoid wild swings
+  if (accuracyMeters != null && accuracyMeters > 100) {
+    return { eta: null, skipUpdate: true };
+  }
+
+  const speed = speedKmh ?? 0;
+
+  // Close + slow → arriving
+  if (speed < 2 && distanceMeters < 200) {
+    return { eta: 1, skipUpdate: false };
+  }
+
+  // Stopped but far → use default 15 km/h, don't spike ETA
+  const effectiveSpeed = speed > 2 ? speed : 15;
   const roadFactor = 1.3;
   const distKm = (distanceMeters * roadFactor) / 1000;
-  return Math.max(1, Math.round((distKm / speed) * 60));
+  const etaMin = Math.max(1, Math.round((distKm / effectiveSpeed) * 60));
+
+  return { eta: etaMin, skipUpdate: false };
 }
 
 serve(async (req) => {
@@ -43,10 +66,10 @@ serve(async (req) => {
       });
     }
 
-    // Get assignment + order + society location
+    // Get assignment
     const { data: assignment, error: aErr } = await supabase
       .from('delivery_assignments')
-      .select('id, status, order_id, society_id, partner_id')
+      .select('id, status, order_id, society_id, partner_id, last_location_at, stalled_notified')
       .eq('id', assignment_id)
       .single();
 
@@ -57,7 +80,6 @@ serve(async (req) => {
       });
     }
 
-    // Only allow updates for active deliveries
     if (['delivered', 'failed', 'cancelled'].includes(assignment.status)) {
       return new Response(JSON.stringify({ error: 'Delivery is no longer active' }), {
         status: 400,
@@ -78,9 +100,7 @@ serve(async (req) => {
         accuracy_meters,
       });
 
-    if (locErr) {
-      console.error('Error inserting location:', locErr);
-    }
+    if (locErr) console.error('Error inserting location:', locErr);
 
     // Get destination (society coordinates)
     const { data: society } = await supabase
@@ -91,29 +111,76 @@ serve(async (req) => {
 
     let distanceMeters: number | null = null;
     let etaMinutes: number | null = null;
+    let proximity: string = 'en_route';
+    let skipEtaUpdate = false;
 
     if (society?.latitude && society?.longitude) {
       distanceMeters = Math.round(haversineDistance(latitude, longitude, society.latitude, society.longitude));
-      etaMinutes = calculateEta(distanceMeters, speed_kmh);
+      proximity = getProximity(distanceMeters);
+
+      const etaResult = calculateEta(distanceMeters, speed_kmh, accuracy_meters);
+      skipEtaUpdate = etaResult.skipUpdate;
+      if (!skipEtaUpdate) {
+        etaMinutes = etaResult.eta;
+      }
     }
 
-    // Update assignment with latest location + ETA
+    // Build update payload
+    const now = new Date().toISOString();
     const updateData: Record<string, unknown> = {
       last_location_lat: latitude,
       last_location_lng: longitude,
-      last_location_at: new Date().toISOString(),
-      eta_minutes: etaMinutes,
+      last_location_at: now,
       distance_meters: distanceMeters,
     };
+    // Only update ETA if accuracy is acceptable
+    if (!skipEtaUpdate && etaMinutes != null) {
+      updateData.eta_minutes = etaMinutes;
+    }
 
     await supabase
       .from('delivery_assignments')
       .update(updateData)
       .eq('id', assignment_id);
 
-    // Auto-trigger proximity notifications (one-time)
+    // GAP 5: Stale detection — check if previous update was >3 min ago
+    if (
+      assignment.last_location_at &&
+      !assignment.stalled_notified &&
+      ['picked_up', 'at_gate'].includes(assignment.status)
+    ) {
+      const lastAt = new Date(assignment.last_location_at).getTime();
+      const staleDiffMs = Date.now() - lastAt;
+      if (staleDiffMs > 3 * 60 * 1000) {
+        // Notify buyer about potential delay
+        const { data: order } = await supabase
+          .from('orders')
+          .select('buyer_id')
+          .eq('id', assignment.order_id)
+          .single();
+
+        if (order?.buyer_id) {
+          await supabase.from('notification_queue').insert({
+            user_id: order.buyer_id,
+            title: '⏳ Delivery may be delayed',
+            body: 'Your delivery partner appears to have paused. We\'re keeping an eye on it.',
+            type: 'delivery_stalled',
+            reference_path: `/orders/${assignment.order_id}`,
+            payload: { orderId: assignment.order_id },
+          });
+          supabase.functions.invoke('process-notification-queue').catch(() => {});
+        }
+
+        // Mark stalled_notified so we don't spam
+        await supabase
+          .from('delivery_assignments')
+          .update({ stalled_notified: true })
+          .eq('id', assignment_id);
+      }
+    }
+
+    // Proximity notifications (one-time at < 500m)
     if (distanceMeters !== null && distanceMeters < 500 && assignment.status === 'picked_up') {
-      // Get order buyer_id for notification
       const { data: order } = await supabase
         .from('orders')
         .select('buyer_id')
@@ -121,7 +188,6 @@ serve(async (req) => {
         .single();
 
       if (order?.buyer_id) {
-        // Check if we already sent a proximity notification
         const { count } = await supabase
           .from('notification_queue')
           .select('id', { count: 'exact', head: true })
@@ -140,8 +206,6 @@ serve(async (req) => {
             reference_path: `/orders/${assignment.order_id}`,
             payload: { orderId: assignment.order_id, distance: distanceMeters },
           });
-
-          // Flush notification queue
           supabase.functions.invoke('process-notification-queue').catch(() => {});
         }
       }
@@ -151,6 +215,7 @@ serve(async (req) => {
       success: true,
       eta_minutes: etaMinutes,
       distance_meters: distanceMeters,
+      proximity,
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });

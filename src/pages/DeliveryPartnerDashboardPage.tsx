@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Card, CardContent } from '@/components/ui/card';
@@ -10,9 +10,10 @@ import { FeatureGate } from '@/components/ui/FeatureGate';
 import { useAuth } from '@/contexts/AuthContext';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { Truck, Package, MapPin, Clock, CheckCircle2, Phone, Navigation, Loader2 } from 'lucide-react';
+import { Truck, Package, MapPin, Clock, CheckCircle2, Phone, Navigation, Loader2, Radio } from 'lucide-react';
 import { useStatusLabels } from '@/hooks/useStatusLabels';
 import { useCurrency } from '@/hooks/useCurrency';
+import { useBackgroundLocationTracking } from '@/hooks/useBackgroundLocationTracking';
 import { format } from 'date-fns';
 
 export default function DeliveryPartnerDashboardPage() {
@@ -22,6 +23,9 @@ export default function DeliveryPartnerDashboardPage() {
   const { formatPrice } = useCurrency();
   const [activeTab, setActiveTab] = useState('active');
   const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const [activeTrackingId, setActiveTrackingId] = useState<string | null>(null);
+
+  const { isTracking, startTracking, stopTracking, permissionDenied } = useBackgroundLocationTracking(activeTrackingId);
 
   // Check if current user is a delivery partner
   const { data: partnerProfile, isLoading: profileLoading } = useQuery({
@@ -103,6 +107,21 @@ export default function DeliveryPartnerDashboardPage() {
     },
     enabled: !!effectiveSocietyId && !!partnerProfile?.id,
   });
+  // Auto-start tracking for existing in-transit deliveries on mount
+  useEffect(() => {
+    if (!deliveries || deliveries.length === 0) return;
+    const inTransit = deliveries.find((d: any) => ['picked_up', 'at_gate'].includes(d.status));
+    if (inTransit && !activeTrackingId) {
+      setActiveTrackingId(inTransit.id);
+    }
+  }, [deliveries, activeTrackingId]);
+
+  // Auto-start when tracking ID is set
+  useEffect(() => {
+    if (activeTrackingId && !isTracking) {
+      startTracking();
+    }
+  }, [activeTrackingId, isTracking, startTracking]);
 
   const updateDeliveryStatus = async (assignmentId: string, newStatus: string) => {
     setUpdatingId(assignmentId);
@@ -118,6 +137,13 @@ export default function DeliveryPartnerDashboardPage() {
     if (error) toast.error('Failed to update status');
     else {
       toast.success(`Status updated to ${newStatus.replace('_', ' ')}`);
+      // Start/stop GPS tracking based on new status
+      if (newStatus === 'picked_up') {
+        setActiveTrackingId(assignmentId);
+      } else if (['delivered', 'failed', 'cancelled'].includes(newStatus)) {
+        setActiveTrackingId(null);
+        stopTracking();
+      }
       queryClient.invalidateQueries({ queryKey: ['my-deliveries'] });
       queryClient.invalidateQueries({ queryKey: ['pending-deliveries'] });
     }
@@ -209,6 +235,11 @@ export default function DeliveryPartnerDashboardPage() {
                   <div className="flex items-center gap-2 text-xs text-muted-foreground">
                     <Package size={12} /> <span className="tabular-nums">{partnerProfile.total_deliveries}</span> deliveries
                     {partnerProfile.rating > 0 && <span className="tabular-nums">· ⭐ {partnerProfile.rating}</span>}
+                    {isTracking && (
+                      <span className="flex items-center gap-1 text-primary">
+                        <Radio size={10} className="animate-pulse" /> GPS
+                      </span>
+                    )}
                   </div>
                 </div>
               </div>
