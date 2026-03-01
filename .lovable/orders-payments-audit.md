@@ -266,3 +266,35 @@
 - **Severity**: P2 (downgraded)
 - **Problem**: Initially appeared to load all notifications, but `useNotifications` already has `.limit(50)`
 - **Status**: Mitigated — 50 most recent shown; older ones not shown but no crash or data loss
+
+---
+
+## QA Round 6 — Security (RLS, Edge Functions, Rate Limiting)
+
+### SEC-01 — process-settlements has no authentication ✅ FIXED
+- **Severity**: P0
+- **Problem**: `supabase/functions/process-settlements/index.ts` had zero auth — anyone could POST to trigger settlement processing or pass `force=true` to override the auto-settle toggle
+- **Impact**: Attacker could trigger premature payouts, manipulate settlement status
+- **Fix**: Added service-role-only auth check (`Authorization: Bearer <SERVICE_ROLE_KEY>`). Only cron or internal calls can invoke.
+
+### SEC-02 — process-notification-queue callable without auth ✅ FIXED
+- **Severity**: P1
+- **Problem**: `supabase/functions/process-notification-queue/index.ts` had no auth. Publicly callable, could be used to trigger push processing by anyone.
+- **Impact**: Spam trigger, potential notification queue exhaustion
+- **Fix**: Added auth gate requiring either service-role key OR valid user JWT. Anonymous/unauthenticated calls are rejected with 401. Client-side callers (who pass user JWT via `supabase.functions.invoke()`) continue to work.
+
+### SEC-03 — Test/seed functions properly gated ✓ VERIFIED
+- **Severity**: N/A
+- **Status**: `reset-and-seed-scenario`, `seed-integration-test-users`, `seed-test-data`, `save-test-results` all properly gated by `ALLOW_TEST_FUNCTIONS` env check. No issues.
+
+### SEC-04 — Razorpay webhook signature verification ✓ VERIFIED
+- **Severity**: N/A
+- **Status**: `razorpay-webhook` has mandatory signature check with constant-time XOR comparison. Properly rejects missing/invalid signatures.
+
+### SEC-05 — purge-non-admin-data properly admin-gated ✓ VERIFIED
+- **Severity**: N/A
+- **Status**: Uses `withAuth` + explicit admin role check from `user_roles` table. Correct.
+
+### SEC-06 — Gate token security ✓ VERIFIED
+- **Severity**: N/A
+- **Status**: AES-GCM encryption, HMAC signing, timing-safe comparison, nonce-based replay prevention, security officer verification. Comprehensive.
