@@ -1,9 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useStatusLabels } from '@/hooks/useStatusLabels';
 import { useUrgentOrderSound } from '@/hooks/useUrgentOrderSound';
 import { useCurrency } from '@/hooks/useCurrency';
+import { useCategoryStatusFlow, getNextStatusForActor, getTimelineSteps } from '@/hooks/useCategoryStatusFlow';
 import { logAudit } from '@/lib/audit';
 import { Order, OrderStatus } from '@/types/database';
 import { toast } from 'sonner';
@@ -26,6 +27,40 @@ export function useOrderDetail(id: string | undefined) {
 
   useUrgentOrderSound(!!isUrgentOrder);
 
+  // Category-driven status flow
+  const sellerPrimaryGroup = seller?.primary_group;
+  const orderType = (order as any)?.order_type;
+  const { flow } = useCategoryStatusFlow(sellerPrimaryGroup, orderType);
+
+  // Derive timeline and next status from flow
+  const timelineSteps = useMemo(() => getTimelineSteps(flow), [flow]);
+  const statusOrder = useMemo(() => flow.map(s => s.status_key as OrderStatus), [flow]);
+  const currentStatusIndex = order ? statusOrder.indexOf(order.status) : -1;
+
+  const isEnquiryOrder = (order as any)?.order_type === 'enquiry';
+  const orderFulfillmentType = (order as any)?.fulfillment_type || 'self_pickup';
+
+  const getNextStatus = (): OrderStatus | null => {
+    if (!order || order.status === 'cancelled' || order.status === 'completed') return null;
+    
+    // Use category flow if available
+    if (flow.length > 0) {
+      const next = getNextStatusForActor(flow, order.status, 'seller');
+      return next as OrderStatus | null;
+    }
+
+    // Fallback: legacy hardcoded logic
+    const legacyOrder: OrderStatus[] = isEnquiryOrder
+      ? ['enquired', 'accepted', 'preparing', 'ready', 'completed']
+      : ['placed', 'accepted', 'preparing', 'ready', 'picked_up', 'delivered', 'completed'];
+    
+    if (!isEnquiryOrder && orderFulfillmentType === 'delivery' && order.status === 'ready') return null;
+    if (!isEnquiryOrder && orderFulfillmentType !== 'delivery' && order.status === 'ready') return 'completed';
+    const idx = legacyOrder.indexOf(order.status);
+    const nextIdx = idx + 1;
+    return nextIdx < legacyOrder.length ? legacyOrder[nextIdx] : null;
+  };
+
   useEffect(() => {
     if (id) { fetchOrder(); fetchUnreadCount(); }
   }, [id]);
@@ -45,7 +80,7 @@ export function useOrderDetail(id: string | undefined) {
     try {
       const { data, error } = await supabase
         .from('orders')
-        .select(`*, seller:seller_profiles(id, business_name, user_id, profile:profiles!seller_profiles_user_id_fkey(name, phone, block, flat_number)), buyer:profiles!orders_buyer_id_fkey(name, phone, block, flat_number), items:order_items(*)`)
+        .select(`*, seller:seller_profiles(id, business_name, user_id, primary_group, profile:profiles!seller_profiles_user_id_fkey(name, phone, block, flat_number)), buyer:profiles!orders_buyer_id_fkey(name, phone, block, flat_number), items:order_items(*)`)
         .eq('id', id)
         .single();
       if (error) throw error;
@@ -80,14 +115,16 @@ export function useOrderDetail(id: string | undefined) {
       if (error) throw error;
       setOrder({ ...order, ...updateData });
       toast.success(`Order ${getOrderStatus(newStatus).label.toLowerCase()}`);
-      // DEFECT 4 FIX: Flush notification queue immediately on seller status change
       supabase.functions.invoke('process-notification-queue').catch(() => {});
       if (order.society_id) {
         logAudit(`order_${newStatus}`, 'order', order.id, order.society_id, { old_status: order.status, new_status: newStatus, rejection_reason: rejectionReason });
       }
     } catch (error: any) {
       console.error('Error updating order:', error);
-      toast.error('Failed to update order');
+      const msg = error?.message?.includes('Invalid status transition')
+        ? 'Invalid status transition — you cannot skip steps'
+        : 'Failed to update order';
+      toast.error(msg);
     } finally {
       setIsUpdating(false);
     }
@@ -95,23 +132,6 @@ export function useOrderDetail(id: string | undefined) {
 
   const handleReject = async (reason: string) => { await updateOrderStatus('cancelled', reason); };
   const handleTimeout = () => { fetchOrder(); toast.error('Order was auto-cancelled due to timeout'); };
-
-  const orderFulfillmentType = (order as any)?.fulfillment_type || 'self_pickup';
-  const isEnquiryOrder = (order as any)?.order_type === 'enquiry';
-
-  const statusOrder: OrderStatus[] = isEnquiryOrder
-    ? ['enquired', 'accepted', 'preparing', 'ready', 'completed']
-    : ['placed', 'accepted', 'preparing', 'ready', 'picked_up', 'delivered', 'completed'];
-
-  const currentStatusIndex = statusOrder.indexOf(order?.status || (isEnquiryOrder ? 'enquired' : 'placed'));
-
-  const getNextStatus = (): OrderStatus | null => {
-    if (!order || order.status === 'cancelled' || order.status === 'completed') return null;
-    if (!isEnquiryOrder && orderFulfillmentType === 'delivery' && order.status === 'ready') return null;
-    if (!isEnquiryOrder && orderFulfillmentType !== 'delivery' && order.status === 'ready') return 'completed';
-    const nextIndex = currentStatusIndex + 1;
-    return nextIndex < statusOrder.length ? statusOrder[nextIndex] : null;
-  };
 
   const isBuyerView = order ? order.buyer_id === user?.id : false;
   const nextStatus = getNextStatus();
@@ -127,6 +147,17 @@ export function useOrderDetail(id: string | undefined) {
     toast.success('Order ID copied');
   };
 
+  // Display statuses for timeline: use category flow if available
+  const displayStatuses = useMemo(() => {
+    if (timelineSteps.length > 0) {
+      return timelineSteps.map(s => s.status_key);
+    }
+    // Fallback
+    return isEnquiryOrder
+      ? ['enquired', 'accepted', 'preparing', 'ready']
+      : ['placed', 'accepted', 'preparing', 'ready'];
+  }, [timelineSteps, isEnquiryOrder]);
+
   return {
     order, setOrder, isLoading, isUpdating, hasReview, setHasReview,
     isChatOpen, setIsChatOpen, unreadMessages, fetchUnreadCount,
@@ -135,6 +166,7 @@ export function useOrderDetail(id: string | undefined) {
     nextStatus, canReview, canChat, canReorder,
     chatRecipientId, chatRecipientName,
     orderFulfillmentType, currentStatusIndex, statusOrder,
+    displayStatuses, timelineSteps,
     getOrderStatus, getPaymentStatus, getItemStatus,
     formatPrice, user,
     updateOrderStatus, handleReject, handleTimeout, copyOrderId,

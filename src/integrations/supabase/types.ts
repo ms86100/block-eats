@@ -912,6 +912,39 @@ export type Database = {
           },
         ]
       }
+      category_status_flows: {
+        Row: {
+          actor: string
+          created_at: string | null
+          id: string
+          is_terminal: boolean | null
+          parent_group: string
+          sort_order: number
+          status_key: string
+          transaction_type: string
+        }
+        Insert: {
+          actor?: string
+          created_at?: string | null
+          id?: string
+          is_terminal?: boolean | null
+          parent_group: string
+          sort_order: number
+          status_key: string
+          transaction_type: string
+        }
+        Update: {
+          actor?: string
+          created_at?: string | null
+          id?: string
+          is_terminal?: boolean | null
+          parent_group?: string
+          sort_order?: number
+          status_key?: string
+          transaction_type?: string
+        }
+        Relationships: []
+      }
       chat_messages: {
         Row: {
           created_at: string | null
@@ -1312,12 +1345,17 @@ export type Database = {
           delivered_at: string | null
           delivery_code: string | null
           delivery_fee: number
+          distance_meters: number | null
+          eta_minutes: number | null
           external_tracking_id: string | null
           failed_reason: string | null
           failure_owner: string | null
           gate_entry_id: string | null
           id: string
           idempotency_key: string
+          last_location_at: string | null
+          last_location_lat: number | null
+          last_location_lng: number | null
           max_otp_attempts: number
           order_id: string
           otp_attempt_count: number
@@ -1342,12 +1380,17 @@ export type Database = {
           delivered_at?: string | null
           delivery_code?: string | null
           delivery_fee?: number
+          distance_meters?: number | null
+          eta_minutes?: number | null
           external_tracking_id?: string | null
           failed_reason?: string | null
           failure_owner?: string | null
           gate_entry_id?: string | null
           id?: string
           idempotency_key: string
+          last_location_at?: string | null
+          last_location_lat?: number | null
+          last_location_lng?: number | null
           max_otp_attempts?: number
           order_id: string
           otp_attempt_count?: number
@@ -1372,12 +1415,17 @@ export type Database = {
           delivered_at?: string | null
           delivery_code?: string | null
           delivery_fee?: number
+          distance_meters?: number | null
+          eta_minutes?: number | null
           external_tracking_id?: string | null
           failed_reason?: string | null
           failure_owner?: string | null
           gate_entry_id?: string | null
           id?: string
           idempotency_key?: string
+          last_location_at?: string | null
+          last_location_lat?: number | null
+          last_location_lng?: number | null
           max_otp_attempts?: number
           order_id?: string
           otp_attempt_count?: number
@@ -1421,6 +1469,50 @@ export type Database = {
             columns: ["society_id"]
             isOneToOne: false
             referencedRelation: "societies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      delivery_locations: {
+        Row: {
+          accuracy_meters: number | null
+          assignment_id: string
+          heading: number | null
+          id: string
+          latitude: number
+          longitude: number
+          partner_id: string
+          recorded_at: string
+          speed_kmh: number | null
+        }
+        Insert: {
+          accuracy_meters?: number | null
+          assignment_id: string
+          heading?: number | null
+          id?: string
+          latitude: number
+          longitude: number
+          partner_id: string
+          recorded_at?: string
+          speed_kmh?: number | null
+        }
+        Update: {
+          accuracy_meters?: number | null
+          assignment_id?: string
+          heading?: number | null
+          id?: string
+          latitude?: number
+          longitude?: number
+          partner_id?: string
+          recorded_at?: string
+          speed_kmh?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "delivery_locations_assignment_id_fkey"
+            columns: ["assignment_id"]
+            isOneToOne: false
+            referencedRelation: "delivery_assignments"
             referencedColumns: ["id"]
           },
         ]
@@ -6957,6 +7049,14 @@ export type Database = {
         Returns: Json
       }
       generate_recurring_visitor_entries: { Args: never; Returns: undefined }
+      get_allowed_transitions: {
+        Args: { _actor?: string; _order_id: string }
+        Returns: {
+          actor: string
+          sort_order: number
+          status_key: string
+        }[]
+      }
       get_builder_dashboard: { Args: { _builder_id: string }; Returns: Json }
       get_category_parent_group: { Args: { cat: string }; Returns: string }
       get_effective_society_features: {
@@ -7166,6 +7266,9 @@ export type Database = {
         | "scheduled"
         | "in_progress"
         | "returned"
+        | "on_the_way"
+        | "arrived"
+        | "assigned"
       product_category:
         | "home_food"
         | "bakery"
@@ -7375,6 +7478,9 @@ export const Constants = {
         "scheduled",
         "in_progress",
         "returned",
+        "on_the_way",
+        "arrived",
+        "assigned",
       ],
       product_category: ["home_food", "bakery", "snacks", "groceries", "other"],
       service_category: [

@@ -9,11 +9,15 @@ export const ORDER_NOTIF_TITLES_BUYER: Record<string, string> = {
   preparing: '👨‍🍳 Order Being Prepared',
   ready: '🎉 Order Ready!',
   picked_up: '📦 Order Picked Up',
+  on_the_way: '🛵 Order On The Way!',
+  arrived: '🏠 Service Provider Arrived',
+  assigned: '👤 Partner Assigned',
   delivered: '🚚 Order Delivered',
   completed: '⭐ Order Completed',
   cancelled: '❌ Order Cancelled',
   quoted: '💰 Quote Received',
   scheduled: '📅 Booking Confirmed',
+  in_progress: '🔧 Service In Progress',
 };
 
 export const ORDER_NOTIF_TITLES_SELLER: Record<string, string> = {

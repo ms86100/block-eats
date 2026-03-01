@@ -8,6 +8,7 @@ import { ReorderButton } from '@/components/order/ReorderButton';
 import { UrgentOrderTimer } from '@/components/order/UrgentOrderTimer';
 import { OrderRejectionDialog } from '@/components/order/OrderRejectionDialog';
 import { DeliveryStatusCard } from '@/components/delivery/DeliveryStatusCard';
+import { LiveDeliveryTracker } from '@/components/delivery/LiveDeliveryTracker';
 import { OrderItemCard } from '@/components/order/OrderItemCard';
 import { FeedbackSheet } from '@/components/feedback/FeedbackSheet';
 import { useOrderDetail } from '@/hooks/useOrderDetail';
@@ -16,16 +17,35 @@ import { ArrowLeft, Phone, MapPin, Check, Star, MessageCircle, CreditCard, XCirc
 import { format } from 'date-fns';
 import { useNavigate } from 'react-router-dom';
 import { getString, setString } from '@/lib/persistent-kv';
+import { useState, useEffect } from 'react';
+import { supabase } from '@/integrations/supabase/client';
 
 export default function OrderDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const o = useOrderDetail(id);
-
-  if (o.isLoading) return <AppLayout showHeader={false}><div className="p-4 space-y-3"><Skeleton className="h-8 w-32" /><Skeleton className="h-28 w-full rounded-xl" /><Skeleton className="h-40 w-full rounded-xl" /></div></AppLayout>;
-  if (!o.order) return <AppLayout showHeader={false}><div className="p-4 text-center py-16"><p className="text-sm text-muted-foreground">Order not found</p><Link to="/orders"><Button size="sm" className="mt-4">View Orders</Button></Link></div></AppLayout>;
+  const [deliveryAssignmentId, setDeliveryAssignmentId] = useState<string | null>(null);
 
   const order = o.order;
+  const orderId = order?.id;
+  const fulfillmentType = o.orderFulfillmentType;
+
+  useEffect(() => {
+    if (fulfillmentType === 'delivery' && orderId) {
+      supabase
+        .from('delivery_assignments')
+        .select('id')
+        .eq('order_id', orderId)
+        .maybeSingle()
+        .then(({ data }) => {
+          if (data) setDeliveryAssignmentId(data.id);
+        });
+    }
+  }, [orderId, fulfillmentType]);
+
+  if (o.isLoading) return <AppLayout showHeader={false}><div className="p-4 space-y-3"><Skeleton className="h-8 w-32" /><Skeleton className="h-28 w-full rounded-xl" /><Skeleton className="h-40 w-full rounded-xl" /></div></AppLayout>;
+  if (!order) return <AppLayout showHeader={false}><div className="p-4 text-center py-16"><p className="text-sm text-muted-foreground">Order not found</p><Link to="/orders"><Button size="sm" className="mt-4">View Orders</Button></Link></div></AppLayout>;
+
   const seller = o.seller;
   const sellerProfile = seller?.profile;
   const buyer = (order as any).buyer;
@@ -33,9 +53,8 @@ export default function OrderDetailPage() {
   const hasItemsField = 'items' in (order as any);
   const statusInfo = o.getOrderStatus(order.status);
   const paymentStatusInfo = o.getPaymentStatus((order.payment_status as PaymentStatus) || 'pending');
-  const displayStatuses = o.isEnquiryOrder
-    ? ['enquired', 'accepted', 'preparing', 'ready']
-    : ['placed', 'accepted', 'preparing', 'ready'];
+  const displayStatuses = o.displayStatuses;
+  const isInTransit = ['picked_up', 'on_the_way', 'at_gate'].includes(order.status);
 
   return (
     <AppLayout showHeader={false} showNav={(!o.isSellerView || order.status === 'completed' || order.status === 'cancelled') && !o.isChatOpen}>
@@ -96,8 +115,13 @@ export default function OrderDetailPage() {
                 {order.status === 'preparing' && '👨‍🍳 Your order is being prepared.'}
                 {order.status === 'ready' && (o.orderFulfillmentType === 'delivery' ? '📦 Ready for dispatch.' : '📦 Ready for pickup!')}
                 {order.status === 'picked_up' && '🚚 On the way!'}
+                {order.status === 'on_the_way' && '🛵 Your order is on the way!'}
+                {order.status === 'assigned' && '👤 A partner has been assigned.'}
+                {order.status === 'arrived' && '🏠 Service provider has arrived.'}
+                {order.status === 'in_progress' && '🔧 Service is in progress.'}
                 {order.status === 'delivered' && '🎉 Delivered. Enjoy!'}
                 {order.status === 'completed' && '⭐ Completed. Thank you!'}
+                {order.status === 'scheduled' && '📅 Your booking is confirmed.'}
               </p>
             )}
           </div>
@@ -108,7 +132,11 @@ export default function OrderDetailPage() {
             <span className={`text-[11px] px-2 py-0.5 rounded-full ${paymentStatusInfo.color}`}>{paymentStatusInfo.label}</span>
           </div>
 
-          {o.orderFulfillmentType === 'delivery' && <DeliveryStatusCard orderId={order.id} isBuyerView={o.isBuyerView} />}
+          {/* Live Delivery Tracking or Static Card */}
+          {o.orderFulfillmentType === 'delivery' && isInTransit && deliveryAssignmentId && (
+            <LiveDeliveryTracker assignmentId={deliveryAssignmentId} isBuyerView={o.isBuyerView} />
+          )}
+          {o.orderFulfillmentType === 'delivery' && !isInTransit && <DeliveryStatusCard orderId={order.id} isBuyerView={o.isBuyerView} />}
 
           {o.canReorder && (
             <div className="bg-accent/10 border border-accent/20 rounded-xl p-3 flex items-center justify-between">

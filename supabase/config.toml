@@ -62,3 +62,6 @@ verify_jwt = false
 
 [functions.ai-auto-review]
 verify_jwt = false
+
+[functions.update-delivery-location]
+verify_jwt = false

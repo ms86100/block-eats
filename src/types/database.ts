@@ -34,7 +34,7 @@ export interface BuilderMember {
   created_at: string;
 }
 export type VerificationStatus = 'pending' | 'approved' | 'rejected' | 'suspended';
-export type OrderStatus = 'placed' | 'accepted' | 'preparing' | 'ready' | 'picked_up' | 'delivered' | 'completed' | 'cancelled' | 'enquired' | 'quoted' | 'scheduled' | 'in_progress' | 'returned';
+export type OrderStatus = 'placed' | 'accepted' | 'preparing' | 'ready' | 'picked_up' | 'delivered' | 'completed' | 'cancelled' | 'enquired' | 'quoted' | 'scheduled' | 'in_progress' | 'returned' | 'on_the_way' | 'arrived' | 'assigned';
 // ProductCategory is now an alias to ServiceCategory for backward compatibility
 export type ProductCategory = ServiceCategory;
 export type PaymentMethod = 'cod' | 'upi';
@@ -325,6 +325,7 @@ const ORDER_STATUS_MAP: Record<string, { label: string; color: string }> = {
   preparing: { label: 'Preparing', color: 'bg-yellow-100 text-yellow-800' },
   ready: { label: 'Ready', color: 'bg-green-100 text-green-800' },
   picked_up: { label: 'Picked Up', color: 'bg-teal-100 text-teal-800' },
+  on_the_way: { label: 'On The Way', color: 'bg-blue-100 text-blue-800' },
   delivered: { label: 'Delivered', color: 'bg-emerald-100 text-emerald-800' },
   completed: { label: 'Completed', color: 'bg-gray-100 text-gray-800' },
   cancelled: { label: 'Cancelled', color: 'bg-red-100 text-red-800' },
@@ -333,6 +334,8 @@ const ORDER_STATUS_MAP: Record<string, { label: string; color: string }> = {
   scheduled: { label: 'Scheduled', color: 'bg-cyan-100 text-cyan-800' },
   in_progress: { label: 'In Progress', color: 'bg-amber-100 text-amber-800' },
   returned: { label: 'Returned', color: 'bg-slate-100 text-slate-800' },
+  arrived: { label: 'Arrived', color: 'bg-teal-100 text-teal-800' },
+  assigned: { label: 'Assigned', color: 'bg-indigo-100 text-indigo-800' },
 };
 
 const UNKNOWN_STATUS = { label: 'Unknown', color: 'bg-gray-100 text-gray-600' };
