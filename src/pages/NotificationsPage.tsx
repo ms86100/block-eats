@@ -189,7 +189,14 @@ export default function NotificationsPage() {
                 const { PushNotifications } = await import('@capacitor/push-notifications');
                 const result = await PushNotifications.requestPermissions();
                 setOsPermission(result.receive as 'granted' | 'denied' | 'prompt');
-              } catch {}
+
+                if (result.receive === 'granted') {
+                  await PushNotifications.register();
+                  toast.success('Notifications enabled. Your device is now registered.');
+                }
+              } catch {
+                toast.error('Could not enable notifications. Please try again.');
+              }
             }}
             className="w-full mb-4 flex items-center gap-3 rounded-xl border border-primary/30 bg-primary/10 p-4 text-left active:scale-[0.98] transition-transform"
           >

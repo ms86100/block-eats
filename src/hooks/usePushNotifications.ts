@@ -179,23 +179,34 @@ export function usePushNotifications() {
     }
 
     try {
-      let permStatus = await FirebaseMessaging.checkPermissions();
-      console.log('[Push][iOS] Firebase permission:', permStatus.receive);
+      // Step 1: force native OS permission flow (ensures iOS Settings → Notifications appears)
+      let nativePerm = await PushNotifications.checkPermissions();
+      console.log('[Push][iOS] Native permission:', nativePerm.receive);
 
-      if (permStatus.receive === 'prompt') {
-        permStatus = await FirebaseMessaging.requestPermissions();
-        console.log('[Push][iOS] After request:', permStatus.receive);
+      if (nativePerm.receive === 'prompt') {
+        nativePerm = await PushNotifications.requestPermissions();
+        console.log('[Push][iOS] Native permission after request:', nativePerm.receive);
       }
 
-      if (permStatus.receive !== 'granted') {
+      if (nativePerm.receive !== 'granted') {
         setPermissionStatus('denied');
         registrationStateRef.current = 'permission_denied';
-        console.log('[Push][iOS] Permission denied — terminal state');
+        console.log('[Push][iOS] Native permission denied — terminal state');
         return;
       }
 
       setPermissionStatus('granted');
 
+      // Step 2: register with APNs explicitly (extra reliability on iOS)
+      try {
+        await PushNotifications.register();
+        console.log('[Push][iOS] PushNotifications.register() completed');
+      } catch (registerErr) {
+        // Do not hard-fail here; tokenReceived/getToken may still succeed.
+        console.warn('[Push][iOS] PushNotifications.register() warning:', registerErr);
+      }
+
+      // Step 3: read FCM token from Firebase Messaging
       console.log('[Push][iOS] Getting FCM token via FirebaseMessaging.getToken()…');
       const result = await FirebaseMessaging.getToken();
       const fcmToken = result.token;

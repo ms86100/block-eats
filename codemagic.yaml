@@ -161,6 +161,13 @@ workflows:
                                didFailToRegisterForRemoteNotificationsWithError error: Error) {
                   NotificationCenter.default.post(name: .capacitorDidFailToRegisterForRemoteNotifications, object: error)
               }
+
+              // Forward background/data notifications to Firebase Messaging plugin
+              func application(_ application: UIApplication,
+                               didReceiveRemoteNotification userInfo: [AnyHashable : Any],
+                               fetchCompletionHandler completionHandler: @escaping (UIBackgroundFetchResult) -> Void) {
+                  NotificationCenter.default.post(name: Notification.Name.init("didReceiveRemoteNotification"), object: completionHandler, userInfo: userInfo)
+              }
           }
           SWIFT
 
@@ -472,6 +479,13 @@ workflows:
               func application(_ application: UIApplication,
                                didFailToRegisterForRemoteNotificationsWithError error: Error) {
                   NotificationCenter.default.post(name: .capacitorDidFailToRegisterForRemoteNotifications, object: error)
+              }
+
+              // Forward background/data notifications to Firebase Messaging plugin
+              func application(_ application: UIApplication,
+                               didReceiveRemoteNotification userInfo: [AnyHashable : Any],
+                               fetchCompletionHandler completionHandler: @escaping (UIBackgroundFetchResult) -> Void) {
+                  NotificationCenter.default.post(name: Notification.Name.init("didReceiveRemoteNotification"), object: completionHandler, userInfo: userInfo)
               }
           }
           SWIFT
