@@ -1,6 +1,8 @@
 
 
-# Platform Stability & Trust Audit Report
+# Platform Stability & Trust Audit — Round 3
+
+Assessment date: 2026-03-01. Code reviewed AS-IS. No new features proposed.
 
 ---
 
@@ -8,154 +10,128 @@
 
 ### P0 — Immediate Production Risk
 
-**P0-1: Payment webhook `payment.failed` lacks idempotency guard**
-- **Component**: `razorpay-webhook` edge function (line 174-189)
-- **What can break**: Unlike `payment.captured` which uses an atomic `WHERE razorpay_payment_id IS NULL` claim pattern, the `payment.failed` and `refund.created` handlers blindly update ALL matching records with no duplicate guard. A replayed or retried webhook could overwrite a legitimately `paid` record back to `failed`.
-- **Who**: Buyer (paid but order shows failed), Seller (loses revenue)
-- **Why it matters**: Financial data corruption. A buyer pays successfully, then a delayed `payment.failed` webhook for a prior attempt overwrites the status. This is a real Razorpay behavior — they send both `payment.failed` and `payment.captured` for the same order if the first attempt fails and the second succeeds.
-- **Fix**: Add `WHERE payment_status != 'paid'` guard to the `payment.failed` update, and `WHERE payment_status = 'paid'` to `refund.created`. These are single-line SQL filter additions.
+**P0-1: Razorpay webhook can mark a cancelled order as `paid`**
+- **Component**: `razorpay-webhook/index.ts` line 160-166, `useCartPage.ts` lines 278-289
+- **What can break**: When Razorpay payment fails, `handleRazorpayFailed` immediately cancels all pending orders client-side (`status: 'cancelled'`). But the webhook `payment.captured` handler (line 160) updates orders with `.eq('id', orderId)` — it does NOT check `status != 'cancelled'`. If the buyer dismisses Razorpay (triggering cancel), then Razorpay actually captures the payment a few seconds later (real scenario with UPI delays), the webhook sets `payment_status: 'paid'` on a cancelled order. The buyer sees "cancelled" but was charged.
+- **Who**: Buyer (charged for a cancelled order)
+- **Why it matters**: Financial dispute. The `auto-cancel-orders` function won't catch it because the order is already `cancelled`, not `placed`.
+- **Fix**: Add `.neq('status', 'cancelled')` to the webhook's order update query at line 165. If the order was already cancelled, log and skip.
 
-**P0-2: `removeTokenFromDatabase` silently no-ops on logout**
-- **Component**: `PushNotificationProvider` + `usePushNotifications`
-- **What can break**: `removeTokenFromDatabase` captures `user` and `token` via closure. When the user transitions to `null` (logout), the callback's `user` is already null, so the early return `if (!user || !token) return;` fires — the token is **never deleted**. The old user's device continues receiving push notifications for a new user's actions if someone logs into a different account.
-- **Who**: Any user who logs out / switches accounts on a shared device
-- **Why it matters**: Privacy violation — push notifications leak to wrong user. Support escalation guaranteed.
-- **Fix**: Capture `user.id` and `token` into refs before the transition. Use the ref values in the cleanup callback instead of the live state.
+**P0-2: Delivery OTP uses `Math.random()` — not `crypto.getRandomValues()`**
+- **Component**: `manage-delivery/index.ts` line 18-20
+- **What can break**: The delivery OTP (which gates parcel handover) uses `Math.floor(1000 + Math.random() * 9000)`. This was fixed for visitor OTPs (P2-3 in prior audit) but the delivery function was missed. With only 9000 combinations and no server-side rate limit on OTP verification attempts beyond the 5-attempt lockout, this is brute-forceable.
+- **Who**: Buyer (delivery fraud), Platform (trust)
+- **Why it matters**: A malicious delivery partner could brute-force the OTP before the lockout kicks in with a scripted attack.
+- **Fix**: Replace with `crypto.getRandomValues()` pattern identical to the visitor OTP fix.
 
-**P0-3: Cart data from User A visible to User B after account switch**
-- **Component**: `useCart.tsx` — `QueryClient` cache keyed by `user?.id`
-- **What can break**: When user signs out, `window.dispatchEvent(new CustomEvent('app:clear-cache'))` is dispatched but `QueryClient.clear()` is not called directly — it relies on App.tsx listening to the event. If App.tsx hasn't mounted the listener yet (race on fast logout/login), the old cache persists. The new user sees stale cart items from the previous user until a refetch fires.
-- **Who**: Multi-user shared device scenario
-- **Why it matters**: Data leakage, trust violation
-- **Fix**: Call `queryClient.clear()` directly in `signOut()` instead of relying on a custom event. Import `queryClient` as a module-level singleton (it already is in App.tsx).
+**P0-3: `manage-delivery` webhook HMAC verification uses non-constant-time comparison**
+- **Component**: `manage-delivery/index.ts` line 36-48
+- **What can break**: `verifyHMAC` uses `===` to compare base64 signatures (line 44). This was explicitly fixed in `gate-token` (C5 from prior audit) and `razorpay-webhook`, but `manage-delivery` was missed. Timing attacks on the 3PL webhook endpoint could allow signature forgery.
+- **Who**: Platform (spoofed delivery status updates)
+- **Fix**: Replace `===` with byte-level XOR comparison, matching the pattern in `gate-token/index.ts` line 57-67.
 
 ### P1 — High Risk, Likely to Cause Support Tickets
 
-**P1-1: `auto-cancel-orders` has no scheduled trigger**
-- **Component**: `auto-cancel-orders` edge function
-- **What can break**: The function exists but is only invoked via HTTP POST. There is no cron job configured in `supabase/config.toml` to call it periodically. Urgent orders with 3-minute auto-cancel rely on the **client-side** `UrgentOrderTimer` to detect timeout and refetch. If the seller closes the app, the order remains `placed` indefinitely (the client-side timer only runs on the buyer's view for display).
-- **Who**: Buyer (order stuck in limbo), Seller (phantom orders)
-- **Why it matters**: Core business promise broken — "urgent orders auto-cancel" doesn't actually work without the cron trigger.
-- **Fix**: Add a cron schedule in `supabase/config.toml` to invoke `auto-cancel-orders` every 1-2 minutes.
+**P1-1: `handleRazorpayFailed` cancels orders without checking if webhook already marked them `paid`**
+- **Component**: `useCartPage.ts` lines 278-289
+- **What can break**: The client cancels orders with `.eq('payment_status', 'pending')`, which is correct. But between the Razorpay failure callback and the Supabase update, the webhook could have already set `payment_status: 'paid'`. The `.eq('payment_status', 'pending')` guard protects against this specific case. However, if there's a network delay on the client side, the user sees "Payment was not completed. Your order has been cancelled" toast even though the order may actually be paid. No mechanism to re-check.
+- **Who**: Buyer (confused by misleading toast)
+- **Fix**: After the cancel attempt, re-fetch the order's `payment_status`. If it's `paid`, show "Payment verified! Your order is confirmed." instead.
 
-**P1-2: Razorpay payment polling has no UI feedback on timeout**
-- **Component**: `useCartPage.ts` `handleRazorpaySuccess` (lines 163-179)
-- **What can break**: After Razorpay success callback, the code polls 10 times at 1.5s intervals (15s total). If the webhook hasn't processed by then, it shows a benign `toast.info` and navigates away. But the order's `payment_status` remains `pending`. There's no mechanism for the buyer to re-check or retry. The order could eventually be auto-cancelled as an orphan (if the cron exists), leaving the buyer charged but with no order.
-- **Who**: Buyer
-- **Why it matters**: Money taken, no order. Top-tier trust destroyer.
-- **Fix**: If polling times out, navigate to the order detail page (which has realtime subscription) and show a persistent banner "Payment verification in progress" rather than navigating to the orders list.
+**P1-2: `process-notification-queue` retries push delivery but in-app notification is already inserted**
+- **Component**: `process-notification-queue/index.ts` lines 52-65 and 97-99
+- **What can break**: The in-app notification is inserted (line 53-61) BEFORE attempting push delivery (line 71). If push fails and the item is retried, the in-app notification has already been created. On the next retry, a second in-app notification is inserted (no deduplication). The user sees duplicate entries in their notification inbox.
+- **Who**: All users (duplicate notifications)
+- **Fix**: Use `upsert` with a unique constraint on `(user_id, type, reference_path, created_at::date)`, or move the in-app insert after the push succeeds, or add an `INSERT ... ON CONFLICT DO NOTHING` using `notification_queue.id` as a reference key.
 
-**P1-3: Realtime `buyer-order-updates` requires `REPLICA IDENTITY FULL` but relies on `payload.old`**
-- **Component**: `useBuyerOrderAlerts.ts` line 47
-- **What can break**: The code checks `(payload.old as any)?.status` to detect if status actually changed. Without `REPLICA IDENTITY FULL` on the `orders` table, `payload.old` only contains the primary key. The memory notes mention `REPLICA IDENTITY FULL` is set, but if it's ever reset (migration, restore), the status change detection silently breaks — every UPDATE triggers a toast, including non-status updates (like `updated_at` changes).
-- **Who**: Buyer (spam toasts on non-status updates)
-- **Fix**: Defensive check: if `payload.old.status` is undefined, skip the toast rather than showing it.
+**P1-3: Cart query returns items with unavailable products filtered client-side only**
+- **Component**: `useCart.tsx` line 48
+- **What can break**: The cart query fetches ALL cart items, then filters out `is_available === false` on the client. This means the `itemCount` badge on the cart icon shows the server count, but the actual rendered items may be fewer. If a product becomes unavailable between page loads, the count badge shows "3" but the cart page shows 2 items.
+- **Who**: Buyer (confusing count discrepancy)
+- **Fix**: Add `.eq('product.is_available', true)` to the server query, or update the `cart-count` query to use the same filter.
 
-**P1-4: Order placed with `payment_status: 'pending'` for COD**
-- **Component**: `useCartPage.ts` line 159
-- **What can break**: COD orders are created with `payment_status: 'pending'`. The `auto-cancel-orders` function cancels non-COD orders with `pending` payment after 15 min (line 42: `.neq('payment_method', 'cod')`). This is correct. However, COD orders never transition from `pending` to `paid` unless manually updated. The `payment_records` table will accumulate `pending` records forever for COD orders.
-- **Who**: Admin (confusing analytics)
-- **Fix**: Set COD `payment_status` to `'cod_pending'` or update to `'paid'` on delivery completion via trigger.
+**P1-4: `create-razorpay-order` uses service role key for `auth.getUser(token)` — security risk**
+- **Component**: `create-razorpay-order/index.ts` lines 51-53, 73
+- **What can break**: The function creates a service role client (line 52) but uses it to call `auth.getUser(token)` (line 73). With the service role key, `getUser` bypasses JWT verification — any valid-looking token structure would be accepted. This means a malicious actor with a crafted JWT could create Razorpay orders for any user.
+- **Who**: Platform (fraudulent orders)
+- **Fix**: Use an anon-key client for auth validation (like `withAuth` from `_shared/auth.ts`), or create a separate user-scoped client for the auth check. Keep the service role client only for DB operations.
 
 ### P2 — Medium Risk
 
-**P2-1: Search filter state persisted in localStorage across accounts**
-- **Component**: `useSearchPage.ts` line 40-49
-- **What can break**: `FILTER_STORAGE_KEY = 'app_search_filters'` is not scoped to user ID. If User A sets a 50km radius with cross-society enabled, User B inherits those filters on the same device.
-- **Who**: Buyer (confusing product results)
-- **Fix**: Scope the key to user ID or clear on logout.
+**P2-1: Worker skills stored as JSON blob without validation**
+- **Component**: `useWorkerRegistration.ts` line 141
+- **What can break**: `skills: { name: name.trim(), phone: phone || null }` is stored as a JSON blob. The `name` and `phone` of the worker are embedded in `skills` rather than as first-class columns. If the worker data is ever queried for display (e.g., guard kiosk showing worker name), the caller must know to extract from the `skills` JSON. Any code reading `worker.name` directly will get `null`.
+- **Who**: Admin, Security (worker lookup fails)
+- **Fix**: This is a schema design choice, not a bug. But add a comment documenting that worker name/phone are in the `skills` JSON field, not top-level columns.
 
-**P2-2: `gate-token` signature verification uses non-constant-time comparison**
-- **Component**: `gate-token/index.ts` line 56-59
-- **What can break**: `verifySignature` compares two base64 strings with `===`. Unlike the Razorpay webhook (which uses byte-level XOR), the gate token uses direct string equality, which is vulnerable to timing attacks.
-- **Who**: Security (theoretical attack on gate access)
-- **Fix**: Use the same byte-level XOR comparison pattern used in `razorpay-webhook`.
+**P2-2: `useOrderDetail` fetches review status on every order load without caching**
+- **Component**: `useOrderDetail.ts` line 122-123
+- **What can break**: `fetchOrder` always queries the `reviews` table. For orders that are `placed` or `preparing`, a review is impossible but the query still fires. This is a wasted DB call on every realtime update.
+- **Who**: Performance
+- **Fix**: Only fetch review status when `order.status` is `completed` or `delivered`.
 
-**P2-3: Visitor OTP is a 6-digit random number generated client-side**
-- **Component**: `useVisitorManagement.ts` line 54-56
-- **What can break**: `Math.random()` is not cryptographically secure. For a gate access OTP, this is acceptable for most use cases but could be brute-forced (1M combinations, no rate limit on OTP validation in the client-side code).
-- **Who**: Society security
-- **Fix**: Use `crypto.getRandomValues()` for OTP generation and ensure server-side rate limiting on OTP validation.
-
-**P2-4: `useSubmitGuard` cooldown is only 1 second**
-- **Component**: `useSubmitGuard.ts`
-- **What can break**: On slow networks, the order creation RPC can take 3-5 seconds. The 1-second cooldown expires before the first call completes. The `pendingRef` guard catches this, but if the first call throws an error (setting `pendingRef = false`), a rapid retry within 1s is blocked but at 1.1s it's allowed — creating a potential double-order scenario if the RPC actually succeeded but threw a network error.
-- **Who**: Buyer (double-charged)
-- **Fix**: Increase cooldown to 3-5 seconds, or keep `pendingRef = true` until `isPlacingOrder` resets.
-
-**P2-5: Profile upsert during signup can orphan auth user**
-- **Component**: `useAuthPage.ts` lines 343-363
-- **What can break**: If the profile insert fails for any reason OTHER than email/phone uniqueness (e.g., network timeout, DB unavailable), the auth user exists but has no profile. The `useAuthState` recovery creates a minimal profile, but with potentially empty `flat_number` and `block`, making delivery impossible until manually fixed.
-- **Who**: New user (broken onboarding)
-- **Fix**: Already partially handled by `useAuthState` auto-recovery. Add a "Complete your profile" banner on HomePage when `profile.flat_number` is empty.
-
-**P2-6: `create-razorpay-order` transfers 100% to seller (no platform fee deduction)**
-- **Component**: `create-razorpay-order/index.ts` line 127-135
-- **What can break**: The Razorpay Route transfer amount equals the full order amount. Platform fee is tracked in `payment_records` but not deducted from the Razorpay transfer. The seller receives 100% of the payment via Razorpay, then the platform has no mechanism to collect its fee.
-- **Who**: Platform (revenue loss)
-- **Why it matters**: This is a business logic gap but it's documented (O3 in audit file). Flagging here because it's a financial risk in production.
+**P2-3: `signOut` clears ALL `app_search_filters*` keys from localStorage**
+- **Component**: `useAuthState.ts` lines 143-145
+- **What can break**: If two users are logged into different browser tabs (different sessions), signing out in one tab deletes search filters for ALL users stored in localStorage, including the other active user's filters.
+- **Who**: Multi-tab users
+- **Fix**: Only clear the key for the current user: `localStorage.removeItem(getFilterStorageKey(user.id))`.
 
 ---
 
 ## B. Trust & UX Failure Scenarios
 
-**Scenario 1: "I paid but my order disappeared"**
-- User pays via UPI. Razorpay sends `payment.captured` webhook slowly. Polling times out after 15s. User navigates to orders list. Meanwhile `auto-cancel-orders` (if cron exists) cancels the order after 15 min because `payment_status` is still `pending`. User is charged with no order.
-- Surfaces as: Angry support ticket with payment screenshot.
+**Scenario 1: "I cancelled but got charged anyway"**
+- Buyer opens Razorpay, UPI payment times out on their screen, they dismiss the dialog. `handleRazorpayFailed` cancels the order. But UPI actually processed the payment — Razorpay sends `payment.captured` webhook. The webhook marks the already-cancelled order as `paid`. The buyer sees "cancelled" in the app. Their bank shows a debit. No auto-refund mechanism exists.
+- Surfaces as: Urgent support ticket with bank statement screenshot.
 
-**Scenario 2: "I'm getting someone else's notifications"**
-- User A logs out on a shared phone. Push token is not deleted (P0-2). User B logs in. User A's device token still points to the old user in `device_tokens`. When User A's orders update, push goes to User B's device.
-- Surfaces as: Privacy complaint, potential legal issue.
+**Scenario 2: "I keep getting the same notification"**
+- Push delivery fails (device offline). `process-notification-queue` inserts in-app notification, then retries push. On retry, another in-app notification is inserted. User comes online and sees 3 copies of "Order Accepted!" in their notification inbox.
+- Surfaces as: "Your app keeps spamming me" complaint.
 
-**Scenario 3: "Seller never got my urgent order"**
-- Buyer places an urgent order. Seller's app is backgrounded. Push notification fails (no device token yet — fresh install). Polling fallback hasn't fired yet. The 3-minute auto-cancel timer is client-side only (P1-1). If no cron is configured, the order stays `placed` forever. Buyer waits, eventually cancels manually.
-- Surfaces as: "Your urgent feature doesn't work" complaint.
+**Scenario 3: "Someone else picked up my delivery"**
+- Delivery partner brute-forces the 4-digit OTP (9000 combinations). The 5-attempt lockout exists but is per-assignment, not per-IP. A scripted attack could rotate through endpoints.
+- Surfaces as: "I never got my order but it says delivered" dispute.
 
-**Scenario 4: "My order shows failed but I was charged"**
-- Razorpay sends `payment.failed` for attempt 1, then `payment.captured` for attempt 2. If `payment.captured` processes first (setting status to `paid`), then the delayed `payment.failed` webhook overwrites it back to `failed` (P0-1).
-- Surfaces as: "I paid but it says failed" — requires manual DB fix.
-
-**Scenario 5: "I logged in and see nothing"**
-- New user signs up. Profile insert fails silently. Auth user exists. On next login, `get_user_auth_context` returns null profile. Auto-recovery in `useAuthState` creates a minimal profile but the user sees an empty home page with no society context.
-- Surfaces as: "App is blank after I signed up" support ticket.
+**Scenario 4: "My cart says 3 items but I only see 2"**
+- Buyer adds 3 items. One becomes unavailable. Cart badge shows 3. Cart page shows 2. Buyer is confused and may think items were removed maliciously.
+- Surfaces as: "Where did my item go?" confusion, mild trust erosion.
 
 ---
 
-## C. Small, Safe Improvements (No Logic Changes)
+## C. Small, Safe Improvements
 
 | # | Issue | Fix | Risk |
 |---|-------|-----|------|
-| C1 | P0-1: Webhook overwrites paid→failed | Add `.neq('payment_status', 'paid')` to `payment.failed` handler; add `.eq('payment_status', 'paid')` to `refund.created` handler | Zero — additive filter only |
-| C2 | P0-2: Push token not deleted on logout | Capture `userId` and `token` in refs before cleanup; use refs in `removeTokenFromDatabase` | Zero — fixes existing behavior |
-| C3 | P1-1: Auto-cancel has no cron | Verify/add cron schedule for `auto-cancel-orders` in config | Zero — enables existing function |
-| C4 | P1-3: Realtime old status undefined | Add `if (!oldStatus) return;` guard before comparison | Zero — defensive check |
-| C5 | P2-2: Gate token timing-safe comparison | Replace `===` with byte-level XOR comparison | Zero — security hardening |
-| C6 | P2-4: Submit guard cooldown too short | Increase `cooldownMs` from 1000 to 3000 in `useCartPage.ts` | Zero — reduces double-submit window |
-| C7 | P1-2: Payment polling timeout UX | On timeout, navigate to order detail instead of orders list; show info banner | Minimal — improves recovery path |
-| C8 | P2-1: Search filters leak across users | Scope localStorage key to user ID | Zero — data isolation |
-| C9 | P2-5: Incomplete profile detection | Add "Complete your profile" prompt on HomePage when `flat_number` is empty | Zero — UX improvement |
+| C1 | P0-1: Webhook marks cancelled order as paid | Add `.neq('status', 'cancelled')` to `payment.captured` order update in `razorpay-webhook` | Zero — additive filter |
+| C2 | P0-2: Delivery OTP uses Math.random() | Replace `generateOTP` in `manage-delivery/index.ts` with `crypto.getRandomValues()` | Zero — drop-in replacement |
+| C3 | P0-3: manage-delivery HMAC uses `===` | Replace with byte-level XOR comparison (copy pattern from gate-token) | Zero — security hardening |
+| C4 | P1-1: Misleading cancel toast on Razorpay fail | After cancel, re-fetch order; if `paid`, show success toast instead | Minimal — UX clarification |
+| C5 | P1-2: Duplicate in-app notifications on retry | Add `notification_queue_id` column to `user_notifications`, use `ON CONFLICT DO NOTHING` | Zero — deduplication |
+| C6 | P1-3: Cart count includes unavailable items | Sync `cart-count` query with the same `is_available` filter as `cart-items` | Zero — consistency fix |
+| C7 | P1-4: create-razorpay-order auth bypass | Use `withAuth` from `_shared/auth.ts` instead of service-role `getUser()` | Zero — uses existing pattern |
+| C8 | P2-2: Unnecessary review query on active orders | Guard `fetchReview` with `if (status === 'completed' \|\| status === 'delivered')` | Zero — performance |
+| C9 | P2-3: signOut clears all users' filter keys | Scope deletion to current user's key only | Zero — correctness |
 
 ---
 
 ## D. Final Verdict
 
-### ⚠️ Conditionally Safe
+### Conditionally Safe
 
 The platform is conditionally safe for production provided:
 
-1. **P0-1 is fixed before go-live** — the `payment.failed` webhook overwrite is a data corruption risk that could cause real financial disputes
-2. **P0-2 is fixed before go-live** — push token leakage on logout is a privacy violation
-3. **P1-1 is verified** — confirm that `auto-cancel-orders` has a cron trigger, or the urgent order promise is broken
+1. **P0-1 must be fixed** — The `payment.captured` webhook can resurrect a cancelled order as `paid`, causing a "charged but cancelled" scenario with no auto-refund path. This is a financial risk.
+2. **P0-2 and P0-3 should be fixed** — Delivery OTP and webhook HMAC were missed in the prior audit's security hardening pass. These are quick fixes using patterns already implemented elsewhere in the codebase.
+3. **P1-4 should be reviewed** — The `create-razorpay-order` function's auth check using service role key is a potential security gap that could allow unauthorized order creation.
 
 ### Known Limitations We Accept
-- COD payment_status remains `pending` forever (cosmetic, no functional impact)
-- Platform fee is tracked but not deducted from Razorpay transfers (documented business decision — O3)
-- Order item status transitions lack DB-level validation (documented — O7)
-- `Math.random()` for visitor OTP (acceptable for residential gate access)
-- Delivery fee attribution in multi-vendor orders is inconsistent (documented — O3)
+- Cart count badge can briefly show stale counts (P1-3 is cosmetic)
+- Worker name/phone stored in JSON `skills` field (schema design choice)
+- Platform fee not deducted from Razorpay transfers (documented business decision)
+- Push notification duplicates possible until C5 is shipped (in-app only, not critical)
 
 ### Residual Risk Ownership
-- **Payment disputes**: Operations team must have Razorpay dashboard access to reconcile `paid` vs `failed` discrepancies until C1 is shipped
-- **Push notification gaps**: Expected until first native build deploys to real devices (device_tokens table is empty — confirmed by console logs)
-- **Auto-cancel reliability**: If cron is not configured, urgent order auto-cancel relies entirely on client-side timers (fragile)
+- **Payment disputes from cancel-then-capture**: Operations team must monitor Razorpay dashboard for payments on cancelled orders until C1 is shipped
+- **Delivery OTP brute-force**: Existing 5-attempt lockout provides partial protection, but C2 reduces the attack surface
+- **3PL webhook spoofing**: Low practical risk since 3PL integrations may not be active yet, but C3 should ship before enabling any 3PL partners
 
