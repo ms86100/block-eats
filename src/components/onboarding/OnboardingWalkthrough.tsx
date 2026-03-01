@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { ChevronRight, ShoppingBag, Users, MapPin, Shield, X, type LucideIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -157,35 +158,62 @@ export function OnboardingWalkthrough({ onComplete, slides: customSlides }: Onbo
   );
 }
 
-// Hook to manage onboarding state
+// Hook to manage onboarding state — persisted in DB via profiles.has_seen_onboarding
 export function useOnboarding(userId?: string | null) {
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [hasChecked, setHasChecked] = useState(false);
 
   useEffect(() => {
-    const key = userId ? `app_has_seen_onboarding_${userId}` : 'app_has_seen_onboarding';
-    // Restore from persistent storage on native, then check
-    import('@/lib/persistent-kv').then(({ restoreKeyIfMissing, getString }) => {
-      restoreKeyIfMissing(key).then(() => {
-        if (!getString(key)) {
-          setShowOnboarding(true);
-        }
-        setHasChecked(true);
-      });
-    });
+    if (!userId) {
+      setHasChecked(true);
+      return;
+    }
+
+    let cancelled = false;
+
+    (async () => {
+      const { data } = await supabase
+        .from('profiles')
+        .select('has_seen_onboarding')
+        .eq('id', userId)
+        .single();
+
+      if (cancelled) return;
+
+      if (data && !data.has_seen_onboarding) {
+        setShowOnboarding(true);
+      }
+      setHasChecked(true);
+    })();
+
+    return () => { cancelled = true; };
   }, [userId]);
 
-  const completeOnboarding = () => {
-    const key = userId ? `app_has_seen_onboarding_${userId}` : 'app_has_seen_onboarding';
-    import('@/lib/persistent-kv').then(({ setString }) => setString(key, 'true'));
+  const completeOnboarding = useCallback(() => {
     setShowOnboarding(false);
-  };
+    if (userId) {
+      supabase
+        .from('profiles')
+        .update({ has_seen_onboarding: true })
+        .eq('id', userId)
+        .then(({ error }) => {
+          if (error) console.error('[Onboarding] Failed to persist completion:', error);
+        });
+    }
+  }, [userId]);
 
-  const resetOnboarding = () => {
-    const key = userId ? `app_has_seen_onboarding_${userId}` : 'app_has_seen_onboarding';
-    import('@/lib/persistent-kv').then(({ removeKey }) => removeKey(key));
+  const resetOnboarding = useCallback(() => {
     setShowOnboarding(true);
-  };
+    if (userId) {
+      supabase
+        .from('profiles')
+        .update({ has_seen_onboarding: false })
+        .eq('id', userId)
+        .then(({ error }) => {
+          if (error) console.error('[Onboarding] Failed to reset:', error);
+        });
+    }
+  }, [userId]);
 
   return { showOnboarding, hasChecked, completeOnboarding, resetOnboarding };
 }
