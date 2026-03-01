@@ -4,11 +4,12 @@ import { AppLayout } from '@/components/layout/AppLayout';
 import { Card, CardContent } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
-import { ArrowLeft, Bell, MessageCircle, Tag, Volume2, Loader2 } from 'lucide-react';
+import { ArrowLeft, Bell, MessageCircle, Tag, Volume2, Loader2, AlertTriangle, ExternalLink } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { Capacitor } from '@capacitor/core';
 
 interface NotificationPreferences {
   orders: boolean;
@@ -27,6 +28,56 @@ const defaultPreferences: NotificationPreferences = {
 export default function NotificationsPage() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  const [osPermission, setOsPermission] = useState<'granted' | 'denied' | 'prompt' | 'loading'>('loading');
+
+  // Check OS-level notification permission on mount and on resume
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) {
+      setOsPermission('granted'); // Web — no OS banner needed
+      return;
+    }
+
+    const checkPermission = async () => {
+      try {
+        const { PushNotifications } = await import('@capacitor/push-notifications');
+        const result = await PushNotifications.checkPermissions();
+        setOsPermission(result.receive as 'granted' | 'denied' | 'prompt');
+      } catch {
+        setOsPermission('granted'); // Can't check — don't show banner
+      }
+    };
+
+    checkPermission();
+
+    // Re-check when user returns from Settings
+    let cleanup: (() => void) | undefined;
+    (async () => {
+      try {
+        const { App } = await import('@capacitor/app');
+        const listener = await App.addListener('appStateChange', ({ isActive }) => {
+          if (isActive) checkPermission();
+        });
+        cleanup = () => listener.remove();
+      } catch {}
+    })();
+
+    return () => cleanup?.();
+  }, []);
+
+  const openAppSettings = async () => {
+    try {
+      const { App } = await import('@capacitor/app');
+      // On iOS this opens the app's settings page in Settings.app
+      // On Android it opens the app info page
+      if (Capacitor.getPlatform() === 'ios') {
+        await (App as any).openUrl({ url: 'app-settings:' });
+      } else {
+        await (App as any).openUrl({ url: 'app-settings:' });
+      }
+    } catch (e) {
+      toast.error('Could not open settings. Please go to Settings → Sociva → Notifications manually.');
+    }
+  };
 
   const { data: preferences = defaultPreferences, isLoading } = useQuery({
     queryKey: ['notification-preferences', user?.id],
@@ -113,6 +164,44 @@ export default function NotificationsPage() {
         </div>
 
         <div className="p-4">
+
+        {/* OS-level permission banner */}
+        {osPermission === 'denied' && (
+          <button
+            onClick={openAppSettings}
+            className="w-full mb-4 flex items-center gap-3 rounded-xl border border-destructive/30 bg-destructive/10 p-4 text-left active:scale-[0.98] transition-transform"
+          >
+            <div className="w-10 h-10 rounded-full bg-destructive/20 flex items-center justify-center shrink-0">
+              <AlertTriangle size={20} className="text-destructive" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="font-medium text-sm text-foreground">Notifications are disabled</p>
+              <p className="text-xs text-muted-foreground">Tap to open Settings and enable notifications for Sociva</p>
+            </div>
+            <ExternalLink size={16} className="text-muted-foreground shrink-0" />
+          </button>
+        )}
+
+        {osPermission === 'prompt' && Capacitor.isNativePlatform() && (
+          <button
+            onClick={async () => {
+              try {
+                const { PushNotifications } = await import('@capacitor/push-notifications');
+                const result = await PushNotifications.requestPermissions();
+                setOsPermission(result.receive as 'granted' | 'denied' | 'prompt');
+              } catch {}
+            }}
+            className="w-full mb-4 flex items-center gap-3 rounded-xl border border-primary/30 bg-primary/10 p-4 text-left active:scale-[0.98] transition-transform"
+          >
+            <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center shrink-0">
+              <Bell size={20} className="text-primary" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="font-medium text-sm text-foreground">Enable push notifications</p>
+              <p className="text-xs text-muted-foreground">Tap to allow Sociva to send you notifications</p>
+            </div>
+          </button>
+        )}
 
         {isLoading ? (
           <div className="flex items-center justify-center py-12">
