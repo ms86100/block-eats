@@ -508,22 +508,20 @@ export function usePushNotifications() {
     //   1. NotificationsPage CTA (user taps "Enable push notifications")
     //   2. requestFullPermission() called after first order
     // This avoids iOS timing suppression during early app lifecycle.
-    if (user) {
+      if (user) {
       setTimeout(async () => {
         const stage = await getPushStage();
         console.log(`[Push] Push stage on login: ${stage}`);
 
-        if (stage === 'none') {
-          // First login — set to deferred, do NOT prompt
-          await setPushStage('deferred');
-          console.log('[Push] First login — set stage to deferred (no OS prompt)');
-        } else if (stage === 'full') {
-          // User already granted before — just re-register silently
-          console.log('[Push] Stage is full — attempting silent re-registration');
-          attemptRegistration();
+        // Always upgrade to 'full' and attempt registration on login
+        // This ensures the iOS permission popup appears on first install
+        if (stage !== 'full') {
+          await setPushStage('full');
+          console.log(`[Push] Upgraded stage from '${stage}' to 'full' — requesting permission`);
         } else {
-          console.log('[Push] Stage is deferred — listeners active, waiting for user CTA');
+          console.log('[Push] Stage is full — attempting silent re-registration');
         }
+        attemptRegistration();
       }, 500);
     }
 
