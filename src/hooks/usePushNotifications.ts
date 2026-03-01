@@ -65,16 +65,22 @@ export function usePushNotifications() {
     }
   }, []);
 
+  // Use a ref for permissionStatus inside emitDiagnostic to break the
+  // dependency cascade: permissionStatus → emitDiagnostic → markFailed →
+  // attemptIosRegistration → attemptRegistration → useEffect teardown.
+  const permissionStatusRef = useRef(permissionStatus);
+  permissionStatusRef.current = permissionStatus;
+
   const emitDiagnostic = useCallback(() => {
     console.error('[Push][DIAG] Registration permanently failed', {
       userId: userRef.current?.id ?? 'unknown',
       platform: Capacitor.getPlatform(),
-      permissionStatus,
+      permissionStatus: permissionStatusRef.current,
       retriesAttempted: retryCountRef.current,
       lastError: lastErrorRef.current,
       timestamp: new Date().toISOString(),
     });
-  }, [permissionStatus]);
+  }, []); // No dependency on permissionStatus — read from ref instead
 
   const markFailed = useCallback(() => {
     registrationStateRef.current = 'failed';
