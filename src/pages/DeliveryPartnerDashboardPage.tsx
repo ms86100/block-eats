@@ -27,7 +27,7 @@ export default function DeliveryPartnerDashboardPage() {
 
   const { isTracking, startTracking, stopTracking, permissionDenied } = useBackgroundLocationTracking(activeTrackingId);
 
-  // Check if current user is a delivery partner
+  // Check if current user is a delivery partner (match by phone, link user_id)
   const { data: partnerProfile, isLoading: profileLoading } = useQuery({
     queryKey: ['my-delivery-partner-profile', effectiveSocietyId, user?.id],
     queryFn: async () => {
@@ -47,6 +47,16 @@ export default function DeliveryPartnerDashboardPage() {
         .eq('phone', profile.phone)
         .eq('is_active', true)
         .maybeSingle();
+
+      // Link user_id to pool record if not already set (enables GPS auth)
+      if (data && !data.user_id) {
+        await supabase
+          .from('delivery_partner_pool')
+          .update({ user_id: user.id })
+          .eq('id', data.id);
+        data.user_id = user.id;
+      }
+
       return data;
     },
     enabled: !!effectiveSocietyId && !!user,
@@ -156,7 +166,7 @@ export default function DeliveryPartnerDashboardPage() {
     const { error } = await supabase
       .from('delivery_assignments')
       .update({
-        partner_id: partnerProfile.id,
+        rider_id: partnerProfile.id,
         status: 'assigned',
         rider_name: partnerProfile.name,
         rider_phone: partnerProfile.phone,

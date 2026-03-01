@@ -27,10 +27,42 @@ export function useOrderDetail(id: string | undefined) {
 
   useUrgentOrderSound(!!isUrgentOrder);
 
-  // Category-driven status flow
+  // Category-driven status flow — derive parent_group from product category as fallback
   const sellerPrimaryGroup = seller?.primary_group;
   const orderType = (order as any)?.order_type;
-  const { flow } = useCategoryStatusFlow(sellerPrimaryGroup, orderType);
+  const [derivedParentGroup, setDerivedParentGroup] = useState<string | null>(null);
+
+  // When seller has no primary_group, derive it from the order's product category
+  // This ensures UI and DB trigger use the same flow derivation
+  useEffect(() => {
+    if (sellerPrimaryGroup || !order?.id) return;
+    (async () => {
+      const { data } = await supabase
+        .from('order_items')
+        .select('product_id')
+        .eq('order_id', order.id)
+        .limit(1)
+        .maybeSingle();
+      if (!data?.product_id) return;
+      const { data: product } = await supabase
+        .from('products')
+        .select('category')
+        .eq('id', data.product_id)
+        .single();
+      if (!product?.category) return;
+      const { data: catConfig } = await supabase
+        .from('category_config')
+        .select('parent_group')
+        .eq('category', product.category)
+        .single();
+      if (catConfig?.parent_group) {
+        setDerivedParentGroup(catConfig.parent_group);
+      }
+    })();
+  }, [sellerPrimaryGroup, order?.id]);
+
+  const effectiveParentGroup = sellerPrimaryGroup || derivedParentGroup;
+  const { flow } = useCategoryStatusFlow(effectiveParentGroup, orderType);
 
   // Derive timeline and next status from flow
   const timelineSteps = useMemo(() => getTimelineSteps(flow), [flow]);

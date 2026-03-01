@@ -1365,6 +1365,7 @@ export type Database = {
           partner_payout: number
           pickup_at: string | null
           platform_margin: number
+          rider_id: string | null
           rider_name: string | null
           rider_phone: string | null
           rider_photo_url: string | null
@@ -1401,6 +1402,7 @@ export type Database = {
           partner_payout?: number
           pickup_at?: string | null
           platform_margin?: number
+          rider_id?: string | null
           rider_name?: string | null
           rider_phone?: string | null
           rider_photo_url?: string | null
@@ -1437,6 +1439,7 @@ export type Database = {
           partner_payout?: number
           pickup_at?: string | null
           platform_margin?: number
+          rider_id?: string | null
           rider_name?: string | null
           rider_phone?: string | null
           rider_photo_url?: string | null
@@ -1465,6 +1468,13 @@ export type Database = {
             columns: ["partner_id"]
             isOneToOne: false
             referencedRelation: "delivery_partners"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "delivery_assignments_rider_id_fkey"
+            columns: ["rider_id"]
+            isOneToOne: false
+            referencedRelation: "delivery_partner_pool"
             referencedColumns: ["id"]
           },
           {
@@ -1534,6 +1544,7 @@ export type Database = {
           society_id: string
           total_deliveries: number | null
           updated_at: string
+          user_id: string | null
           vehicle_number: string | null
           vehicle_type: string | null
         }
@@ -1550,6 +1561,7 @@ export type Database = {
           society_id: string
           total_deliveries?: number | null
           updated_at?: string
+          user_id?: string | null
           vehicle_number?: string | null
           vehicle_type?: string | null
         }
@@ -1566,6 +1578,7 @@ export type Database = {
           society_id?: string
           total_deliveries?: number | null
           updated_at?: string
+          user_id?: string | null
           vehicle_number?: string | null
           vehicle_type?: string | null
         }

@@ -26,24 +26,17 @@ function getProximity(distanceMeters: number): 'at_doorstep' | 'arriving' | 'nea
 
 /** ETA in minutes with state-based overrides */
 function calculateEta(distanceMeters: number, speedKmh: number | null, accuracyMeters: number | null): { eta: number | null; skipUpdate: boolean } {
-  // GAP 4: If GPS accuracy is terrible, skip ETA update to avoid wild swings
   if (accuracyMeters != null && accuracyMeters > 100) {
     return { eta: null, skipUpdate: true };
   }
-
   const speed = speedKmh ?? 0;
-
-  // Close + slow → arriving
   if (speed < 2 && distanceMeters < 200) {
     return { eta: 1, skipUpdate: false };
   }
-
-  // Stopped but far → use default 15 km/h, don't spike ETA
   const effectiveSpeed = speed > 2 ? speed : 15;
   const roadFactor = 1.3;
   const distKm = (distanceMeters * roadFactor) / 1000;
   const etaMin = Math.max(1, Math.round((distKm / effectiveSpeed) * 60));
-
   return { eta: etaMin, skipUpdate: false };
 }
 
@@ -53,7 +46,7 @@ serve(async (req) => {
   }
 
   try {
-    // GAP 1 FIX: Authenticate the caller
+    // Authenticate the caller via JWT
     const authHeader = req.headers.get('Authorization');
     if (!authHeader?.startsWith('Bearer ')) {
       return new Response(JSON.stringify({ error: 'Unauthorized' }), {
@@ -66,19 +59,18 @@ serve(async (req) => {
     const anonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
     const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
-    // Verify JWT and extract user ID
+    // Verify JWT using getUser (standard Supabase pattern)
     const authClient = createClient(supabaseUrl, anonKey, {
       global: { headers: { Authorization: authHeader } },
     });
-    const token = authHeader.replace('Bearer ', '');
-    const { data: claimsData, error: claimsError } = await authClient.auth.getClaims(token);
-    if (claimsError || !claimsData?.claims) {
+    const { data: { user: authUser }, error: authError } = await authClient.auth.getUser();
+    if (authError || !authUser) {
       return new Response(JSON.stringify({ error: 'Unauthorized' }), {
         status: 401,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
-    const callerId = claimsData.claims.sub;
+    const callerId = authUser.id;
 
     const supabase = createClient(supabaseUrl, serviceKey);
 
@@ -91,10 +83,10 @@ serve(async (req) => {
       });
     }
 
-    // Get assignment
+    // Get assignment including rider_id for auth check
     const { data: assignment, error: aErr } = await supabase
       .from('delivery_assignments')
-      .select('id, status, order_id, society_id, partner_id, last_location_at, stalled_notified')
+      .select('id, status, order_id, society_id, partner_id, rider_id, last_location_at, stalled_notified')
       .eq('id', assignment_id)
       .single();
 
@@ -112,20 +104,29 @@ serve(async (req) => {
       });
     }
 
-    // GAP 1 FIX: Validate caller is the assigned delivery partner
-    if (assignment.partner_id && assignment.partner_id !== callerId) {
-      return new Response(JSON.stringify({ error: 'Forbidden: not assigned partner' }), {
-        status: 403,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
+    // Auth check: verify caller is the assigned rider via rider_id → pool → user_id
+    if (assignment.rider_id) {
+      const { data: poolRider } = await supabase
+        .from('delivery_partner_pool')
+        .select('user_id')
+        .eq('id', assignment.rider_id)
+        .single();
+
+      if (!poolRider?.user_id || poolRider.user_id !== callerId) {
+        return new Response(JSON.stringify({ error: 'Forbidden: not assigned rider' }), {
+          status: 403,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
     }
+    // If no rider_id set (3PL or unassigned), allow — 3PL uses external tracking
 
     // Insert location record
     const { error: locErr } = await supabase
       .from('delivery_locations')
       .insert({
         assignment_id,
-        partner_id: assignment.partner_id || '00000000-0000-0000-0000-000000000000',
+        partner_id: callerId,
         latitude,
         longitude,
         speed_kmh,
@@ -166,7 +167,6 @@ serve(async (req) => {
       last_location_at: now,
       distance_meters: distanceMeters,
     };
-    // Only update ETA if accuracy is acceptable
     if (!skipEtaUpdate && etaMinutes != null) {
       updateData.eta_minutes = etaMinutes;
     }
@@ -176,7 +176,7 @@ serve(async (req) => {
       .update(updateData)
       .eq('id', assignment_id);
 
-    // GAP 5: Stale detection — check if previous update was >3 min ago
+    // Stale detection — check if previous update was >3 min ago
     if (
       assignment.last_location_at &&
       !assignment.stalled_notified &&
@@ -185,7 +185,6 @@ serve(async (req) => {
       const lastAt = new Date(assignment.last_location_at).getTime();
       const staleDiffMs = Date.now() - lastAt;
       if (staleDiffMs > 3 * 60 * 1000) {
-        // Notify buyer about potential delay
         const { data: order } = await supabase
           .from('orders')
           .select('buyer_id')
@@ -204,7 +203,6 @@ serve(async (req) => {
           supabase.functions.invoke('process-notification-queue').catch(() => {});
         }
 
-        // Mark stalled_notified so we don't spam
         await supabase
           .from('delivery_assignments')
           .update({ stalled_notified: true })
