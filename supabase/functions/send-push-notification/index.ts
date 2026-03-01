@@ -134,7 +134,6 @@ async function sendFCMNotification(
         priority: "high",
         notification: {
           sound: "default",
-          click_action: "FLUTTER_NOTIFICATION_CLICK",
         },
       },
     },
