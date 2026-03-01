@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ReviewForm } from '@/components/review/ReviewForm';
 import { OrderChat } from '@/components/chat/OrderChat';
+import { OrderCancellation } from '@/components/order/OrderCancellation';
 import { ReorderButton } from '@/components/order/ReorderButton';
 import { UrgentOrderTimer } from '@/components/order/UrgentOrderTimer';
 import { OrderRejectionDialog } from '@/components/order/OrderRejectionDialog';
@@ -123,6 +124,9 @@ export default function OrderDetailPage() {
                 {order.status === 'completed' && '⭐ Completed. Thank you!'}
                 {order.status === 'scheduled' && '📅 Your booking is confirmed.'}
               </p>
+            )}
+            {o.isBuyerView && (
+              <OrderCancellation orderId={order.id} orderStatus={order.status} onCancelled={() => window.location.reload()} />
             )}
           </div>
 

@@ -151,10 +151,11 @@ export function useOrderDetail(id: string | undefined) {
         logAudit(`order_${newStatus}`, 'order', order.id, order.society_id, { old_status: order.status, new_status: newStatus, rejection_reason: rejectionReason });
       }
     } catch (error: any) {
-      console.error('Error updating order:', error);
-      const msg = error?.message?.includes('Invalid status transition')
+      console.error('Error updating order:', error, JSON.stringify(error));
+      const errMsg = error?.message || error?.details || '';
+      const msg = errMsg.includes('Invalid status transition')
         ? 'Invalid status transition — you cannot skip steps'
-        : 'Failed to update order';
+        : `Failed to update order: ${errMsg || 'Unknown error'}`;
       toast.error(msg);
     } finally {
       setIsUpdating(false);
