@@ -3854,6 +3854,7 @@ export type Database = {
           created_at: string | null
           email: string | null
           flat_number: string
+          has_seen_onboarding: boolean
           id: string
           name: string
           phase: string | null
@@ -3872,6 +3873,7 @@ export type Database = {
           created_at?: string | null
           email?: string | null
           flat_number: string
+          has_seen_onboarding?: boolean
           id: string
           name: string
           phase?: string | null
@@ -3890,6 +3892,7 @@ export type Database = {
           created_at?: string | null
           email?: string | null
           flat_number?: string
+          has_seen_onboarding?: boolean
           id?: string
           name?: string
           phase?: string | null
