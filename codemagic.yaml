@@ -48,6 +48,21 @@ workflows:
           rm -f Package.swift .package.resolved
           rm -rf .build
           rm -rf App.xcodeproj/project.xcworkspace/xcshareddata/swiftpm
+          # HARD FIX: also remove Swift Package refs from project.pbxproj itself
+          # so Firebase is not linked through both SPM and CocoaPods.
+          ruby - << 'RUBY'
+          require 'xcodeproj'
+          project = Xcodeproj::Project.open('App.xcodeproj')
+
+          project.targets.each do |target|
+            if target.respond_to?(:package_product_dependencies)
+              target.package_product_dependencies.to_a.each { |dep| dep.remove_from_project }
+            end
+          end
+
+          project.root_object.package_references.to_a.each { |ref| ref.remove_from_project }
+          project.save
+          RUBY
           # Generate Podfile with all Capacitor plugins + Firebase
           # CRITICAL: Capacitor 8 requires iOS 16.0 minimum
           cat > Podfile << 'PODFILE'
@@ -336,6 +351,21 @@ workflows:
           rm -f Package.swift .package.resolved
           rm -rf .build
           rm -rf App.xcodeproj/project.xcworkspace/xcshareddata/swiftpm
+          # HARD FIX: also remove Swift Package refs from project.pbxproj itself
+          # so Firebase is not linked through both SPM and CocoaPods.
+          ruby - << 'RUBY'
+          require 'xcodeproj'
+          project = Xcodeproj::Project.open('App.xcodeproj')
+
+          project.targets.each do |target|
+            if target.respond_to?(:package_product_dependencies)
+              target.package_product_dependencies.to_a.each { |dep| dep.remove_from_project }
+            end
+          end
+
+          project.root_object.package_references.to_a.each { |ref| ref.remove_from_project }
+          project.save
+          RUBY
           cat > Podfile << 'PODFILE'
           require_relative '../../node_modules/@capacitor/ios/scripts/pods_helpers'
 
