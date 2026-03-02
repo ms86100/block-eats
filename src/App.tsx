@@ -55,6 +55,7 @@ const PricingPage = lazy(() => import("./pages/PricingPage"));
 const HelpPage = lazy(() => import("./pages/HelpPage"));
 const NotificationsPage = lazy(() => import("./pages/NotificationsPage"));
 const CommunityRulesPage = lazy(() => import("./pages/CommunityRulesPage"));
+const PushDebugPage = lazy(() => import("./pages/PushDebugPage"));
 const BulletinPage = lazy(() => import("./pages/BulletinPage"));
 const MySubscriptionsPage = lazy(() => import("./pages/MySubscriptionsPage"));
 const TrustDirectoryPage = lazy(() => import("./pages/TrustDirectoryPage"));
@@ -392,7 +393,8 @@ function AppRoutes() {
         <Route path="/refund-policy" element={<RefundPolicyPage />} />
         <Route path="/help" element={<ProtectedRoute><HelpPage /></ProtectedRoute>} />
         <Route path="/notifications" element={<ProtectedRoute><NotificationsPage /></ProtectedRoute>} />
-        <Route path="/community-rules" element={<CommunityRulesPage />} />
+         <Route path="/community-rules" element={<CommunityRulesPage />} />
+        <Route path="/push-debug" element={<ProtectedRoute><PushDebugPage /></ProtectedRoute>} />
         <Route path="*" element={<NotFound />} />
       </Routes>
     </Suspense>
