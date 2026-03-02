@@ -41,16 +41,9 @@ export default function NotificationsPage() {
 
     const checkPermission = async () => {
       try {
-        const platform = Capacitor.getPlatform();
-        if (platform === 'ios') {
-          const { FirebaseMessaging } = await import('@capacitor-firebase/messaging');
-          const result = await FirebaseMessaging.checkPermissions();
-          setOsPermission(result.receive as 'granted' | 'denied' | 'prompt');
-        } else {
-          const { PushNotifications } = await import('@capacitor/push-notifications');
-          const result = await PushNotifications.checkPermissions();
-          setOsPermission(result.receive as 'granted' | 'denied' | 'prompt');
-        }
+        const { PushNotifications } = await import('@capacitor/push-notifications');
+        const result = await PushNotifications.checkPermissions();
+        setOsPermission(result.receive as 'granted' | 'denied' | 'prompt');
       } catch {
         setOsPermission('granted');
       }
@@ -195,19 +188,10 @@ export default function NotificationsPage() {
           <button
             onClick={async () => {
               try {
-                // Use the hook's requestFullPermission — this is the ONLY path
-                // that triggers the iOS permission popup and APNs registration.
                 await requestFullPermission();
-                // Re-check after request
-                const platform = Capacitor.getPlatform();
-                let result;
-                if (platform === 'ios') {
-                  const { FirebaseMessaging } = await import('@capacitor-firebase/messaging');
-                  result = await FirebaseMessaging.checkPermissions();
-                } else {
-                  const { PushNotifications } = await import('@capacitor/push-notifications');
-                  result = await PushNotifications.checkPermissions();
-                }
+                // Re-check after request — unified PushNotifications for both platforms
+                const { PushNotifications } = await import('@capacitor/push-notifications');
+                const result = await PushNotifications.checkPermissions();
                 setOsPermission(result.receive as 'granted' | 'denied' | 'prompt');
                 if (result.receive === 'granted') {
                   toast.success('Notifications enabled!');
