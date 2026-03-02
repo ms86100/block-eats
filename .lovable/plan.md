@@ -1,62 +1,71 @@
 
+I hear your frustration, and you’re right to call this out. This is no longer a “try random changes” problem.
 
-## Analysis: `@capacitor-community/fcm` vs Current Approach
+## What I verified before planning
+- You are testing on a **physical iPhone**.
+- You already did **clean reinstall + sync**.
+- Current JS flow is using `PushNotifications + @capacitor-community/fcm`.
+- But the project still contains **`@capacitor-firebase/messaging`** in:
+  - `package.json`
+  - `codemagic.yaml` (explicit `CapacitorFirebaseMessaging` Pod injection)
 
-### What the repo reveals
+## Do I know what the issue is?
+Yes.
 
-`@capacitor-community/fcm` takes a fundamentally different approach from `@capacitor-firebase/messaging`:
+Your runtime flow and your native build wiring are currently mixed:
+- JS uses the community FCM path.
+- Native build still injects Firebase Messaging plugin wiring from the old strategy.
+- This keeps the iOS push stack in a conflicted state, which can produce exactly what you see: button cycles (“Enabling…” → “Turn On”) with no visible OS prompt.
 
-```text
-Current approach (@capacitor-firebase/messaging):
-  FirebaseMessaging.requestPermissions() → FirebaseMessaging.getToken()
-  (Firebase handles EVERYTHING via method swizzling)
+## Implementation plan (deterministic, not hit-and-trial)
 
-@capacitor-community/fcm approach:
-  PushNotifications.requestPermissions() → PushNotifications.register() → FCM.getToken()
-  (Native APNs registration first, THEN FCM converts the token)
-```
+1. **Remove old plugin completely from project dependencies**
+   - Delete `@capacitor-firebase/messaging` from `package.json`.
+   - Regenerate lockfile cleanly so it is truly removed.
 
-The README explicitly states:
-> "This plugin is intended to be used **combined** with Capacitor API for Push Notifications. Capacitor only provides APN token whereas this plugin offers the possibility to work with FCM tokens."
+2. **Remove old plugin from native CI wiring**
+   - Edit `codemagic.yaml`:
+     - Remove `CapacitorFirebaseMessaging` Pod lines in both iOS workflow Podfiles.
+     - Keep only `PushNotifications + FirebaseCore/FirebaseMessaging + community FCM strategy`.
+   - Ensure there is no leftover explicit plugin reference anywhere else.
 
-### Why this might fix our problem
+3. **Harden iOS permission flow to prevent silent reset**
+   - In `src/hooks/usePushNotifications.ts`:
+     - Keep single iOS path: `PushNotifications.requestPermissions()` → `PushNotifications.register()` → `FCM.getToken()`.
+     - Add explicit “no-plugin / unresolved permission” branch that sets a failure state (not silent return).
+     - If request result remains `prompt` after direct tap, surface this as a handled state (instead of silently bouncing UI).
 
-Our current `@capacitor-firebase/messaging` relies on Firebase's AppDelegate **method swizzling** to intercept the APNs token. If swizzling isn't working (misconfigured `Info.plist`, `FirebaseAppDelegateProxyEnabled` set to `NO`, or AppDelegate not calling `FirebaseApp.configure()` early enough), `FirebaseMessaging.requestPermissions()` resolves without actually triggering the OS prompt.
+4. **Make banner UX truthful and actionable**
+   - In `EnableNotificationsBanner.tsx` and `NotificationsPage.tsx`:
+     - If permission unresolved after tap, show “Open Settings” CTA with clear guidance.
+     - Keep loading state tied to a real completion/failure result.
+     - Avoid showing infinite “Turn On” loop without explanation.
 
-`@capacitor-community/fcm` bypasses this entirely:
-1. `PushNotifications.register()` does native APNs registration directly (no swizzling needed)
-2. `FCM.getToken()` then reads the FCM token that Firebase generates from the APNs token
+5. **Add temporary diagnostic logs for one test cycle**
+   - Add concise logs around:
+     - `checkPermissions()` before/after tap
+     - `requestPermissions()` result
+     - `register()` completion/error
+     - iOS `registration` event reception
+     - `FCM.getToken()` result/error
+   - This gives one-pass, objective evidence if anything still blocks.
 
-This is more robust because it separates the two concerns: OS permission/APNs registration vs FCM token retrieval.
+6. **Validation pass after implementation**
+   - Confirm behavior matrix:
+     - First install: prompt appears after tap.
+     - If denied: banner switches to settings CTA.
+     - If granted: token saved to `device_tokens`.
+     - Relaunch: no false prompt loop.
 
-### Proposed change
+## Files to update
+- `package.json`
+- `package-lock.json` (or active lockfile)
+- `codemagic.yaml`
+- `src/hooks/usePushNotifications.ts`
+- `src/components/notifications/EnableNotificationsBanner.tsx`
+- `src/pages/NotificationsPage.tsx`
 
-**Replace `@capacitor-firebase/messaging` with `@capacitor-community/fcm` for iOS token retrieval only.**
-
-In `src/hooks/usePushNotifications.ts`:
-
-1. **Install**: Add `@capacitor-community/fcm` as a dependency
-2. **iOS registration flow becomes**:
-   ```
-   PushNotifications.requestPermissions()
-   PushNotifications.register()
-   // Wait for 'registration' event (APNs token)
-   FCM.getToken() → FCM token for backend
-   ```
-3. **Keep `PushNotifications` for both platforms** (no more platform-split logic for permissions)
-4. **Remove `@capacitor-firebase/messaging` imports** from the registration flow (keep only if needed for `notificationReceived` listeners, or switch those to `PushNotifications` listeners too)
-5. **Simplify**: Both iOS and Android use the same `PushNotifications` flow for permissions + registration; only the token retrieval differs (Android gets FCM token from `registration` event directly, iOS needs `FCM.getToken()`)
-
-### Files changed
-
-- `src/hooks/usePushNotifications.ts` — rewrite registration to use unified `PushNotifications` + `FCM.getToken()` pattern
-- `src/pages/NotificationsPage.tsx` — revert permission checks back to `PushNotifications.checkPermissions()` for both platforms (simpler)
-- No native file changes needed (the plugin handles it via `npx cap sync`)
-
-### What stays the same
-
-- Database schema, RLS, edge functions — all correct
-- `EnableNotificationsBanner.tsx` — unchanged
-- `PushNotificationProvider.tsx` — unchanged
-- Android flow — largely unchanged (already works)
-
+## Technical details (for transparency)
+- Conflict is not in app UI alone; it is in **native plugin composition**.
+- Removing JS imports is not enough if the old plugin still gets bundled through dependency + Pod injection.
+- This fix aligns all layers (dependency, native build, runtime flow, and UI state handling) to one consistent iOS strategy.
