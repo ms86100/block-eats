@@ -158,8 +158,10 @@ async function sendFCMNotification(
       body: JSON.stringify(message),
     });
 
+    const responseText = await response.text();
+
     if (!response.ok) {
-      const errorText = await response.text();
+      const errorText = responseText;
       console.error(`[DIAG] FCM error (${response.status}): ${errorText}`);
       let errorData: any;
       try { errorData = JSON.parse(errorText); } catch { errorData = { raw: errorText }; }
@@ -177,6 +179,7 @@ async function sendFCMNotification(
       return { success: false, error: JSON.stringify(errorData) };
     }
 
+    console.log(`[DIAG] FCM success (${response.status}): ${responseText.substring(0, 300)}`);
     return { success: true };
   } catch (error) {
     console.error("FCM request failed:", error);
