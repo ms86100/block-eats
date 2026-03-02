@@ -510,6 +510,12 @@ export function usePushNotificationsInternal() {
       const registrationErrorListener = PN.addListener('registrationError', (error) => {
         try {
           console.error(`[Push][${platform}] registrationError:`, JSON.stringify(error));
+          pushLog('error', 'registrationError event', {
+            platform,
+            error,
+            appState: document.visibilityState,
+            at: new Date().toISOString(),
+          });
           lastErrorRef.current = error;
           markFailed();
         } catch (err) {
@@ -523,6 +529,14 @@ export function usePushNotificationsInternal() {
         try {
           console.log(`[Push][${platform}] Foreground notification received:`, JSON.stringify(notification));
           const data = notification.data as Record<string, string> | undefined;
+          pushLog('info', 'pushNotificationReceived event', {
+            platform,
+            title: notification.title,
+            body: notification.body,
+            data,
+            appState: document.visibilityState,
+            at: new Date().toISOString(),
+          });
           handleForegroundNotification(notification.title || '', notification.body || '', data);
         } catch (err) {
           console.error(`[Push][${platform}] pushNotificationReceived listener exception:`, err);
@@ -535,6 +549,13 @@ export function usePushNotificationsInternal() {
         try {
           console.log(`[Push][${platform}] Action performed:`, JSON.stringify(notification));
           const data = notification.notification.data as Record<string, string> | undefined;
+          pushLog('info', 'pushNotificationActionPerformed event', {
+            platform,
+            actionId: notification.actionId,
+            data,
+            appState: document.visibilityState,
+            at: new Date().toISOString(),
+          });
           handleNotificationAction(data);
         } catch (err) {
           console.error(`[Push][${platform}] pushNotificationActionPerformed listener exception:`, err);
@@ -578,6 +599,13 @@ export function usePushNotificationsInternal() {
 
             const state = registrationStateRef.current;
             console.log(`[Push] App resumed — regState: ${state}, token: ${tokenRef.current ? 'yes' : 'null'}, user: ${userRef.current?.id ?? 'null'}`);
+            pushLog('info', 'appStateChange active', {
+              platform,
+              regState: state,
+              hasToken: Boolean(tokenRef.current),
+              userId: userRef.current?.id ?? null,
+              at: new Date().toISOString(),
+            });
 
             if (state === 'registered') return;
 
@@ -589,6 +617,11 @@ export function usePushNotificationsInternal() {
               resumePermission = p.receive;
             }
             console.log(`[Push] Resume permission check: ${resumePermission}`);
+            pushLog('info', 'resume permission check', {
+              platform,
+              permission: resumePermission,
+              at: new Date().toISOString(),
+            });
 
             if (resumePermission === 'granted' && userRef.current) {
               setPermissionStatus('granted');
