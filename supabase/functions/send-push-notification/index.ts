@@ -146,12 +146,15 @@ async function sendFCMNotification(
   };
 
   try {
+    console.log(`[DIAG] Access token length: ${accessToken.length}, starts with: ${accessToken.substring(0, 20)}...`);
+    const headers: Record<string, string> = {
+      "Authorization": `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+    };
+    console.log(`[DIAG] Auth header: Bearer ${accessToken.substring(0, 30)}...`);
     const response = await fetch(fcmUrl, {
       method: "POST",
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        "Content-Type": "application/json",
-      },
+      headers,
       body: JSON.stringify(message),
     });
 
