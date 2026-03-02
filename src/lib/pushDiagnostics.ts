@@ -131,7 +131,7 @@ export async function runPushDiagnostics(userId?: string): Promise<DiagnosticRes
           user_id: userId,
           title: '🔔 Push Diagnostics',
           body: 'If you see this, push notifications are working!',
-          data: { type: 'diagnostic' },
+          payload: { type: 'diagnostic' },
           status: 'pending',
         }).select('id').single();
         
