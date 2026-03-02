@@ -3,6 +3,7 @@ import { BottomNav } from './BottomNav';
 import { Header } from './Header';
 import { FloatingCartBar } from '@/components/cart/FloatingCartBar';
 import { NavigatorBackButton } from '@/components/admin/NavigatorBackButton';
+import { EnableNotificationsBanner } from '@/components/notifications/EnableNotificationsBanner';
 import { cn } from '@/lib/utils';
 
 interface AppLayoutProps {
@@ -36,7 +37,10 @@ export function AppLayout({
           title={headerTitle} 
         />
       )}
-      <main className={cn('pb-24', className)}>{children}</main>
+      <main className={cn('pb-24', className)}>
+        <EnableNotificationsBanner />
+        {children}
+      </main>
       <NavigatorBackButton />
       {showCart && <FloatingCartBar />}
       {showNav && <BottomNav />}
