@@ -1,41 +1,62 @@
 
 
-## Diagnosis
+## Analysis: `@capacitor-community/fcm` vs Current Approach
 
-The article is explicit: **remove `@capacitor/push-notifications` entirely** when using `@capacitor-firebase/messaging`. Our code still imports and uses the legacy plugin for:
+### What the repo reveals
 
-1. **Foreground notification listener** (line 427) — `PushNotifications.addListener('pushNotificationReceived', …)`
-2. **Action performed listener** (line 476) — `PushNotifications.addListener('pushNotificationActionPerformed', …)`
+`@capacitor-community/fcm` takes a fundamentally different approach from `@capacitor-firebase/messaging`:
 
-Both plugins register as APNs delegates via method swizzling on iOS. When both are active, they **conflict** — the legacy plugin intercepts the APNs delegate methods before Firebase can, which means:
-- `FirebaseMessaging.requestPermissions()` may resolve without actually triggering the OS prompt (because the legacy plugin already intercepted the delegate)
-- Even if a token is generated, Firebase's swizzling never sees it
+```text
+Current approach (@capacitor-firebase/messaging):
+  FirebaseMessaging.requestPermissions() → FirebaseMessaging.getToken()
+  (Firebase handles EVERYTHING via method swizzling)
 
-This is why the button shows "Enabling…" then resets — `requestPermissions()` completes but no popup appears, and the permission stays `prompt`.
+@capacitor-community/fcm approach:
+  PushNotifications.requestPermissions() → PushNotifications.register() → FCM.getToken()
+  (Native APNs registration first, THEN FCM converts the token)
+```
 
-## Fix
+The README explicitly states:
+> "This plugin is intended to be used **combined** with Capacitor API for Push Notifications. Capacitor only provides APN token whereas this plugin offers the possibility to work with FCM tokens."
 
-**Fully remove `@capacitor/push-notifications` usage on iOS.** Use `FirebaseMessaging` for ALL listeners too.
+### Why this might fix our problem
 
-### Changes in `src/hooks/usePushNotifications.ts`
+Our current `@capacitor-firebase/messaging` relies on Firebase's AppDelegate **method swizzling** to intercept the APNs token. If swizzling isn't working (misconfigured `Info.plist`, `FirebaseAppDelegateProxyEnabled` set to `NO`, or AppDelegate not calling `FirebaseApp.configure()` early enough), `FirebaseMessaging.requestPermissions()` resolves without actually triggering the OS prompt.
 
-1. **Conditional import**: Only import `PushNotifications` for Android (or remove the top-level import entirely, use dynamic import)
-2. **iOS foreground listener**: Replace `PushNotifications.addListener('pushNotificationReceived', …)` with `FirebaseMessaging.addListener('notificationReceived', …)` — the event name differs
-3. **iOS action listener**: Replace `PushNotifications.addListener('pushNotificationActionPerformed', …)` with `FirebaseMessaging.addListener('notificationActionPerformed', …)`
-4. **Platform guard all remaining `PushNotifications` calls**: Wrap every `PushNotifications.*` call in `if (platform !== 'ios')` checks so the legacy plugin is never invoked on iOS
+`@capacitor-community/fcm` bypasses this entirely:
+1. `PushNotifications.register()` does native APNs registration directly (no swizzling needed)
+2. `FCM.getToken()` then reads the FCM token that Firebase generates from the APNs token
 
-### Listener event name mapping
+This is more robust because it separates the two concerns: OS permission/APNs registration vs FCM token retrieval.
 
-| Legacy (`@capacitor/push-notifications`) | Firebase (`@capacitor-firebase/messaging`) |
-|---|---|
-| `pushNotificationReceived` | `notificationReceived` |
-| `pushNotificationActionPerformed` | `notificationActionPerformed` |
-| `registration` | `tokenReceived` |
+### Proposed change
 
-The iOS `tokenReceived` listener (line 361) is already set up correctly. The two remaining legacy listeners (foreground + action) need to switch.
+**Replace `@capacitor-firebase/messaging` with `@capacitor-community/fcm` for iOS token retrieval only.**
 
-### No other files change
-- Database, RLS, edge functions — all correct
-- `EnableNotificationsBanner.tsx`, `NotificationsPage.tsx` — unchanged (they call `requestFullPermission` which is already fixed)
-- The user should **not** need to uninstall `@capacitor/push-notifications` from npm since Android still uses it. But on iOS, we ensure it's never called.
+In `src/hooks/usePushNotifications.ts`:
+
+1. **Install**: Add `@capacitor-community/fcm` as a dependency
+2. **iOS registration flow becomes**:
+   ```
+   PushNotifications.requestPermissions()
+   PushNotifications.register()
+   // Wait for 'registration' event (APNs token)
+   FCM.getToken() → FCM token for backend
+   ```
+3. **Keep `PushNotifications` for both platforms** (no more platform-split logic for permissions)
+4. **Remove `@capacitor-firebase/messaging` imports** from the registration flow (keep only if needed for `notificationReceived` listeners, or switch those to `PushNotifications` listeners too)
+5. **Simplify**: Both iOS and Android use the same `PushNotifications` flow for permissions + registration; only the token retrieval differs (Android gets FCM token from `registration` event directly, iOS needs `FCM.getToken()`)
+
+### Files changed
+
+- `src/hooks/usePushNotifications.ts` — rewrite registration to use unified `PushNotifications` + `FCM.getToken()` pattern
+- `src/pages/NotificationsPage.tsx` — revert permission checks back to `PushNotifications.checkPermissions()` for both platforms (simpler)
+- No native file changes needed (the plugin handles it via `npx cap sync`)
+
+### What stays the same
+
+- Database schema, RLS, edge functions — all correct
+- `EnableNotificationsBanner.tsx` — unchanged
+- `PushNotificationProvider.tsx` — unchanged
+- Android flow — largely unchanged (already works)
 
