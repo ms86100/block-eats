@@ -6,6 +6,7 @@ import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { hapticNotification } from '@/lib/haptics';
 import { getPushStage, setPushStage } from '@/lib/pushPermissionStage';
+import { pushLog, setLogUser } from '@/lib/pushLogger';
 
 /**
  * NEW APPROACH: Uses @capacitor/push-notifications for permissions + registration
@@ -115,6 +116,12 @@ export function usePushNotificationsInternal() {
   const markFailed = useCallback(() => {
     registrationStateRef.current = 'failed';
     clearWatchdog();
+    pushLog('error', 'Registration FAILED after retries', {
+      platform: Capacitor.getPlatform(),
+      permissionStatus: permissionStatusRef.current,
+      retries: retryCountRef.current,
+      lastError: String(lastErrorRef.current),
+    });
     emitDiagnostic();
   }, [clearWatchdog, emitDiagnostic]);
 
@@ -203,6 +210,7 @@ export function usePushNotificationsInternal() {
     clearWatchdog();
     registrationStateRef.current = 'registered';
     retryCountRef.current = 0;
+    pushLog('info', `✓ Valid token obtained: ${tokenValue.substring(0, 20)}…`, { length: tokenValue.length });
 
     setToken(tokenValue);
     tokenRef.current = tokenValue;
@@ -229,7 +237,7 @@ export function usePushNotificationsInternal() {
     registrationStateRef.current = 'registering';
     const attempt = retryCountRef.current + 1;
     const platform = Capacitor.getPlatform();
-    console.log(`[Push] ▶ attemptRegistration — attempt ${attempt}/${MAX_RETRIES}, platform: ${platform}`);
+    pushLog('info', `attemptRegistration — attempt ${attempt}/${MAX_RETRIES}`, { platform });
 
     if (!Capacitor.isNativePlatform()) {
       console.log('[Push] Skipping — not a native platform');
@@ -247,14 +255,14 @@ export function usePushNotificationsInternal() {
       if (permStatus.receive === 'prompt') {
         console.log(`[Push][${platform}] ▶ Calling requestPermissions()…`);
         permStatus = await PN.requestPermissions();
-        console.log(`[Push][${platform}] ▶ requestPermissions result:`, permStatus.receive);
+        pushLog('info', `requestPermissions result: ${permStatus.receive}`, { platform });
       }
 
       if (permStatus.receive !== 'granted') {
         const isDenied = permStatus.receive === 'denied';
         setPermissionStatus(isDenied ? 'denied' : 'prompt');
         registrationStateRef.current = 'idle';
-        console.log(`[Push][${platform}] Permission not granted (${permStatus.receive}) — staying idle`);
+        pushLog('warn', `Permission not granted (${permStatus.receive})`, { platform });
         return;
       }
 
@@ -582,9 +590,10 @@ export function usePushNotificationsInternal() {
 
     // ── Auto-prompt on first login; silent re-register if already granted ──
     if (user) {
+      setLogUser(user.id);
       setTimeout(async () => {
         const stage = await getPushStage();
-        console.log(`[Push] Push stage on login: ${stage}`);
+        pushLog('info', `Push stage on login: ${stage}`, { platform });
 
         if (stage === 'full') {
           const PN = await getPushNotificationsPlugin();
@@ -594,17 +603,16 @@ export function usePushNotificationsInternal() {
             loginPerm = p.receive;
           }
           if (loginPerm === 'granted') {
-            console.log('[Push] Stage full + permission granted — silent re-registration');
+            pushLog('info', 'Stage full + permission granted — silent re-registration');
             registrationStateRef.current = 'idle';
             retryCountRef.current = 0;
             attemptRegistration();
           } else {
-            console.log(`[Push] Stage full but permission ${loginPerm} — waiting for user action`);
+            pushLog('warn', `Stage full but permission ${loginPerm} — waiting for user action`);
             setPermissionStatus(loginPerm === 'denied' ? 'denied' : 'prompt');
           }
         } else if (stage === 'none' || stage === 'deferred') {
-          // AUTO-PROMPT: Request permission on first login
-          console.log('[Push] First login — auto-requesting notification permission');
+          pushLog('info', 'First login — auto-requesting notification permission');
           await setPushStage('full');
           registrationStateRef.current = 'idle';
           retryCountRef.current = 0;
